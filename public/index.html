@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerenciador de Orçamentos | Liberação GEOR</title>
+  <meta name="description" content="Plataforma Corporativa para Gestão de Orçamentos e Liberação GEOR.">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body>
+
+  <!-- HEADER / NAVBAR -->
+  <header class="header-navbar">
+    <div class="brand-wrapper">
+      <a href="/" style="display: flex; align-items: center; gap: 0.65rem; text-decoration: none;">
+        <div style="width: 36px; height: 36px; border-radius: 9px; background: linear-gradient(135deg, var(--tke-purple), var(--tke-magenta)); display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 1.15rem; box-shadow: 0 2px 8px rgba(98, 0, 234, 0.25);">
+          <i class="bi bi-file-earmark-spreadsheet-fill"></i>
+        </div>
+        <div>
+          <div style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.05rem; line-height: 1.15; letter-spacing: -0.01em; color: var(--text-primary);">Gerenciador de Orçamentos</div>
+          <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Liberação GEOR</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="nav-actions">
+
+      <!-- Toggle Dark Mode -->
+      <button id="theme-toggle-btn" class="btn btn-secondary btn-icon-only" title="Alternar Modo Escuro / Claro">
+        <i class="bi bi-moon-stars-fill"></i>
+      </button>
+
+      <!-- Avatar com Inicial do Usuário Logado -->
+      <div class="user-profile-badge">
+        <div class="user-avatar" id="nav-user-avatar">U</div>
+      </div>
+
+      <!-- Botão Logout -->
+      <button id="btn-logout" class="btn btn-secondary btn-sm" title="Encerrar Sessão">
+        <i class="bi bi-box-arrow-right"></i>
+        <span>Sair</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- BANNER PANORÂMICO CORPORATIVO TKE -->
+  <section class="tke-panoramic-hero">
+    <h1 class="tke-elevadores-title">PAINEL DE ORÇAMENTOS</h1>
+  </section>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <main class="main-container">
+    
+    <!-- BARRA DE NAVEGAÇÃO PRINCIPAL (ABAS DE MÓDULOS TKE) -->
+    <div class="main-nav-tabs-bar">
+      <button type="button" class="main-tab-btn active" id="tab-nav-orcamentos">
+        <i class="bi bi-file-earmark-text-fill"></i>
+        <span>Painel de gestão de Orçamentos</span>
+      </button>
+      <button type="button" class="main-tab-btn" id="tab-nav-premiacao">
+        <i class="bi bi-trophy-fill" style="color: #F59E0B;"></i>
+        <span>Apuração de resultado</span>
+      </button>
+      <button type="button" class="main-tab-btn" id="tab-nav-usuarios" style="display: none;">
+        <i class="bi bi-people-fill" style="color: var(--tke-purple);"></i>
+        <span>Gestão de Acesso</span>
+      </button>
+    </div>
+
+    <!-- =====================================================================
+         VIEW 1: PAINEL OPERACIONAL DE ORÇAMENTOS & PGOs
+         ===================================================================== -->
+    <div id="view-orcamentos" class="main-view-tab">
+      
+      <!-- CABEÇALHO DO PAINEL COM AÇÕES RÁPIDAS -->
+      <div class="page-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+        <div class="page-title">
+          <p style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500;">Acompanhamento em tempo real e liberação GEOR de orçamentos.</p>
+        </div>
+
+        <div class="tke-editorial-actions" style="display: flex; gap: 0.6rem; align-items: center;">
+          <button id="btn-sync-data" class="btn btn-secondary" style="font-weight: 700; display: flex; align-items: center; gap: 0.45rem; padding: 0.55rem 0.95rem;" title="Sincronizar dados com o servidor imediatamente">
+            <i class="bi bi-arrow-repeat" id="icon-sync-data"></i>
+            <span>Sincronizar</span>
+          </button>
+          <button id="btn-new-orcamento" class="btn-tke-cta">
+            <i class="bi bi-plus-circle-fill"></i>
+            <span>Novo Orçamento</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- CARDS DE KPIs (MÉTRICAS TKE) -->
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-total">
+          <div class="kpi-content">
+            <h4>Total de Orçamentos</h4>
+            <div class="kpi-value" id="kpi-total">0</div>
+          </div>
+          <div class="kpi-icon">
+            <i class="bi bi-folder2-open"></i>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-geor-wait">
+          <div class="kpi-content">
+            <h4>Aguardando GEOR</h4>
+            <div class="kpi-value" id="kpi-geor-wait">0</div>
+          </div>
+          <div class="kpi-icon">
+            <i class="bi bi-hourglass-split"></i>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-geor-ok">
+          <div class="kpi-content">
+            <h4>Liberados pelo GEOR</h4>
+            <div class="kpi-value" id="kpi-geor-ok">0</div>
+          </div>
+          <div class="kpi-icon">
+            <i class="bi bi-check2-circle"></i>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-sent">
+          <div class="kpi-content">
+            <h4>Enviados ao Cliente</h4>
+            <div class="kpi-value" id="kpi-sent">0</div>
+          </div>
+          <div class="kpi-icon">
+            <i class="bi bi-send-check-fill"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAINEL DE FILTROS TKE -->
+      <div class="filter-panel">
+        <div class="filter-grid">
+          <div class="form-group">
+            <label for="filter-search"><i class="bi bi-search"></i> Busca Rápida</label>
+            <input 
+              type="text" 
+              id="filter-search" 
+              class="form-control" 
+              placeholder="Pesquisar por PGO, Orçamento, Serviço, Cliente, Contrato ou Técnico..."
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="filter-g-origem"><i class="bi bi-tag-fill"></i> G de Origem</label>
+            <select id="filter-g-origem" class="form-control">
+              <option value="">Todos os Gs</option>
+              <option value="G11">G11</option>
+              <option value="G06">G06</option>
+              <option value="G05">G05</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="filter-status"><i class="bi bi-flag"></i> Status</label>
+            <select id="filter-status" class="form-control">
+              <option value="">Todos os Status</option>
+              <option value="Aberto">Aberto</option>
+              <option value="Em Análise">Em Análise</option>
+              <option value="Aguardando GEOR">Aguardando GEOR</option>
+              <option value="Liberado GEOR">Liberado GEOR</option>
+              <option value="Enviado ao Cliente">Enviado ao Cliente</option>
+              <option value="Aprovado pelo Cliente">Aprovado pelo Cliente</option>
+              <option value="Concluído">Concluído</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="filter-geor"><i class="bi bi-shield-check"></i> GEOR Liberou</label>
+            <select id="filter-geor" class="form-control">
+              <option value="">Todos</option>
+              <option value="Sim">Sim</option>
+              <option value="Não">Não</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="justify-content: flex-end;">
+            <button id="btn-clear-filters" class="btn btn-secondary" title="Limpar Filtros">
+              <i class="bi bi-arrow-counterclockwise"></i>
+              <span>Limpar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TABELA DE ORÇAMENTOS -->
+      <div class="table-container">
+        <div class="table-responsive">
+          <table class="corporate-table">
+            <thead>
+              <tr>
+                <th>ID / PGO</th>
+                <th>G Origem</th>
+                <th>Tipo</th>
+                <th>Contrato / Cliente</th>
+                <th>Técnico Responsável</th>
+                <th>Nº Orçamento</th>
+                <th>Descrição do Serviço</th>
+                <th>Data Liberação</th>
+                <th>GEOR Liberou?</th>
+                <th>Envio ao Cliente</th>
+                <th>Status</th>
+                <th style="text-align: right;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="orcamentos-table-body">
+              <tr>
+                <td colspan="12" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                  <i class="bi bi-arrow-repeat spin" style="font-size: 1.5rem; color: #6200EA;"></i>
+                  <div style="margin-top: 0.5rem;">Carregando orçamentos TKE...</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- =====================================================================
+         VIEW 2: DASHBOARD & RELATÓRIO DE APURAÇÃO PARA PREMIAÇÃO
+         ===================================================================== -->
+    <div id="view-dashboard-premiacao" class="main-view-tab" style="display: none;">
+      
+      <!-- HEADER EXECUTIVO DO DASHBOARD -->
+      <div class="page-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.45rem; font-weight: 800; color: var(--text-primary); margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.6rem;">
+            <i class="bi bi-trophy-fill" style="color: #F59E0B;"></i>
+            <span>Apuração de Resultado</span>
+          </h2>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">
+            Ciclo anual de 01 de Outubro a 30 de Setembro • Divisão por Tipo de Serviço • Base 100% Completa de Técnicos
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+          <button id="btn-export-excel-prem" class="btn-export-excel">
+            <i class="bi bi-file-earmark-excel-fill"></i>
+            <span>Exportar para Excel (.xlsx)</span>
+          </button>
+          <button id="btn-refresh-premiacao" class="btn btn-secondary btn-sm" title="Atualizar dados">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- PAINEL DE CONTROLES TEMPORAIS (CICLO ANUAL E MÊS) -->
+      <div class="prem-controls-container">
+        <div class="prem-controls-header">
+          <div class="prem-controls-title">
+            <i class="bi bi-calendar-range-fill" style="color: var(--tke-purple);"></i>
+            <span>Filtros Temporais do Ciclo Anual</span>
+          </div>
+          <div class="periodo-active-badge" id="prem-periodo-badge">
+            <i class="bi bi-clock-history"></i>
+            <span id="prem-periodo-texto">Carregando período...</span>
+          </div>
+        </div>
+
+        <div class="prem-controls-grid">
+          <div class="form-group">
+            <label for="prem-select-ciclo" style="font-size: 0.76rem; font-weight: 700;">
+              <i class="bi bi-repeat"></i> Ciclo Anual de Premiação
+            </label>
+            <select id="prem-select-ciclo" class="form-control" style="font-weight: 700;">
+              <option value="2026/2027">Ciclo 2026/2027 (01/10/2026 a 30/09/2027)</option>
+              <option value="2025/2026" selected>Ciclo 2025/2026 (01/10/2025 a 30/09/2026)</option>
+              <option value="2024/2025">Ciclo 2024/2025 (01/10/2024 a 30/09/2025)</option>
+              <option value="2023/2024">Ciclo 2023/2024 (01/10/2023 a 30/09/2024)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="prem-select-mes" style="font-size: 0.76rem; font-weight: 700;">
+              <i class="bi bi-calendar-event"></i> Período / Mês
+            </label>
+            <select id="prem-select-mes" class="form-control" style="font-weight: 700;">
+              <option value="acumulado" selected>⭐ Acumulado do Ciclo Completo (Out a Set)</option>
+              <option value="10">Mês 01 - Outubro</option>
+              <option value="11">Mês 02 - Novembro</option>
+              <option value="12">Mês 03 - Dezembro</option>
+              <option value="01">Mês 04 - Janeiro</option>
+              <option value="02">Mês 05 - Fevereiro</option>
+              <option value="03">Mês 06 - Março</option>
+              <option value="04">Mês 07 - Abril</option>
+              <option value="05">Mês 08 - Maio</option>
+              <option value="06">Mês 09 - Junho</option>
+              <option value="07">Mês 10 - Julho</option>
+              <option value="08">Mês 11 - Agosto</option>
+              <option value="09">Mês 12 - Setembro</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="prem-select-g" style="font-size: 0.76rem; font-weight: 700;">
+              <i class="bi bi-tag-fill"></i> G de Origem (Opcional)
+            </label>
+            <select id="prem-select-g" class="form-control">
+              <option value="">Todas as Gs</option>
+              <option value="G11">G11</option>
+              <option value="G06">G06</option>
+              <option value="G05">G05</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="justify-content: flex-end;">
+            <button id="btn-prem-filtrar" class="btn btn-primary" style="padding: 0.55rem 1rem;">
+              <i class="bi bi-filter"></i> Aplicar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARDS DE INDICADORES (KPIS DO DASHBOARD DE PREMIAÇÃO) -->
+      <div class="kpi-grid">
+        
+        <div class="kpi-card kpi-total">
+          <div class="kpi-content">
+            <h4>Total Geral Aprovado</h4>
+            <div class="kpi-value" id="prem-kpi-total-qtd">0 PGOs</div>
+            <div style="font-size: 0.85rem; font-weight: 700; color: var(--tke-purple); margin-top: 0.2rem;" id="prem-kpi-total-valor">
+              R$ 0,00
+            </div>
+          </div>
+          <div class="kpi-icon">
+            <i class="bi bi-cash-stack"></i>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-geor-ok">
+          <div class="kpi-content">
+            <h4>Total Preventivo</h4>
+            <div class="kpi-value" id="prem-kpi-prev-qtd" style="color: #10B981;">0 PGOs</div>
+            <div style="font-size: 0.85rem; font-weight: 700; color: #10B981; margin-top: 0.2rem;" id="prem-kpi-prev-valor">
+              R$ 0,00
+            </div>
+          </div>
+          <div class="kpi-icon" style="background: rgba(16, 185, 129, 0.1); color: #10B981;">
+            <i class="bi bi-shield-check"></i>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-geor-wait">
+          <div class="kpi-content">
+            <h4>Total Corretivo</h4>
+            <div class="kpi-value" id="prem-kpi-corr-qtd" style="color: var(--tke-orange);">0 PGOs</div>
+            <div style="font-size: 0.85rem; font-weight: 700; color: var(--tke-orange); margin-top: 0.2rem;" id="prem-kpi-corr-valor">
+              R$ 0,00
+            </div>
+          </div>
+          <div class="kpi-icon">
+            <i class="bi bi-lightning-charge-fill"></i>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-sent">
+          <div class="kpi-content">
+            <h4>Técnicos Ativos no Período</h4>
+            <div class="kpi-value" id="prem-kpi-tecnicos-ativos">0 / 0</div>
+            <div style="font-size: 0.82rem; font-weight: 700; color: var(--tke-magenta); margin-top: 0.2rem;" id="prem-kpi-taxa-part">
+              0% de participação
+            </div>
+          </div>
+          <div class="kpi-icon">
+            <i class="bi bi-people-fill"></i>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- PAINEL DIVIDIDO EM DUAS PARTES (RANKING PREVENTIVO & CORRETIVO) -->
+      <div class="ranking-split-grid">
+        
+        <!-- PARTE 1: RANKING PREVENTIVO -->
+        <div class="ranking-card ranking-card-preventivo" id="prem-card-preventivo">
+          <div class="ranking-card-header">
+            <h3 class="ranking-card-title">
+              <i class="bi bi-shield-check"></i>
+              <span>Parte 1: Ranking Preventivo</span>
+            </h3>
+            <span class="badge-tag badge-type-preventivo">
+              <i class="bi bi-layers-fill"></i> Nível 1: ≥ 7 PGOs | Nível 2: < 7 PGOs
+            </span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="corporate-table">
+              <thead>
+                <tr>
+                  <th style="width: 75px; text-align: center;">Posição</th>
+                  <th>Colaborador</th>
+                  <th style="width: 70px; text-align: center;">Grupo</th>
+                  <th style="text-align: center; width: 100px;">Qtd. PGO</th>
+                  <th style="text-align: right; width: 130px;">Valor Aprovado</th>
+                  <th style="text-align: center; width: 140px;">Faixa / Status</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-ranking-preventivo">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                    <i class="bi bi-arrow-repeat spin"></i> Carregando ranking preventivo...
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot class="ranking-table-footer">
+                <tr>
+                  <td colspan="3" style="text-align: right; font-weight: 800;">TOTAL PREVENTIVO:</td>
+                  <td style="text-align: center; color: #10B981;" id="tfoot-prev-qtd">0</td>
+                  <td style="text-align: right; color: #10B981;" id="tfoot-prev-valor">R$ 0,00</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- PARTE 2: RANKING CORRETIVO -->
+        <div class="ranking-card ranking-card-corretivo" id="prem-card-corretivo">
+          <div class="ranking-card-header">
+            <h3 class="ranking-card-title">
+              <i class="bi bi-lightning-charge-fill"></i>
+              <span>Parte 2: Ranking Corretivo</span>
+            </h3>
+            <span class="badge-tag badge-type-corretivo">
+              <i class="bi bi-layers-fill"></i> Nível 1: ≥ 7 PGOs | Nível 2: < 7 PGOs
+            </span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="corporate-table">
+              <thead>
+                <tr>
+                  <th style="width: 75px; text-align: center;">Posição</th>
+                  <th>Colaborador</th>
+                  <th style="width: 70px; text-align: center;">Grupo</th>
+                  <th style="text-align: center; width: 100px;">Qtd. PGO</th>
+                  <th style="text-align: right; width: 130px;">Valor Aprovado</th>
+                  <th style="text-align: center; width: 140px;">Faixa / Status</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-ranking-corretivo">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                    <i class="bi bi-arrow-repeat spin"></i> Carregando ranking corretivo...
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot class="ranking-table-footer">
+                <tr>
+                  <td colspan="3" style="text-align: right; font-weight: 800;">TOTAL CORRETIVO:</td>
+                  <td style="text-align: center; color: var(--tke-orange);" id="tfoot-corr-qtd">0</td>
+                  <td style="text-align: right; color: var(--tke-orange);" id="tfoot-corr-valor">R$ 0,00</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- CARD DE REGRAS E LÓGICA DE PRIORIZAÇÃO EM CAMADAS -->
+      <div class="ranking-card" style="margin-top: 2rem; border-top: 4px solid var(--tke-purple);">
+        <div class="ranking-card-header" style="background: linear-gradient(90deg, rgba(98, 0, 234, 0.05) 0%, transparent 100%);">
+          <h3 class="ranking-card-title" style="color: var(--tke-purple); font-size: 1.05rem;">
+            <i class="bi bi-info-circle-fill"></i>
+            <span>Regras de Apuração & Lógica de Priorização em Camadas</span>
+          </h3>
+          <span class="badge-tag" style="background: rgba(98, 0, 234, 0.1); color: var(--tke-purple); border-color: rgba(98, 0, 234, 0.2);">
+            <i class="bi bi-diagram-3-fill"></i> Critério Oficial de Classificação
+          </span>
+        </div>
+        <div style="padding: 1.35rem 1.5rem; font-size: 0.88rem; color: var(--text-primary); line-height: 1.7;">
+          <div style="font-weight: 800; font-size: 0.95rem; margin-bottom: 0.8rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+            <i class="bi bi-layers-fill" style="color: var(--tke-purple);"></i>
+            Lógica de Priorização em Camadas:
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
+            <div style="background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: var(--radius-sm); padding: 1.1rem 1.25rem;">
+              <div style="font-weight: 800; color: #059669; font-size: 0.92rem; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+                <i class="bi bi-trophy-fill"></i> Nível 1 (Topo do Ranking)
+              </div>
+              <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">
+                Colaboradores com <strong>≥ 7 PGOs aprovados</strong> têm <strong>prioridade absoluta</strong>. O critério de desempate é por <strong>Valor Aprovado (R$)</strong>.
+              </p>
+            </div>
+            <div style="background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: var(--radius-sm); padding: 1.1rem 1.25rem;">
+              <div style="font-weight: 800; color: #D97706; font-size: 0.92rem; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+                <i class="bi bi-hourglass-split"></i> Nível 2 (Abaixo do Topo)
+              </div>
+              <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">
+                Colaboradores com <strong>&lt; 7 PGOs aprovados</strong> (incluindo 0). A ordenação é <strong>decrescente por Quantidade de PGOs</strong> e desempate por <strong>Valor Aprovado (R$)</strong>.
+              </p>
+            </div>
+          </div>
+          <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem;">
+            <i class="bi bi-shield-lock-fill" style="color: var(--tke-purple);"></i>
+            <span>* Supervisores e Consultoria não concorrem ao ranking operacional de técnicos.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================================
+         VIEW 3: GESTÃO DE ACESSOS & USUÁRIOS (EXCLUSIVO CONSULTORA)
+         ===================================================================== -->
+    <div id="view-usuarios" class="main-view-tab" style="display: none;">
+      
+      <!-- HEADER EXECUTIVO DE USUÁRIOS -->
+      <div class="page-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.45rem; font-weight: 800; color: var(--text-primary); margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.6rem;">
+            <i class="bi bi-people-fill" style="color: var(--tke-purple);"></i>
+            <span>Gestão de Acessos & Colaboradores</span>
+          </h2>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">
+            Cadastro de novos colaboradores com senha provisória, controle de grupos e monitoramento de Primeiro Acesso.
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+          <button id="btn-toggle-import-usr" class="btn btn-secondary btn-sm" style="font-weight: 700; padding: 0.45rem 0.9rem;">
+            <i class="bi bi-file-earmark-arrow-up-fill" style="color: var(--tke-purple);"></i>
+            <span>Importar Planilha</span>
+          </button>
+          <button id="btn-open-new-user" class="btn-tke-cta">
+            <i class="bi bi-person-plus-fill"></i>
+            <span>Cadastrar Novo Colaborador</span>
+          </button>
+          <button id="btn-refresh-usuarios" class="btn btn-secondary btn-sm" title="Atualizar Lista">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- PAINEL DE BUSCA RÁPIDA E FILTROS DE USUÁRIOS -->
+      <div class="filter-panel" style="margin-bottom: 1.25rem;">
+        <div class="filter-grid">
+          <div class="form-group">
+            <label for="filter-search-usr"><i class="bi bi-search"></i> Busca Rápida</label>
+            <input 
+              type="text" 
+              id="filter-search-usr" 
+              class="form-control" 
+              placeholder="Pesquisar por nome, e-mail, matrícula, cargo ou grupo..."
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="filter-perfil-usr"><i class="bi bi-person-badge-fill"></i> Perfil</label>
+            <select id="filter-perfil-usr" class="form-control">
+              <option value="">Todos os Perfis</option>
+              <option value="CONSULTORA">Consultora (Admin)</option>
+              <option value="SUPERVISOR">Supervisor</option>
+              <option value="TECNICO">Técnico</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="filter-grupo-usr"><i class="bi bi-diagram-3-fill"></i> Grupo / Nível</label>
+            <select id="filter-grupo-usr" class="form-control">
+              <option value="">Todos os Grupos</option>
+              <option value="G11">G11</option>
+              <option value="G06">G06</option>
+              <option value="G05">G05</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="filter-status-usr"><i class="bi bi-shield-check"></i> Status / Acesso</label>
+            <select id="filter-status-usr" class="form-control">
+              <option value="">Todos os Status</option>
+              <option value="ativo">Ativos</option>
+              <option value="inativo">Inativos</option>
+              <option value="pendente">1º Acesso Pendente</option>
+              <option value="concluido">1º Acesso Concluído</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="justify-content: flex-end;">
+            <button id="btn-clear-filters-usr" class="btn btn-secondary" style="height: 42px; display: flex; align-items: center; gap: 0.4rem; justify-content: center;" title="Limpar Filtros de Usuários">
+              <i class="bi bi-x-circle"></i>
+              <span>Limpar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAINEL EMBUTIDO DE IMPORTAÇÃO DE USUÁRIOS (XLSX / CSV) -->
+      <div id="import-usr-panel" class="ranking-card" style="display: none; margin-bottom: 1.25rem; border-top: 3px solid var(--tke-purple); padding: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary);">
+              <i class="bi bi-file-earmark-spreadsheet-fill" style="color: var(--tke-purple);"></i>
+              <span>Importar Colaboradores em Lote</span>
+            </h3>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.2rem 0 0 0;">
+              Cadastre e atualize múltiplos colaboradores simultaneamente através de planilha Excel ou CSV.
+            </p>
+          </div>
+          <div style="display: flex; gap: 0.4rem;">
+            <a href="/api/usuarios/template?format=xlsx" class="btn btn-secondary btn-sm" style="font-size: 0.78rem; font-weight: 700;">
+              <i class="bi bi-file-earmark-excel-fill" style="color: #10B981;"></i> Baixar Modelo .xlsx
+            </a>
+            <a href="/api/usuarios/template?format=csv" class="btn btn-secondary btn-sm" style="font-size: 0.78rem; font-weight: 700;">
+              <i class="bi bi-file-earmark-text-fill" style="color: #3B82F6;"></i> Baixar Modelo .csv
+            </a>
+          </div>
+        </div>
+
+        <div class="template-download-bar" style="margin-bottom: 0.85rem; padding: 0.6rem 0.85rem; background: rgba(98, 0, 234, 0.04); border: 1px solid rgba(98, 0, 234, 0.15); border-radius: 8px;">
+          <div style="font-size: 0.78rem; color: var(--text-primary);">
+            <i class="bi bi-info-circle-fill" style="color: var(--tke-purple); margin-right: 0.25rem;"></i>
+            <strong>Colunas aceitas:</strong> <code>Nome_Completo</code>, <code>Email</code>, <code>Matricula</code>, <code>Perfil</code> <em>(TECNICO, SUPERVISOR, CONSULTORA)</em>, <code>Grupo</code> <em>(G11, G06, G05)</em>, <code>Senha_Provisoria</code> <em>(padrão: Tke@1234)</em>.
+          </div>
+        </div>
+
+        <div class="import-dropzone" id="dropzone-usr" style="padding: 1.5rem 1rem; margin-bottom: 0.75rem; border: 2px dashed rgba(98, 0, 234, 0.3); border-radius: 10px; background: rgba(98, 0, 234, 0.02); text-align: center; cursor: pointer; transition: all 0.2s ease;">
+          <input type="file" id="file-input-usr" accept=".xlsx, .xls, .csv" style="display: none;">
+          <i class="bi bi-cloud-arrow-up-fill import-dropzone-icon" style="font-size: 2rem; color: var(--tke-purple);"></i>
+          <div class="import-dropzone-title" style="font-size: 0.92rem; font-weight: 700; margin-top: 0.4rem;">Arraste e solte a planilha de colaboradores (.xlsx ou .csv)</div>
+          <div class="import-dropzone-hint" style="font-size: 0.75rem; color: var(--text-muted);">ou clique para selecionar o arquivo no seu computador</div>
+        </div>
+
+        <div id="file-chip-usr" class="import-file-chip" style="display: none; padding: 0.75rem 1rem; margin-bottom: 0.75rem; background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 8px; justify-content: space-between; align-items: center;">
+          <div class="import-file-info" style="display: flex; align-items: center; gap: 0.75rem;">
+            <i class="bi bi-file-earmark-spreadsheet-fill" style="font-size: 1.5rem; color: var(--tke-purple);"></i>
+            <div>
+              <div class="import-file-name" id="filename-usr" style="font-size: 0.85rem; font-weight: 700;">arquivo.xlsx</div>
+              <div class="import-file-meta" id="filemeta-usr" style="font-size: 0.72rem; color: var(--text-muted);">0 KB</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-remove-usr" title="Remover"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <!-- Progresso -->
+        <div id="progress-container-usr" class="import-progress-wrapper" style="display: none; margin: 0.75rem 0;">
+          <div class="import-progress-header" style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.35rem; font-weight: 700;">
+            <span id="progress-label-usr">Processando colaboradores...</span>
+            <span id="progress-percent-usr">0%</span>
+          </div>
+          <div class="import-progress-track" style="height: 6px; background: rgba(0,0,0,0.06); border-radius: 999px; overflow: hidden;">
+            <div class="import-progress-bar" id="progress-bar-usr" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--tke-purple), var(--tke-magenta)); transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <!-- Resultados -->
+        <div id="results-usr" style="display: none; margin-top: 0.75rem;">
+          <div class="import-stats-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div class="import-stat-card" style="padding: 0.6rem; text-align: center; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-subtle);"><div class="import-stat-label" style="font-size: 0.7rem; color: var(--text-muted);">Total</div><div class="import-stat-num" id="stat-total-usr" style="font-size: 1.15rem; font-weight: 800;">0</div></div>
+            <div class="import-stat-card" style="padding: 0.6rem; text-align: center; background: rgba(16, 185, 129, 0.08); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);"><div class="import-stat-label" style="font-size: 0.7rem; color: #059669;">Inseridos</div><div class="import-stat-num stat-inserted" id="stat-ins-usr" style="font-size: 1.15rem; font-weight: 800; color: #059669;">0</div></div>
+            <div class="import-stat-card" style="padding: 0.6rem; text-align: center; background: rgba(59, 130, 246, 0.08); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.2);"><div class="import-stat-label" style="font-size: 0.7rem; color: #2563EB;">Atualizados</div><div class="import-stat-num stat-updated" id="stat-upd-usr" style="font-size: 1.15rem; font-weight: 800; color: #2563EB;">0</div></div>
+            <div class="import-stat-card" style="padding: 0.6rem; text-align: center; background: rgba(239, 68, 68, 0.08); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2);"><div class="import-stat-label" style="font-size: 0.7rem; color: #DC2626;">Erros</div><div class="import-stat-num stat-errors" id="stat-err-usr" style="font-size: 1.15rem; font-weight: 800; color: #DC2626;">0</div></div>
+          </div>
+          <div id="errors-box-usr" class="import-errors-box" style="display: none; background: #FEF2F2; border: 1px solid #FECACA; padding: 0.75rem; border-radius: 8px; font-size: 0.75rem; color: #991B1B;"><ul id="errors-list-usr" style="padding-left: 1rem; margin: 0;"></ul></div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem;">
+          <button type="button" class="btn btn-tke-cta" id="btn-upload-usr" disabled style="padding: 0.45rem 1rem; font-size: 0.82rem;">
+            <i class="bi bi-cloud-upload-fill"></i> <span>Enviar e Importar Colaboradores</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- CARD DA TABELA DE USUÁRIOS -->
+      <div class="ranking-card" style="margin-top: 0.5rem;">
+        <div class="ranking-card-header" style="background: linear-gradient(90deg, rgba(98, 0, 234, 0.06) 0%, transparent 100%); border-top: 3px solid var(--tke-purple);">
+          <h3 class="ranking-card-title" style="color: var(--tke-purple);">
+            <i class="bi bi-person-lines-fill"></i>
+            <span>Colaboradores Cadastrados no Sistema</span>
+          </h3>
+          <span id="badge-usuarios-count" class="badge-tag role-consultora" style="font-size: 0.72rem;">Gestão de Acessos RBAC</span>
+        </div>
+
+        <div class="table-responsive-wrapper">
+          <table class="corporate-table" style="min-width: 1050px;">
+            <thead>
+              <tr>
+                <th>Colaborador</th>
+                <th>E-mail Corporativo / Login</th>
+                <th>Matrícula</th>
+                <th style="text-align: center;">Perfil</th>
+                <th style="text-align: center;">Grupo / Nível</th>
+                <th style="text-align: center;">1º Acesso</th>
+                <th style="text-align: center;">Status</th>
+                <th style="text-align: center; width: 220px;">Ações Administrativas</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-usuarios-list">
+              <tr>
+                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                  <i class="bi bi-arrow-repeat spin"></i> Carregando lista de usuários...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- MODAL: CADASTRAR NOVO COLABORADOR (EXCLUSIVO CONSULTORA) -->
+  <div class="modal-backdrop" id="usuario-modal">
+    <div class="modal-dialog" style="max-width: 650px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, rgba(98, 0, 234, 0.08) 0%, transparent 100%);">
+        <h3 id="user-modal-title" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+          <i class="bi bi-person-plus-fill" style="color: var(--tke-purple);"></i>
+          <span>Cadastrar Novo Colaborador</span>
+        </h3>
+        <button type="button" class="modal-close-btn" id="user-modal-close-btn">&times;</button>
+      </div>
+
+      <form id="usuario-form">
+        <div class="modal-body" style="padding: 1.5rem;">
+          
+          <div class="rbac-notice-banner" style="background: rgba(98, 0, 234, 0.05); border-color: rgba(98, 0, 234, 0.2); color: var(--text-primary); margin-bottom: 1.25rem;">
+            <i class="bi bi-key-fill" style="color: var(--tke-purple); font-size: 1.1rem;"></i>
+            <span>O usuário será criado com a flag de <strong>Primeiro Acesso: Pendente</strong> e será obrigado a cadastrar uma nova senha ao realizar o primeiro login.</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="user-form-nome" style="font-weight: 700; font-size: 0.85rem;">Nome Completo *</label>
+            <input type="text" id="user-form-nome" class="form-control" placeholder="ex: Juliana Souza de Oliveira" required>
+          </div>
+
+          <div class="form-grid-2" style="margin-bottom: 1rem;">
+            <div class="form-group">
+              <label for="user-form-email" style="font-weight: 700; font-size: 0.85rem;">E-mail Corporativo / Login *</label>
+              <input type="email" id="user-form-email" class="form-control" placeholder="colaborador@empresa.com" required>
+            </div>
+
+            <div class="form-group">
+              <label for="user-form-matricula" style="font-weight: 700; font-size: 0.85rem;">Matrícula (Opcional)</label>
+              <input type="text" id="user-form-matricula" class="form-control" placeholder="Gerada automaticamente se vazio">
+            </div>
+          </div>
+
+          <div class="form-grid-2" style="margin-bottom: 1rem;">
+            <div class="form-group">
+              <label for="user-form-perfil" style="font-weight: 700; font-size: 0.85rem;">Perfil de Acesso *</label>
+              <select id="user-form-perfil" class="form-control" required style="font-weight: 700;">
+                <option value="TECNICO">Técnico de Manutenção</option>
+                <option value="SUPERVISOR">Supervisor Operacional</option>
+                <option value="CONSULTORA">Consultora Comercial (Admin)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="user-form-grupo" style="font-weight: 700; font-size: 0.85rem;">Grupo / Nível *</label>
+              <select id="user-form-grupo" class="form-control" required style="font-weight: 700;">
+                <option value="G11" selected>G11</option>
+                <option value="G06">G06</option>
+                <option value="G05">G05</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label for="user-form-senha" style="font-weight: 700; font-size: 0.85rem; margin: 0;">Senha Provisória / Padrão *</label>
+              <button type="button" id="btn-generate-default-pass" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.2rem 0.55rem;">
+                <i class="bi bi-magic"></i> Gerar Padrão (Tke@1234)
+              </button>
+            </div>
+            <div style="position: relative;">
+              <input type="text" id="user-form-senha" class="form-control" value="Tke@1234" required style="font-family: monospace; font-weight: 700; color: var(--tke-purple);">
+            </div>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Essa senha será informada ao colaborador e substituída no primeiro acesso.</span>
+          </div>
+
+        </div>
+
+        <div class="modal-footer" style="padding: 1rem 1.5rem; background: var(--bg-secondary); display: flex; justify-content: flex-end; gap: 0.65rem;">
+          <button type="button" class="btn btn-secondary" id="user-modal-cancel-btn">Cancelar</button>
+          <button type="submit" class="btn-tke-cta" id="user-modal-save-btn">
+            <i class="bi bi-check2-circle"></i>
+            <span>Salvar e Cadastrar</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: PRIMEIRO ACESSO NO DASHBOARD (INTERCEPTAÇÃO CASO PENDENTE) -->
+  <div class="modal-backdrop" id="dashboard-primeiro-acesso-modal" style="z-index: 9999;">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, rgba(98, 0, 234, 0.1) 0%, transparent 100%);">
+        <h3 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; gap: 0.5rem; margin: 0; color: #111827;">
+          <i class="bi bi-shield-lock-fill" style="color: var(--tke-purple);"></i>
+          <span>Redefinição de Primeiro Acesso</span>
+        </h3>
+      </div>
+
+      <form id="dash-first-access-form">
+        <div class="modal-body" style="padding: 1.5rem;">
+          <p style="font-size: 0.85rem; color: #4B5563; margin-bottom: 1.25rem; line-height: 1.4;">
+            Por motivos de conformidade e segurança da informação TKE, cadastre sua nova senha pessoal antes de acessar o sistema.
+          </p>
+
+          <div id="dash-first-access-error-alert" style="display: none; background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1.15rem;">
+            <i class="bi bi-exclamation-octagon-fill" style="margin-right: 0.35rem;"></i>
+            <span id="dash-first-access-error-msg"></span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="dash-nova-senha" style="font-weight: 700; font-size: 0.85rem;">Nova Senha *</label>
+            <input type="password" id="dash-nova-senha" class="form-control" placeholder="Mínimo 6 caracteres (letras e números)" required autocomplete="new-password">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="dash-confirmar-nova-senha" style="font-weight: 700; font-size: 0.85rem;">Confirmar Nova Senha *</label>
+            <input type="password" id="dash-confirmar-nova-senha" class="form-control" placeholder="Repita a nova senha" required autocomplete="new-password">
+          </div>
+
+          <div style="font-size: 0.75rem; color: #6B7280; background: rgba(0,0,0,0.03); padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 1.25rem;">
+            <div style="font-weight: 700; color: #374151; margin-bottom: 0.25rem;"><i class="bi bi-info-circle"></i> Critérios de Senha:</div>
+            <div>• Mínimo 6 caracteres</div>
+            <div>• Conter pelo menos uma letra e um número</div>
+            <div>• Não pode ser idêntica à senha provisória</div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="padding: 1rem 1.5rem; background: var(--bg-secondary); display: flex; justify-content: flex-end;">
+          <button type="submit" class="btn-tkemobile-purple" id="dash-btn-submit-first-access" style="width: 100%;">
+            <span>Salvar Nova Senha e Concluir Acesso</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: NOVO / EDITAR ORÇAMENTO TKE (FORMULÁRIO UNIFICADO COM 3 SEÇÕES RBAC) -->
+  <div class="modal-backdrop" id="orcamento-modal">
+    <div class="modal-dialog" style="max-width: 820px;">
+      <div class="modal-header">
+        <h3 id="modal-title">Novo Chamado / Orçamento TKE</h3>
+        <button type="button" class="modal-close-btn" id="modal-close-btn">&times;</button>
+      </div>
+
+      <form id="orcamento-form">
+        <div class="modal-body" style="max-height: 75vh; overflow-y: auto; padding-right: 1.25rem;">
+          <input type="hidden" id="form-id">
+
+          <!-- Banner Informativo RBAC Dinâmico -->
+          <div class="rbac-notice-banner" id="form-rbac-notice">
+            <i class="bi bi-shield-lock-fill" style="color: var(--tke-purple); font-size: 1.15rem;"></i>
+            <span id="form-rbac-text">Formulário adaptado dinamicamente para o seu perfil corporativo TKE.</span>
+          </div>
+
+          <!-- Datalists para Autocomplete Instantâneo -->
+          <datalist id="tecnicos-datalist"></datalist>
+          <datalist id="elevadores-datalist"></datalist>
+
+          <!-- =====================================================================
+               SEÇÃO 1: DADOS DO TÉCNICO & ELEVADOR (PREENCHIMENTO: TÉCNICO)
+               ===================================================================== -->
+          <div class="form-section-card" id="sec-card-tecnico">
+            <div class="form-section-header">
+              <h4 class="form-section-title">
+                <i class="bi bi-person-badge-fill" style="color: var(--tke-orange);"></i>
+                <span>Seção 1: Dados do Técnico & Elevador</span>
+              </h4>
+              <span class="user-role-badge role-tecnico" id="badge-sec1-status">Responsável: Técnico</span>
+            </div>
+
+            <div class="form-grid-2" style="margin-bottom: 1rem;">
+              <div class="form-group">
+                <label for="form-tecnico-matricula">Matrícula Técnico (Busca) *</label>
+                <input 
+                  type="text" 
+                  id="form-tecnico-matricula" 
+                  class="form-control" 
+                  list="tecnicos-datalist" 
+                  placeholder="Digite a matrícula (ex: 1001)" 
+                  autocomplete="off"
+                  required
+                >
+                <span class="auto-filled-hint" id="hint-matricula-auto">
+                  <i class="bi bi-search"></i> Digite para autocompletar nome e G de origem
+                </span>
+              </div>
+
+              <div class="form-group">
+                <label for="form-tecnico-nome">Nome do Técnico (Automático / Leitura) *</label>
+                <input 
+                  type="text" 
+                  id="form-tecnico-nome" 
+                  class="form-control" 
+                  placeholder="Preenchido automaticamente pela matrícula" 
+                  readonly 
+                  required
+                  style="background: var(--bg-secondary); font-weight: 600;"
+                >
+              </div>
+            </div>
+
+            <div class="form-grid-2" style="margin-bottom: 1rem;">
+              <div class="form-group">
+                <label for="form-tipo">Tipo de Serviço *</label>
+                <select id="form-tipo" class="form-control" required>
+                  <option value="Preventivo">Preventivo</option>
+                  <option value="Corretivo">Corretivo</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="form-g-origem">G de Origem *</label>
+                <select id="form-g-origem" class="form-control" required>
+                  <option value="G11">G11</option>
+                  <option value="G06">G06</option>
+                  <option value="G05">G05</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-grid-2" style="margin-bottom: 1rem;">
+              <div class="form-group">
+                <label for="form-elevador">Número do Elevador (Busca) *</label>
+                <input 
+                  type="text" 
+                  id="form-elevador" 
+                  class="form-control" 
+                  list="elevadores-datalist" 
+                  placeholder="Digite nº do elevador/contrato (ex: CT-2024-001)" 
+                  autocomplete="off"
+                  required
+                >
+                <span class="auto-filled-hint" id="hint-elevador-auto">
+                  <i class="bi bi-buildings"></i> Digite para autocompletar o nome do cliente
+                </span>
+              </div>
+
+              <div class="form-group">
+                <label for="form-cliente-nome">Nome do Cliente (Automático / Leitura) *</label>
+                <input 
+                  type="text" 
+                  id="form-cliente-nome" 
+                  class="form-control" 
+                  placeholder="Preenchido automaticamente pelo elevador" 
+                  readonly 
+                  required
+                  style="background: var(--bg-secondary); font-weight: 600;"
+                >
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label for="form-pgo">Número da PGO</label>
+                <input type="text" id="form-pgo" class="form-control" placeholder="Ex: PGO-2026-1020 (ou gerado automático)">
+              </div>
+
+              <div class="form-group">
+                <label for="form-descricao-servico">Descrição / Detalhe do Serviço</label>
+                <input type="text" id="form-descricao-servico" class="form-control" placeholder="Ex: Substituição de cabos de tração, revisão periódica...">
+              </div>
+            </div>
+          </div>
+
+          <!-- =====================================================================
+               SEÇÃO 2: VALIDAÇÃO & LIBERAÇÃO GEOR (PREENCHIMENTO: SUPERVISÃO)
+               ===================================================================== -->
+          <div class="form-section-card" id="sec-card-supervisor">
+            <div class="form-section-header">
+              <h4 class="form-section-title">
+                <i class="bi bi-shield-check" style="color: var(--tke-purple);"></i>
+                <span>Seção 2: Validação & Liberação GEOR</span>
+              </h4>
+              <span class="user-role-badge role-supervisor" id="badge-sec2-status">Responsável: Supervisão</span>
+            </div>
+
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="form-orcamento">Número do Orçamento</label>
+                <input type="text" id="form-orcamento" class="form-control" placeholder="Ex: ORC-8820/26">
+              </div>
+
+              <div class="form-group">
+                <label for="form-data-liberacao">Data da Liberação</label>
+                <input type="date" id="form-data-liberacao" class="form-control">
+              </div>
+
+              <div class="form-group">
+                <label for="form-geor">GEOR Liberou?</label>
+                <select id="form-geor" class="form-control">
+                  <option value="Não">Não</option>
+                  <option value="Sim">Sim</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- =====================================================================
+               SEÇÃO 3: ENVIO & FECHAMENTO COMERCIAL (PREENCHIMENTO: CONSULTORIA ADMIN)
+               ===================================================================== -->
+          <div class="form-section-card" id="sec-card-consultora">
+            <div class="form-section-header">
+              <h4 class="form-section-title">
+                <i class="bi bi-send-check-fill" style="color: var(--tke-magenta);"></i>
+                <span>Seção 3: Envio & Fechamento Comercial</span>
+              </h4>
+              <span class="user-role-badge role-consultora" id="badge-sec3-status">Responsável: Consultoria</span>
+            </div>
+
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label for="form-valor-total">
+                  Valor Total do Orçamento (R$)
+                  <span class="badge-tag" style="font-size: 0.65rem; background: rgba(216, 0, 100, 0.1); color: var(--tke-magenta); margin-left: 0.35rem;">
+                    🔒 Exclusivo Consultoria
+                  </span>
+                </label>
+                <input type="number" step="0.01" min="0" id="form-valor-total" class="form-control" placeholder="0.00">
+              </div>
+
+              <div class="form-group">
+                <label for="form-data-envio">
+                  Data de Envio para o Cliente
+                </label>
+                <input type="date" id="form-data-envio" class="form-control">
+              </div>
+
+              <div class="form-group">
+                <label for="form-status">Status do Registro</label>
+                <select id="form-status" class="form-control">
+                  <option value="Aberto">Aberto</option>
+                  <option value="Em Análise">Em Análise</option>
+                  <option value="Aguardando GEOR">Aguardando GEOR</option>
+                  <option value="Liberado GEOR">Liberado GEOR</option>
+                  <option value="Enviado ao Cliente">Enviado ao Cliente</option>
+                  <option value="Aprovado pelo Cliente">Aprovado pelo Cliente</option>
+                  <option value="Reprovado pelo Cliente">Reprovado pelo Cliente</option>
+                  <option value="Concluído">Concluído</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="modal-cancel-btn">Fechar</button>
+          <button type="submit" class="btn btn-primary" id="modal-save-btn">
+            <i class="bi bi-check-lg"></i>
+            <span id="modal-save-btn-text">Salvar Registro</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: GESTÃO DE CLIENTES E TÉCNICOS -->
+  <div class="modal-backdrop" id="cadastros-modal">
+    <div class="modal-dialog" style="max-width: 820px;">
+      <div class="modal-header">
+        <h3>Cadastros de Apoio: Clientes & Técnicos</h3>
+        <button type="button" class="modal-close-btn" id="cadastros-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Tabs -->
+        <div style="display: flex; gap: 0.6rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.6rem; flex-wrap: wrap;">
+          <button type="button" class="btn btn-primary btn-sm" id="tab-btn-clientes">
+            <i class="bi bi-buildings"></i> Clientes / Contratos
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="tab-btn-tecnicos">
+            <i class="bi bi-person-lines-fill"></i> Técnicos TKE
+          </button>
+        </div>
+
+        <!-- Seção Clientes -->
+        <div id="tab-content-clientes">
+          <div id="cad-cliente-form-wrapper" style="background: var(--bg-secondary); padding: 1.15rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem; border: 1px solid var(--border-subtle);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+              <h4 style="font-size: 0.88rem; font-weight: 800; margin: 0;">Cadastrar / Importar Clientes & Elevadores TKE</h4>
+              <div style="display: flex; gap: 0.4rem; align-items: center;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-import-cli" style="font-size: 0.75rem; font-weight: 600;">
+                  <i class="bi bi-file-earmark-arrow-up-fill" style="color: var(--tke-purple);"></i>
+                  <span>Importar Planilha</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Formulário Manual -->
+            <form id="cad-cliente-form" style="display: grid; grid-template-columns: 1.2fr 2fr auto; gap: 0.75rem; align-items: end;">
+              <div class="form-group">
+                <label style="font-size: 0.72rem;">Nº do Elevador / Contrato</label>
+                <input type="text" id="cad-contrato-input" class="form-control" placeholder="ex: ELEV-01 ou CT-2024-001" required>
+              </div>
+              <div class="form-group">
+                <label style="font-size: 0.72rem;">Nome do Cliente / Condomínio / Edifício</label>
+                <input type="text" id="cad-cliente-nome-input" class="form-control" placeholder="ex: Condomínio Edifício Paulista" required>
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-lg"></i> Adicionar
+              </button>
+            </form>
+
+            <!-- Painel de Importação Embutido Clientes -->
+            <div id="import-cli-panel" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-strong);">
+              <div class="template-download-bar" style="margin-bottom: 0.85rem; padding: 0.6rem 0.85rem;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-primary);">
+                  <i class="bi bi-info-circle-fill" style="color: var(--tke-purple);"></i> Colunas aceitas: <code>Elevador</code> <em>(ou Numero_Contrato)</em>, <code>Nome_Cliente</code> <em>(ou Condomínio / Razão Social)</em>
+                </div>
+                <div style="display: flex; gap: 0.4rem;">
+                  <a href="/api/clientes/template?format=xlsx" class="btn btn-secondary btn-sm" style="font-size: 0.72rem;">
+                    <i class="bi bi-file-earmark-excel-fill" style="color: #10B981;"></i> Modelo .xlsx
+                  </a>
+                  <a href="/api/clientes/template?format=csv" class="btn btn-secondary btn-sm" style="font-size: 0.72rem;">
+                    <i class="bi bi-file-earmark-text-fill" style="color: #3B82F6;"></i> Modelo .csv
+                  </a>
+                </div>
+              </div>
+
+              <div class="import-dropzone" id="dropzone-cli" style="padding: 1.25rem 1rem; margin-bottom: 0.75rem;">
+                <input type="file" id="file-input-cli" accept=".xlsx, .xls, .csv" style="display: none;">
+                <i class="bi bi-cloud-arrow-up-fill import-dropzone-icon" style="font-size: 1.8rem;"></i>
+                <div class="import-dropzone-title" style="font-size: 0.86rem;">Arraste e solte a planilha de clientes e elevadores (.xlsx ou .csv)</div>
+                <div class="import-dropzone-hint" style="font-size: 0.72rem;">ou clique para selecionar o arquivo do computador</div>
+              </div>
+
+              <div id="file-chip-cli" class="import-file-chip" style="display: none; padding: 0.6rem 0.85rem; margin-bottom: 0.75rem;">
+                <div class="import-file-info">
+                  <i class="bi bi-file-earmark-spreadsheet-fill" style="font-size: 1.2rem; color: var(--tke-purple);"></i>
+                  <div>
+                    <div class="import-file-name" id="filename-cli" style="font-size: 0.8rem;">arquivo.xlsx</div>
+                    <div class="import-file-meta" id="filemeta-cli" style="font-size: 0.68rem;">0 KB</div>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-remove-cli" title="Remover"><i class="bi bi-x-lg"></i></button>
+              </div>
+
+              <!-- Progresso -->
+              <div id="progress-container-cli" class="import-progress-wrapper" style="display: none; margin: 0.5rem 0;">
+                <div class="import-progress-header" style="font-size: 0.72rem;">
+                  <span id="progress-label-cli">Processando clientes...</span>
+                  <span id="progress-percent-cli">0%</span>
+                </div>
+                <div class="import-progress-track"><div class="import-progress-bar" id="progress-bar-cli"></div></div>
+              </div>
+
+              <!-- Resultados -->
+              <div id="results-cli" style="display: none; margin-top: 0.75rem;">
+                <div class="import-stats-grid" style="margin-bottom: 0.5rem;">
+                  <div class="import-stat-card"><div class="import-stat-label">Total</div><div class="import-stat-num" id="stat-total-cli" style="font-size: 1.15rem;">0</div></div>
+                  <div class="import-stat-card"><div class="import-stat-label">Inseridos</div><div class="import-stat-num stat-inserted" id="stat-ins-cli" style="font-size: 1.15rem;">0</div></div>
+                  <div class="import-stat-card"><div class="import-stat-label">Atualizados</div><div class="import-stat-num stat-updated" id="stat-upd-cli" style="font-size: 1.15rem;">0</div></div>
+                  <div class="import-stat-card"><div class="import-stat-label">Erros</div><div class="import-stat-num stat-errors" id="stat-err-cli" style="font-size: 1.15rem;">0</div></div>
+                </div>
+                <div id="errors-box-cli" class="import-errors-box" style="display: none;"><ul id="errors-list-cli" style="padding-left: 1rem; margin: 0;"></ul></div>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.6rem;">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-upload-cli" disabled>
+                  <i class="bi bi-cloud-upload-fill"></i> Enviar e Importar Clientes
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style="max-height: 280px; overflow-y: auto;">
+            <table class="corporate-table">
+              <thead>
+                <tr>
+                  <th>Nº Contrato</th>
+                  <th>Nome do Cliente</th>
+                  <th>Data Cadastro</th>
+                  <th style="text-align: center; width: 140px;">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="cad-clientes-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Seção Técnicos -->
+        <div id="tab-content-tecnicos" style="display: none;">
+          <div id="cad-tecnico-form-wrapper" style="background: var(--bg-secondary); padding: 1.15rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem; border: 1px solid var(--border-subtle);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+              <h4 style="font-size: 0.88rem; font-weight: 800; margin: 0;">Cadastrar Novo Técnico TKE</h4>
+              <div style="display: flex; gap: 0.4rem; align-items: center;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-import-tec" style="font-size: 0.75rem; font-weight: 600;">
+                  <i class="bi bi-file-earmark-arrow-up-fill" style="color: var(--tke-purple);"></i>
+                  <span>Importar Planilha</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Formulário Manual -->
+            <form id="cad-tecnico-form" style="display: grid; grid-template-columns: 1.1fr 1.6fr 2fr auto; gap: 0.75rem; align-items: end;">
+              <div class="form-group">
+                <label style="font-size: 0.72rem;">Matrícula</label>
+                <input type="text" id="cad-tec-matricula" class="form-control" placeholder="ex: 1001" required>
+              </div>
+              <div class="form-group">
+                <label style="font-size: 0.72rem;">Função</label>
+                <input type="text" id="cad-tec-funcao" class="form-control" placeholder="ex: Técnico de Manutenção" required>
+              </div>
+              <div class="form-group">
+                <label style="font-size: 0.72rem;">Nome Completo</label>
+                <input type="text" id="cad-tec-nome" class="form-control" placeholder="ex: Juliana Prado Martins" required>
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-lg"></i> Adicionar
+              </button>
+            </form>
+
+            <!-- Painel de Importação Embutido Técnicos -->
+            <div id="import-tec-panel" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-strong);">
+              <div class="template-download-bar" style="margin-bottom: 0.85rem; padding: 0.6rem 0.85rem;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-primary);">
+                  <i class="bi bi-info-circle-fill" style="color: var(--tke-purple);"></i> Colunas esperadas: <code>Matricula</code>, <code>Funcao</code>, <code>Nome_Completo</code>
+                </div>
+                <div style="display: flex; gap: 0.4rem;">
+                  <a href="/api/tecnicos/template?format=xlsx" class="btn btn-secondary btn-sm" style="font-size: 0.72rem;">
+                    <i class="bi bi-file-earmark-excel-fill" style="color: #10B981;"></i> Modelo .xlsx
+                  </a>
+                  <a href="/api/tecnicos/template?format=csv" class="btn btn-secondary btn-sm" style="font-size: 0.72rem;">
+                    <i class="bi bi-file-earmark-text-fill" style="color: #3B82F6;"></i> Modelo .csv
+                  </a>
+                </div>
+              </div>
+
+              <div class="import-dropzone" id="dropzone-tec" style="padding: 1.25rem 1rem; margin-bottom: 0.75rem;">
+                <input type="file" id="file-input-tec" accept=".xlsx, .xls, .csv" style="display: none;">
+                <i class="bi bi-cloud-arrow-up-fill import-dropzone-icon" style="font-size: 1.8rem;"></i>
+                <div class="import-dropzone-title" style="font-size: 0.86rem;">Arraste e solte a planilha de técnicos (.xlsx ou .csv)</div>
+                <div class="import-dropzone-hint" style="font-size: 0.72rem;">ou clique para selecionar arquivo do computador</div>
+              </div>
+
+              <div id="file-chip-tec" class="import-file-chip" style="display: none; padding: 0.6rem 0.85rem; margin-bottom: 0.75rem;">
+                <div class="import-file-info">
+                  <i class="bi bi-file-earmark-spreadsheet-fill" style="font-size: 1.2rem; color: var(--tke-purple);"></i>
+                  <div>
+                    <div class="import-file-name" id="filename-tec" style="font-size: 0.8rem;">arquivo.xlsx</div>
+                    <div class="import-file-meta" id="filemeta-tec" style="font-size: 0.68rem;">0 KB</div>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-remove-tec" title="Remover"><i class="bi bi-x-lg"></i></button>
+              </div>
+
+              <!-- Progresso -->
+              <div id="progress-container-tec" class="import-progress-wrapper" style="display: none; margin: 0.5rem 0;">
+                <div class="import-progress-header" style="font-size: 0.72rem;">
+                  <span id="progress-label-tec">Processando técnicos...</span>
+                  <span id="progress-percent-tec">0%</span>
+                </div>
+                <div class="import-progress-track"><div class="import-progress-bar" id="progress-bar-tec"></div></div>
+              </div>
+
+              <!-- Resultados -->
+              <div id="results-tec" style="display: none; margin-top: 0.75rem;">
+                <div class="import-stats-grid" style="margin-bottom: 0.5rem;">
+                  <div class="import-stat-card"><div class="import-stat-label">Total</div><div class="import-stat-num" id="stat-total-tec" style="font-size: 1.15rem;">0</div></div>
+                  <div class="import-stat-card"><div class="import-stat-label">Inseridos</div><div class="import-stat-num stat-inserted" id="stat-ins-tec" style="font-size: 1.15rem;">0</div></div>
+                  <div class="import-stat-card"><div class="import-stat-label">Atualizados</div><div class="import-stat-num stat-updated" id="stat-upd-tec" style="font-size: 1.15rem;">0</div></div>
+                  <div class="import-stat-card"><div class="import-stat-label">Erros</div><div class="import-stat-num stat-errors" id="stat-err-tec" style="font-size: 1.15rem;">0</div></div>
+                </div>
+                <div id="errors-box-tec" class="import-errors-box" style="display: none;"><ul id="errors-list-tec" style="padding-left: 1rem; margin: 0;"></ul></div>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.6rem;">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-upload-tec" disabled>
+                  <i class="bi bi-cloud-upload-fill"></i> Enviar e Importar Técnicos
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style="max-height: 280px; overflow-y: auto;">
+            <table class="corporate-table">
+              <thead>
+                <tr>
+                  <th>Matrícula</th>
+                  <th>Função</th>
+                  <th>Nome Completo</th>
+                  <th style="text-align: center; width: 140px;">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="cad-tecnicos-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="cadastros-ok-btn">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DEDICADO: ALTERAÇÃO DE CADASTRO (EXCLUSIVO CONSULTORA) -->
+  <div class="modal-backdrop" id="edit-cadastro-modal">
+    <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, rgba(98, 0, 234, 0.08) 0%, transparent 100%);">
+        <h3 id="edit-cad-title" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem; margin: 0; color: var(--text-primary);">
+          <i class="bi bi-pencil-square" style="color: var(--tke-purple);"></i>
+          <span>Alterar Cadastro</span>
+        </h3>
+        <button type="button" class="modal-close-btn" id="edit-cad-close-btn">&times;</button>
+      </div>
+
+      <form id="edit-cadastro-form">
+        <div class="modal-body" style="padding: 1.5rem;">
+          <div class="rbac-notice-banner" style="background: rgba(98, 0, 234, 0.05); border-color: rgba(98, 0, 234, 0.2); color: var(--text-primary); margin-bottom: 1.25rem;">
+            <i class="bi bi-shield-lock-fill" style="color: var(--tke-purple); font-size: 1.1rem;"></i>
+            <span id="edit-cad-notice">Alteração administrativa permitida exclusivamente para a <strong>Consultora</strong>.</span>
+          </div>
+
+          <!-- Campos dinâmicos injetados via JS -->
+          <div id="edit-cad-dynamic-fields"></div>
+        </div>
+
+        <div class="modal-footer" style="padding: 1rem 1.5rem; background: var(--bg-secondary); display: flex; justify-content: flex-end; gap: 0.65rem;">
+          <button type="button" class="btn btn-secondary" id="edit-cad-cancel-btn">Cancelar</button>
+          <button type="submit" class="btn-tke-cta" id="edit-cad-save-btn">
+            <i class="bi bi-check2-circle"></i>
+            <span>Salvar Alterações</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- CONTAINER DE TOASTS -->
+  <div id="toast-container"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acesso Corporativo | Gerenciamento de Orçamentos</title>
+  <meta name="description" content="Plataforma Corporativa de Gerenciamento de Orçamentos e Liberação GEOR.">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body class="login-tkemobile-page">
+
+  <!-- CONTEÚDO PRINCIPAL (CARD TRANSLÚCIDO FROSTED GLASS) -->
+  <main class="login-tkemobile-main">
+    <div class="login-glass-card">
+      
+      <!-- ÍCONE DO SISTEMA -->
+      <div style="display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 12px; background: linear-gradient(135deg, var(--tke-purple), var(--tke-magenta)); color: #ffffff; margin: 0 auto 1.15rem auto; font-size: 1.6rem; box-shadow: 0 4px 14px rgba(98, 0, 234, 0.3);">
+        <i class="bi bi-file-earmark-spreadsheet-fill"></i>
+      </div>
+
+      <h1 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.35rem; color: #111827; margin: 0 0 0.35rem 0;">
+        Gerenciador de Orçamentos
+      </h1>
+
+      <!-- FRASE SOLICITADA PELO USUÁRIO -->
+      <p class="login-tke-subtitle" style="margin-bottom: 1.5rem;">
+        Gerenciamento corporativo de orçamentos e liberação GEOR.
+      </p>
+
+      <!-- Banner de Erro -->
+      <div id="login-error-alert" style="display: none; background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
+        <i class="bi bi-exclamation-triangle-fill" style="margin-right: 0.35rem;"></i>
+        <span id="login-error-msg"></span>
+      </div>
+
+      <!-- FORMULÁRIO DE LOGIN -->
+      <form id="login-form">
+        <div class="login-input-group">
+          <input 
+            type="text" 
+            id="identificador" 
+            class="form-control" 
+            placeholder="Login" 
+            required 
+            autocomplete="username"
+            autofocus
+          >
+        </div>
+
+        <div class="login-input-group">
+          <div style="position: relative;">
+            <input 
+              type="password" 
+              id="senha" 
+              class="form-control" 
+              placeholder="Senha" 
+              required 
+              autocomplete="current-password"
+              style="padding-right: 2.5rem;"
+            >
+            <button 
+              type="button" 
+              id="toggle-password" 
+              style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6B7280; cursor: pointer;"
+              title="Mostrar / Ocultar Senha"
+            >
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <a class="login-forgot-link" id="link-forgot-password" href="javascript:void(0)">Esqueci minha senha</a>
+        </div>
+
+        <button type="submit" id="btn-submit" class="btn-tkemobile-purple">
+          <span>Entrar</span>
+        </button>
+      </form>
+
+    </div>
+  </main>
+
+  <!-- MODAL / PAINEL DE PRIMEIRO ACESSO (TROCA OBRIGATÓRIA DE SENHA) -->
+  <div id="modal-primeiro-acesso" class="modal-primeiro-acesso-backdrop" style="display: none;">
+    <div class="login-glass-card first-access-card animate-fade-in">
+      <div style="display: flex; align-items: center; justify-content: center; width: 54px; height: 54px; border-radius: 50%; background: rgba(98, 0, 234, 0.1); color: var(--tke-purple); margin: 0 auto 1rem auto; font-size: 1.5rem;">
+        <i class="bi bi-shield-lock-fill"></i>
+      </div>
+
+      <h2 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.4rem; color: #111827; margin-bottom: 0.35rem;">
+        Redefinição de Primeiro Acesso
+      </h2>
+      <p style="font-size: 0.85rem; color: #4B5563; margin-bottom: 1.25rem; line-height: 1.4;">
+        Por motivos de segurança corporativa TKE, é obrigatório cadastrar uma nova senha pessoal para continuar.
+      </p>
+
+      <div id="primeiro-acesso-user-info" style="background: rgba(98, 0, 234, 0.06); border: 1px solid rgba(98, 0, 234, 0.15); border-radius: 8px; padding: 0.6rem 0.85rem; font-size: 0.82rem; margin-bottom: 1.25rem; text-align: left; display: flex; align-items: center; gap: 0.6rem;">
+        <i class="bi bi-person-badge-fill" style="color: var(--tke-purple); font-size: 1.1rem;"></i>
+        <div>
+          <div id="first-access-user-name" style="font-weight: 700; color: #111827;">Colaborador TKE</div>
+          <div id="first-access-user-details" style="font-size: 0.72rem; color: #6B7280;">Login verificado com sucesso</div>
+        </div>
+      </div>
+
+      <div id="first-access-error-alert" style="display: none; background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
+        <i class="bi bi-exclamation-octagon-fill" style="margin-right: 0.35rem;"></i>
+        <span id="first-access-error-msg"></span>
+      </div>
+
+      <form id="first-access-form">
+        <div class="login-input-group">
+          <div style="position: relative;">
+            <input 
+              type="password" 
+              id="nova-senha" 
+              class="form-control" 
+              placeholder="Nova Senha" 
+              required 
+              autocomplete="new-password"
+              style="padding-right: 2.5rem;"
+            >
+            <button 
+              type="button" 
+              id="toggle-nova-senha" 
+              style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6B7280; cursor: pointer;"
+              title="Mostrar / Ocultar Senha"
+            >
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="login-input-group">
+          <div style="position: relative;">
+            <input 
+              type="password" 
+              id="confirmar-nova-senha" 
+              class="form-control" 
+              placeholder="Confirmar Nova Senha" 
+              required 
+              autocomplete="new-password"
+              style="padding-right: 2.5rem;"
+            >
+            <button 
+              type="button" 
+              id="toggle-confirmar-senha" 
+              style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6B7280; cursor: pointer;"
+              title="Mostrar / Ocultar Senha"
+            >
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div style="text-align: left; font-size: 0.75rem; color: #6B7280; margin-bottom: 1.25rem; line-height: 1.4; background: rgba(0,0,0,0.03); padding: 0.6rem 0.8rem; border-radius: 6px;">
+          <div style="font-weight: 700; color: #374151; margin-bottom: 0.25rem;"><i class="bi bi-info-circle"></i> Critérios de Validação:</div>
+          <div>• Mínimo de 6 caracteres</div>
+          <div>• Conter pelo menos uma letra e um número</div>
+          <div>• Não pode ser idêntica à senha provisória padrão</div>
+        </div>
+
+        <button type="submit" id="btn-submit-first-access" class="btn-tkemobile-purple">
+          <span>Salvar Nova Senha e Entrar</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL DE RECUPERAÇÃO DE SENHA (ESQUECI MINHA SENHA) -->
+  <div id="modal-recuperar-senha" class="modal-primeiro-acesso-backdrop" style="display: none;">
+    <div class="login-glass-card first-access-card animate-fade-in" style="max-width: 440px;">
+      <div style="display: flex; align-items: center; justify-content: center; width: 54px; height: 54px; border-radius: 50%; background: rgba(98, 0, 234, 0.1); color: var(--tke-purple); margin: 0 auto 1rem auto; font-size: 1.5rem;">
+        <i class="bi bi-key-fill"></i>
+      </div>
+
+      <h2 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.35rem; color: #111827; margin-bottom: 0.35rem;">
+        Recuperação de Acesso
+      </h2>
+      <p style="font-size: 0.85rem; color: #4B5563; margin-bottom: 1.25rem; line-height: 1.4;">
+        Informe seu e-mail corporativo ou matrícula cadastrada para redefinir sua senha provisória de acesso.
+      </p>
+
+      <div id="forgot-error-alert" style="display: none; background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
+        <i class="bi bi-exclamation-octagon-fill" style="margin-right: 0.35rem;"></i>
+        <span id="forgot-error-msg"></span>
+      </div>
+
+      <div id="forgot-success-alert" style="display: none; background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; padding: 0.85rem; border-radius: 8px; font-size: 0.84rem; margin-bottom: 1.25rem; text-align: left; line-height: 1.45;">
+        <div style="font-weight: 700; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.35rem;">
+          <i class="bi bi-check-circle-fill" style="color: #10B981;"></i>
+          <span>Acesso Redefinido com Sucesso!</span>
+        </div>
+        <div id="forgot-success-msg" style="margin-bottom: 0.75rem;"></div>
+        <div style="background: rgba(255,255,255,0.8); border: 1px dashed #6EE7B7; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.8rem; color: #111827;">
+          <div><strong>Senha Provisória:</strong> <code style="font-weight: 800; color: #6200EA; font-size: 0.95rem;">Tke@1234</code></div>
+          <div style="font-size: 0.72rem; color: #6B7280; margin-top: 0.2rem;">Ao entrar com a senha provisória, o sistema solicitará o cadastro da sua nova senha pessoal.</div>
+        </div>
+      </div>
+
+      <form id="forgot-password-form">
+        <div class="login-input-group">
+          <input 
+            type="text" 
+            id="forgot-identificador" 
+            class="form-control" 
+            placeholder="E-mail corporativo ou Matrícula" 
+            required 
+            autocomplete="username"
+          >
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+          <button type="button" id="btn-cancel-forgot" class="btn btn-secondary" style="flex: 1; border-radius: 8px; padding: 0.7rem;">
+            Voltar
+          </button>
+          <button type="submit" id="btn-submit-forgot" class="btn-tkemobile-purple" style="flex: 2; margin-top: 0;">
+            <span>Redefinir Senha</span>
+          </button>
+        </div>
+      </form>
+
+      <div id="forgot-back-to-login" style="display: none; margin-top: 0.5rem;">
+        <button type="button" id="btn-proceed-to-login" class="btn-tkemobile-purple" style="width: 100%;">
+          <span>Ir para a Tela de Login</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RODAPÉ -->
+  <footer class="login-tkemobile-footer">
+    Copyright 2026 © <strong>Gerenciamento Corporativo de Orçamentos</strong> - Todos os direitos reservados
+  </footer>
+
+  <div id="toast-container"></div>
+
+  <script type="module" src="/js/login.js"></script>
+</body>
+</html>
