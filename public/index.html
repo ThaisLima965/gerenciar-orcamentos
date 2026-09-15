@@ -80,6 +80,10 @@
         </div>
 
         <div class="tke-editorial-actions" style="display: flex; gap: 0.6rem; align-items: center;">
+          <button id="btn-open-cadastros" class="btn btn-secondary" style="font-weight: 700; display: flex; align-items: center; gap: 0.45rem; padding: 0.55rem 0.95rem;" title="Consultar Clientes & Elevadores">
+            <i class="bi bi-buildings" style="color: var(--tke-purple);"></i>
+            <span>Clientes & Elevadores</span>
+          </button>
           <button id="btn-sync-data" class="btn btn-secondary" style="font-weight: 700; display: flex; align-items: center; gap: 0.45rem; padding: 0.55rem 0.95rem;" title="Sincronizar dados com o servidor imediatamente">
             <i class="bi bi-arrow-repeat" id="icon-sync-data"></i>
             <span>Sincronizar</span>
@@ -181,6 +185,14 @@
             </select>
           </div>
 
+          <div class="form-group" id="filter-group-escopo">
+            <label for="filter-escopo"><i class="bi bi-person-check-fill"></i> Visualização</label>
+            <select id="filter-escopo" class="form-control">
+              <option value="todos">Todos os Chamados</option>
+              <option value="meus">Apenas Meus Chamados</option>
+            </select>
+          </div>
+
           <div class="form-group" style="justify-content: flex-end;">
             <button id="btn-clear-filters" class="btn btn-secondary" title="Limpar Filtros">
               <i class="bi bi-arrow-counterclockwise"></i>
@@ -192,6 +204,10 @@
 
       <!-- TABELA DE ORÇAMENTOS -->
       <div class="table-container">
+        <div class="mobile-table-hint">
+          <i class="bi bi-arrow-left-right"></i>
+          <span>Deslize a tabela lateralmente ou toque em <strong>Editar / Visualizar</strong></span>
+        </div>
         <div class="table-responsive">
           <table class="corporate-table">
             <thead>
@@ -1077,6 +1093,12 @@
           <button type="button" class="btn btn-secondary btn-sm" id="tab-btn-tecnicos">
             <i class="bi bi-person-lines-fill"></i> Técnicos TKE
           </button>
+        </div>
+
+        <!-- Banner Exclusivo Modo Consulta (Técnico) -->
+        <div class="rbac-notice-banner" id="cadastros-tecnico-notice" style="display: none; background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.3); color: var(--text-primary); margin-bottom: 1rem;">
+          <i class="bi bi-info-circle-fill" style="color: #2563EB;"></i>
+          <span><strong>Modo Consulta (Técnico):</strong> Pesquise contratos e elevadores para apoiar a abertura de chamados. A inclusão e alteração de cadastros é restrita à Supervisão e Consultoria.</span>
         </div>
 
         <!-- Seção Clientes -->

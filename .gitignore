@@ -1,0 +1,26 @@
+# Dependências
+node_modules/
+package-lock.json
+
+# Ambiente e Segredos
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# Banco SQLite local temporário (descomente se não quiser versionar o arquivo sqlite local)
+# database/*.sqlite
+
+# IDEs
+.vscode/
+.idea/

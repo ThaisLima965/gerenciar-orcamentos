@@ -330,16 +330,6 @@ export const orcamentoController = {
       const isSupervisor = req.user.perfil === 'SUPERVISOR';
       const isTecnico = req.user.perfil === 'TECNICO';
 
-      // =====================================================================
-      // REGRA 1: TÉCNICO -> REGISTRO É ESTRITAMENTE SOMENTE LEITURA APÓS SALVAR
-      // =====================================================================
-      if (isTecnico) {
-        return res.status(403).json({
-          success: false,
-          error: 'Permissão negada. O registro é estritamente somente leitura para o técnico após a criação inicial.'
-        });
-      }
-
       const {
         matricula_tecnico,
         nome_tecnico,
@@ -357,6 +347,129 @@ export const orcamentoController = {
         data_envio_cliente,
         status
       } = req.body;
+
+      // =====================================================================
+      // REGRA 1: TÉCNICO -> EDIÇÃO PERMITIDA NA SEÇÃO 1 ANTES DA LIBERAÇÃO GEOR
+      // =====================================================================
+      if (isTecnico) {
+        // 1.1 O técnico só pode alterar chamados vinculados à sua própria matrícula ou criados por ele
+        const isOwner = (current.matricula_tecnico && String(current.matricula_tecnico).trim() === String(req.user.matricula).trim()) ||
+                        (current.created_by_id && Number(current.created_by_id) === Number(req.user.id));
+        if (!isOwner) {
+          return res.status(403).json({
+            success: false,
+            error: 'Permissão negada. Você só pode alterar chamados e orçamentos vinculados à sua própria matrícula.'
+          });
+        }
+
+        // 1.2 Se o chamado já foi liberado pelo GEOR, torna-se estritamente somente leitura
+        if (current.geor_liberou === 'Sim') {
+          return res.status(403).json({
+            success: false,
+            error: 'Permissão negada. Este chamado já foi validado e liberado pelo GEOR da supervisão (Somente Leitura).'
+          });
+        }
+
+        // 1.3 Técnico não pode alterar Seção 2 (Orçamento, Data Liberação, GEOR) nem Seção 3 (Valor Total, Envio, Status)
+        if (numero_orcamento !== undefined && String(numero_orcamento).trim() !== String(current.numero_orcamento || '').trim()) {
+          return res.status(403).json({
+            success: false,
+            error: 'Permissão negada. O Número do Orçamento só pode ser preenchido pela Supervisão ou Consultoria.'
+          });
+        }
+        if (geor_liberou !== undefined && geor_liberou !== current.geor_liberou) {
+          return res.status(403).json({
+            success: false,
+            error: 'Permissão negada. A validação GEOR é de competência exclusiva da Supervisão ou Consultoria.'
+          });
+        }
+        if (data_liberacao !== undefined && data_liberacao !== current.data_liberacao) {
+          return res.status(403).json({
+            success: false,
+            error: 'Permissão negada. A Data de Liberação é de responsabilidade da Supervisão ou Consultoria.'
+          });
+        }
+        if (valor_total !== undefined && Number(valor_total) !== Number(current.valor_total)) {
+          return res.status(403).json({
+            success: false,
+            error: 'Permissão negada. O Valor Total do Orçamento é de responsabilidade exclusiva da Consultora (Admin).'
+          });
+        }
+        if (data_envio_cliente !== undefined && data_envio_cliente !== current.data_envio_cliente) {
+          return res.status(403).json({
+            success: false,
+            error: 'Permissão negada. A Data de Envio ao Cliente é de responsabilidade exclusiva da Consultora.'
+          });
+        }
+        if (status !== undefined && status !== current.status) {
+          return res.status(403).json({
+            success: false,
+            error: 'Permissão negada. O Status comercial do chamado não pode ser alterado diretamente pelo técnico.'
+          });
+        }
+
+        // 1.4 Atualização permitida dos campos da Seção 1:
+        const updatedTipoServico = tipo_servico !== undefined ? tipo_servico : current.tipo_servico;
+        if (tipo_servico && !['Preventivo', 'Corretivo'].includes(tipo_servico)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Tipo de Serviço inválido. Use "Preventivo" ou "Corretivo".'
+          });
+        }
+
+        const updatedGOrigem = g_origem !== undefined ? g_origem : current.g_origem;
+        if (g_origem && !['G11', 'G06', 'G05'].includes(g_origem)) {
+          return res.status(400).json({
+            success: false,
+            error: 'G de Origem inválido. Selecione G11, G06 ou G05.'
+          });
+        }
+
+        const resolvedContrato = numero_elevador !== undefined || numero_contrato !== undefined
+          ? String(numero_elevador || numero_contrato || '').trim()
+          : current.numero_contrato;
+
+        let resolvedNomeCliente = current.nome_cliente;
+        if (resolvedContrato && resolvedContrato !== current.numero_contrato) {
+          const clienteFound = db.prepare('SELECT nome_cliente FROM clientes WHERE numero_contrato = ?').get(resolvedContrato);
+          if (clienteFound) {
+            resolvedNomeCliente = clienteFound.nome_cliente;
+          } else if (nome_cliente) {
+            resolvedNomeCliente = nome_cliente.trim();
+            db.prepare('INSERT OR IGNORE INTO clientes (numero_contrato, nome_cliente) VALUES (?, ?)').run(resolvedContrato, resolvedNomeCliente);
+          }
+        }
+
+        const updatedNumeroPgo = numero_pgo !== undefined ? String(numero_pgo).trim() : current.numero_pgo;
+        const updatedDescricaoServico = descricao_servico !== undefined ? String(descricao_servico).trim() : current.descricao_servico;
+
+        db.prepare(`
+          UPDATE chamados_orcamentos SET
+            tipo_servico = ?,
+            g_origem = ?,
+            numero_contrato = ?,
+            nome_cliente = ?,
+            numero_pgo = ?,
+            descricao_servico = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(
+          updatedTipoServico,
+          updatedGOrigem,
+          resolvedContrato,
+          resolvedNomeCliente,
+          updatedNumeroPgo,
+          updatedDescricaoServico,
+          id
+        );
+
+        const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
+        return res.status(200).json({
+          success: true,
+          message: 'Dados operacionais do chamado (Seção 1) atualizados com sucesso pelo técnico.',
+          data: atualizado
+        });
+      }
 
       // =====================================================================
       // REGRA 2: SUPERVISOR -> APENAS SEÇÃO 2 (ORÇAMENTO, DATA LIBERAÇÃO, GEOR, VALOR)

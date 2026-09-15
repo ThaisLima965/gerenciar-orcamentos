@@ -198,15 +198,27 @@ async function runTests() {
     const chamadoId = novoChamado.body.data.id;
     console.log('   ✅ Seção 1 preenchida e salva pelo Técnico com resolução automática de cliente.');
 
-    // 7.2. Trava Rígida do Técnico: após salvar, o registro torna-se SOMENTE LEITURA (PUT bloqueado com 403)
-    const tecUpdate = await putJson(`/api/orcamentos/${chamadoId}`, {
-      descricao_servico: 'Tentativa de alteração indevida pelo técnico'
+    // 7.2. Permissão da Equipe Técnica: Técnico pode editar Seção 1 do seu chamado antes da liberação GEOR
+    const tecValidUpdate = await putJson(`/api/orcamentos/${chamadoId}`, {
+      descricao_servico: 'Atualização autorizada de descrição pelo técnico responsável',
+      g_origem: 'G11'
     }, {
       Cookie: tecnicoCookie,
       'X-CSRF-Token': tecnicoCsrf
     });
-    assert(tecUpdate.res.statusCode === 403, 'Técnico tentando editar chamado gravado deve receber 403 Forbidden');
-    console.log('   ✅ Bloqueio rígido do Técnico após gravação confirmado (403 Forbidden).');
+    assert(tecValidUpdate.res.statusCode === 200, 'Técnico editando Seção 1 antes de GEOR deve retornar 200 OK');
+    assert(tecValidUpdate.body.data.descricao_servico === 'Atualização autorizada de descrição pelo técnico responsável', 'Descrição deve ter sido atualizada');
+    console.log('   ✅ Edição da Seção 1 pelo Técnico antes de GEOR confirmada com sucesso (200 OK).');
+
+    // 7.2b. Técnico tentando alterar Seção 2 ou 3 -> Bloqueado com 403 Forbidden
+    const tecBlockedSec2 = await putJson(`/api/orcamentos/${chamadoId}`, {
+      numero_orcamento: 'ORC-INVASAO-TEC'
+    }, {
+      Cookie: tecnicoCookie,
+      'X-CSRF-Token': tecnicoCsrf
+    });
+    assert(tecBlockedSec2.res.statusCode === 403, 'Técnico tentando alterar Seção 2 deve receber 403 Forbidden');
+    console.log('   ✅ Bloqueio do Técnico para campos da Seção 2 e 3 confirmado (403 Forbidden).');
 
     // 7.3. Supervisor tentando alterar Seção 3 (Data Envio ao Cliente ou Valor Total) -> Bloqueado com 403
     const supBlockedUpdate = await putJson(`/api/orcamentos/${chamadoId}`, {
@@ -249,6 +261,16 @@ async function runTests() {
     });
     assert(supSecondUpdate.res.statusCode === 403, 'Supervisor tentando editar após GEOR salvo deve receber 403');
     console.log('   ✅ Bloqueio de re-edição do Supervisor após liberação GEOR confirmado (403 Forbidden).');
+
+    // 7.5b. Bloqueio do Técnico após liberação GEOR: torna-se SOMENTE LEITURA
+    const tecPostGeorUpdate = await putJson(`/api/orcamentos/${chamadoId}`, {
+      descricao_servico: 'Tentativa de alteração pós-GEOR pelo técnico'
+    }, {
+      Cookie: tecnicoCookie,
+      'X-CSRF-Token': tecnicoCsrf
+    });
+    assert(tecPostGeorUpdate.res.statusCode === 403, 'Técnico tentando editar após liberação GEOR deve receber 403 Forbidden');
+    console.log('   ✅ Bloqueio do Técnico após liberação GEOR confirmado (403 Forbidden).');
 
     // 7.6. Consultora (Admin) com Acesso Irrestrito: Atualiza Seções 1, 2 e 3 (incluindo Valor Total e Data Envio)
     const consUpdate = await putJson(`/api/orcamentos/${chamadoId}`, {

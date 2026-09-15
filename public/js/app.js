@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { auth } from './auth.js';
+import { showConfirmDialog } from './confirmModal.js';
 
 // Estado global da aplicação no frontend
 const state = {
@@ -19,7 +20,8 @@ const state = {
     tipo_servico: '',
     g_origem: '',
     status: '',
-    geor_liberou: ''
+    geor_liberou: '',
+    escopo: 'todos'
   },
   premiacao: {
     ciclo: '2025/2026',
@@ -151,16 +153,20 @@ function setupUserProfile() {
     if (btnExportExcel) btnExportExcel.style.display = '';
     if (tabNavUsuarios) tabNavUsuarios.style.display = 'none';
     if (btnOpenCadastros) btnOpenCadastros.style.display = '';
-  } else {
     roleBadge.classList.add('role-tecnico');
     roleBadge.textContent = 'TÉCNICO';
     document.body.classList.add('role-tecnico-active');
     
-    // Oculta botões de exportação, cadastros de apoio e gestão de usuários para o técnico
+    // Oculta botões de exportação e gestão de usuários para o técnico (mantém cadastros para consulta)
     if (btnExportCsv) btnExportCsv.style.display = 'none';
     if (btnExportExcel) btnExportExcel.style.display = 'none';
     if (tabNavUsuarios) tabNavUsuarios.style.display = 'none';
-    if (btnOpenCadastros) btnOpenCadastros.style.display = 'none';
+    if (btnOpenCadastros) btnOpenCadastros.style.display = '';
+
+    // Define filtro escopo padrão inicial como 'meus' chamados para técnicos
+    state.filters.escopo = 'meus';
+    const filterEscopoEl = document.getElementById('filter-escopo');
+    if (filterEscopoEl) filterEscopoEl.value = 'meus';
 
     // Ativa travas de segurança e proteção anti-print / anti-screenshot
     setupTecnicoSecurityGuards();
@@ -250,6 +256,9 @@ async function loadOrcamentos() {
     if (state.filters.g_origem) params.g_origem = state.filters.g_origem;
     if (state.filters.status) params.status = state.filters.status;
     if (state.filters.geor_liberou) params.geor_liberou = state.filters.geor_liberou;
+    if (state.filters.escopo === 'meus' && state.user?.matricula) {
+      params.matricula_tecnico = state.user.matricula;
+    }
 
     const res = await api.get('/api/orcamentos', params);
     state.orcamentos = res.data || [];
@@ -298,6 +307,33 @@ function renderOrcamentosTable() {
   tbody.innerHTML = items.map((item) => {
     const isGeorSim = item.geor_liberou === 'Sim';
     const isPreventivo = item.tipo_servico === 'Preventivo';
+    const isTecnico = auth.isTecnico(state.user);
+    const isOwner = isTecnico && (
+      String(item.matricula_tecnico || '').trim() === String(state.user?.matricula || '').trim() ||
+      Number(item.created_by_id) === Number(state.user?.id)
+    );
+    const isEditableByTecnico = isTecnico && isOwner && !isGeorSim;
+
+    let editBtnClass = 'btn-secondary';
+    let editBtnIcon = 'bi-pencil-square';
+    let editBtnLabel = 'Editar';
+    let editBtnTitle = 'Editar Orçamento';
+
+    if (isTecnico) {
+      if (isEditableByTecnico) {
+        editBtnClass = 'btn-primary';
+        editBtnIcon = 'bi-pencil-square';
+        editBtnLabel = 'Editar';
+        editBtnTitle = 'Editar Chamado (Seção 1 Aberta)';
+      } else {
+        editBtnClass = 'btn-secondary';
+        editBtnIcon = 'bi-eye';
+        editBtnLabel = 'Visualizar';
+        editBtnTitle = isGeorSim 
+          ? 'Visualizar Orçamento (Liberado pelo GEOR - Somente Leitura)' 
+          : 'Visualizar Orçamento (Atribuído a outro técnico - Somente Leitura)';
+      }
+    }
 
     let statusBadgeClass = 'badge-pill-yes';
     if (item.status === 'Aberto') statusBadgeClass = 'badge-tag role-supervisor';
@@ -359,12 +395,12 @@ function renderOrcamentosTable() {
         <td style="text-align: right; white-space: nowrap;">
           <button 
             type="button" 
-            class="btn btn-secondary btn-sm btn-edit-orcamento" 
+            class="btn ${editBtnClass} btn-sm btn-edit-orcamento" 
             data-id="${item.id}"
-            title="Editar Orçamento"
+            title="${editBtnTitle}"
           >
-            <i class="bi bi-pencil-square"></i>
-            <span>Editar</span>
+            <i class="bi ${editBtnIcon}"></i>
+            <span>${editBtnLabel}</span>
           </button>
           ${isConsultora ? `
             <button 
@@ -395,7 +431,17 @@ function renderOrcamentosTable() {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-id');
       const pgo = btn.getAttribute('data-pgo');
-      if (confirm(`Confirma a exclusão definitiva do chamado ${pgo} (ID #${id})?`)) {
+      const confirmed = await showConfirmDialog({
+        title: 'Excluir Orçamento Definitivamente',
+        message: `Confirma a exclusão definitiva do chamado <strong>${pgo}</strong> (ID #${id})?`,
+        details: 'Esta ação é irreversível e removerá permanentemente o chamado do histórico de orçamentos.',
+        confirmText: 'Sim, Excluir',
+        cancelText: 'Cancelar',
+        variant: 'danger',
+        icon: 'bi-trash3-fill'
+      });
+
+      if (confirmed) {
         try {
           await api.delete(`/api/orcamentos/${id}`);
           showToast('Chamado excluído com sucesso!', 'success');
@@ -475,6 +521,16 @@ function applyRbacToModal(isEdit = false, item = null) {
   const saveBtn = document.getElementById('modal-save-btn');
   const saveBtnText = document.getElementById('modal-save-btn-text');
   const rbacText = document.getElementById('form-rbac-text');
+  const modalTitle = document.getElementById('modal-title');
+  const cancelBtn = document.getElementById('modal-cancel-btn');
+  const rbacNotice = document.getElementById('form-rbac-notice');
+
+  if (rbacNotice) {
+    rbacNotice.classList.remove('rbac-banner-locked', 'rbac-banner-editable');
+  }
+  if (cancelBtn) {
+    cancelBtn.innerHTML = 'Cancelar';
+  }
 
   // Reset de classes de bloqueio
   secTecnico.classList.remove('section-locked');
@@ -487,28 +543,91 @@ function applyRbacToModal(isEdit = false, item = null) {
   // =====================================================================
   if (isTecnico) {
     if (isEdit) {
-      // Pós-gravação: estritamente SOMENTE LEITURA para o técnico
-      secTecnico.classList.add('section-locked');
-      secSupervisor.classList.add('section-locked');
-      secConsultora.classList.add('section-locked');
+      const isGeorLiberado = item && item.geor_liberou === 'Sim';
+      const isOwner = item && (
+        String(item.matricula_tecnico || '').trim() === String(user.matricula || '').trim() ||
+        Number(item.created_by_id) === Number(user.id)
+      );
 
-      inputMatricula.disabled = true;
-      selectTipo.disabled = true;
-      selectGOrigem.disabled = true;
-      inputElevador.disabled = true;
-      inputPgo.disabled = true;
-      inputDesc.disabled = true;
+      if (isGeorLiberado) {
+        // Pós-liberação GEOR: estritamente SOMENTE LEITURA
+        secTecnico.classList.add('section-locked');
+        secSupervisor.classList.add('section-locked');
+        secConsultora.classList.add('section-locked');
 
-      inputOrcamento.disabled = true;
-      inputValorTotal.disabled = true;
-      inputDataLiberacao.disabled = true;
-      selectGeor.disabled = true;
+        inputMatricula.disabled = true;
+        selectTipo.disabled = true;
+        selectGOrigem.disabled = true;
+        inputElevador.disabled = true;
+        inputPgo.disabled = true;
+        inputDesc.disabled = true;
 
-      inputDataEnvio.disabled = true;
-      selectStatus.disabled = true;
+        inputOrcamento.disabled = true;
+        inputValorTotal.disabled = true;
+        inputDataLiberacao.disabled = true;
+        selectGeor.disabled = true;
 
-      saveBtn.style.display = 'none';
-      rbacText.innerHTML = '🔒 <strong>Modo Somente Leitura (Técnico):</strong> Este chamado já foi gravado no sistema e não permite alterações posteriores por técnicos.';
+        inputDataEnvio.disabled = true;
+        selectStatus.disabled = true;
+
+        saveBtn.style.display = 'none';
+        if (rbacNotice) rbacNotice.classList.add('rbac-banner-locked');
+        if (modalTitle && item) modalTitle.textContent = `Visualizar Chamado - ${item.numero_pgo} (Liberado GEOR)`;
+        if (cancelBtn) cancelBtn.innerHTML = '<i class="bi bi-x-circle"></i> Fechar Visualização';
+        rbacText.innerHTML = '🔒 <strong>Modo Somente Leitura:</strong> Este orçamento já foi validado e liberado pelo GEOR da Supervisão e não permite mais alterações operacionais.';
+      } else if (!isOwner) {
+        // Chamado de outro técnico: somente leitura
+        secTecnico.classList.add('section-locked');
+        secSupervisor.classList.add('section-locked');
+        secConsultora.classList.add('section-locked');
+
+        inputMatricula.disabled = true;
+        selectTipo.disabled = true;
+        selectGOrigem.disabled = true;
+        inputElevador.disabled = true;
+        inputPgo.disabled = true;
+        inputDesc.disabled = true;
+
+        inputOrcamento.disabled = true;
+        inputValorTotal.disabled = true;
+        inputDataLiberacao.disabled = true;
+        selectGeor.disabled = true;
+
+        inputDataEnvio.disabled = true;
+        selectStatus.disabled = true;
+
+        saveBtn.style.display = 'none';
+        if (rbacNotice) rbacNotice.classList.add('rbac-banner-locked');
+        if (modalTitle && item) modalTitle.textContent = `Visualizar Chamado - ${item.numero_pgo} (Outro Técnico)`;
+        if (cancelBtn) cancelBtn.innerHTML = '<i class="bi bi-x-circle"></i> Fechar Visualização';
+        rbacText.innerHTML = '🔒 <strong>Modo Somente Leitura:</strong> Este chamado está atribuído a outro técnico e não permite edições por você.';
+      } else {
+        // Pendente de GEOR e pertence a ele: Edição Liberada na Seção 1!
+        secTecnico.classList.remove('section-locked');
+        secSupervisor.classList.add('section-locked');
+        secConsultora.classList.add('section-locked');
+
+        inputMatricula.disabled = true; // Vinculado a ele mesmo
+        selectTipo.disabled = false;
+        selectGOrigem.disabled = false;
+        inputElevador.disabled = false;
+        inputPgo.disabled = false;
+        inputDesc.disabled = false;
+
+        inputOrcamento.disabled = true;
+        inputValorTotal.disabled = true;
+        inputDataLiberacao.disabled = true;
+        selectGeor.disabled = true;
+
+        inputDataEnvio.disabled = true;
+        selectStatus.disabled = true;
+
+        saveBtn.style.display = 'inline-flex';
+        saveBtnText.textContent = 'Salvar Alterações (Técnico)';
+        if (rbacNotice) rbacNotice.classList.add('rbac-banner-editable');
+        if (modalTitle && item) modalTitle.textContent = `Editar Chamado - ${item.numero_pgo} (Seção 1 Aberta)`;
+        rbacText.innerHTML = '✏️ <strong>Equipe Técnica (Edição Liberada):</strong> Você pode atualizar os dados da Seção 1 (Elevador, Tipo de Serviço, G e Descrição) enquanto a validação GEOR estiver pendente.';
+      }
     } else {
       // Momento da Criação: Preenche Seção 1. Seções 2 e 3 bloqueadas.
       secSupervisor.classList.add('section-locked');
@@ -531,8 +650,11 @@ function applyRbacToModal(isEdit = false, item = null) {
       inputDataEnvio.disabled = true;
       selectStatus.disabled = true;
 
+      saveBtn.style.display = 'inline-flex';
       saveBtnText.textContent = 'Salvar Chamado (Técnico)';
-      rbacText.innerHTML = '🛠️ <strong>Perfil Técnico:</strong> Preencha os dados da Seção 1 (Elevador, Tipo de Serviço, G de Origem e PGO). As seções de Supervisão e Consultoria serão preenchidas pelas áreas competentes.';
+      if (rbacNotice) rbacNotice.classList.add('rbac-banner-editable');
+      if (modalTitle) modalTitle.textContent = 'Novo Chamado TKE (Abertura Técnico)';
+      rbacText.innerHTML = '🛠️ <strong>Equipe Técnica:</strong> Preencha os dados da Seção 1 (Elevador, Tipo de Serviço, G de Origem e PGO). Você poderá atualizar este registro enquanto a liberação GEOR estiver pendente.';
     }
     return;
   }
@@ -616,6 +738,8 @@ function openNewModal() {
   applyRbacToModal(false, null);
 
   document.getElementById('orcamento-modal').classList.add('active');
+  const modalBody = document.querySelector('#orcamento-modal .modal-body');
+  if (modalBody) modalBody.scrollTop = 0;
 }
 
 function openEditModal(id) {
@@ -645,6 +769,8 @@ function openEditModal(id) {
   applyRbacToModal(true, item);
 
   document.getElementById('orcamento-modal').classList.add('active');
+  const modalBody = document.querySelector('#orcamento-modal .modal-body');
+  if (modalBody) modalBody.scrollTop = 0;
 }
 
 function closeModal() {
@@ -668,8 +794,17 @@ function setupEventListeners() {
   setupDashboardFirstAccessListener();
 
   // Logout
-  document.getElementById('btn-logout').addEventListener('click', () => {
-    if (confirm('Deseja realmente sair da sessão corporativa?')) {
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    const confirmed = await showConfirmDialog({
+      title: 'Encerrar Sessão Corporativa',
+      message: 'Deseja realmente sair do sistema corporativo TKE?',
+      details: 'Sua sessão atual e autenticação segura serão encerradas.',
+      confirmText: 'Sair do Sistema',
+      cancelText: 'Permanecer Conectado',
+      variant: 'primary',
+      icon: 'bi-box-arrow-right'
+    });
+    if (confirmed) {
       auth.logout();
     }
   });
@@ -824,6 +959,14 @@ function setupEventListeners() {
     loadOrcamentos();
   });
 
+  const filterEscopoEl = document.getElementById('filter-escopo');
+  if (filterEscopoEl) {
+    filterEscopoEl.addEventListener('change', (e) => {
+      state.filters.escopo = e.target.value;
+      loadOrcamentos();
+    });
+  }
+
   document.getElementById('btn-clear-filters').addEventListener('click', () => {
     document.getElementById('filter-search').value = '';
     const filterTipoEl = document.getElementById('filter-tipo');
@@ -831,7 +974,10 @@ function setupEventListeners() {
     document.getElementById('filter-g-origem').value = '';
     document.getElementById('filter-status').value = '';
     document.getElementById('filter-geor').value = '';
-    state.filters = { q: '', tipo_servico: '', g_origem: '', status: '', geor_liberou: '' };
+    const isTec = state.user?.perfil === 'TECNICO';
+    const defaultEscopo = isTec ? 'meus' : 'todos';
+    if (filterEscopoEl) filterEscopoEl.value = defaultEscopo;
+    state.filters = { q: '', tipo_servico: '', g_origem: '', status: '', geor_liberou: '', escopo: defaultEscopo };
     loadOrcamentos();
     showToast('Filtros redefinidos.', 'info');
   });
@@ -893,9 +1039,10 @@ function setupCadastrosModal() {
 
   if (btnOpen) {
     btnOpen.addEventListener('click', () => {
-      if (state.user?.perfil === 'TECNICO') {
-        showToast('Acesso restrito à supervisão e consultoria.', 'warning');
-        return;
+      const isTec = state.user?.perfil === 'TECNICO';
+      const tecNotice = document.getElementById('cadastros-tecnico-notice');
+      if (tecNotice) {
+        tecNotice.style.display = isTec ? 'flex' : 'none';
       }
       activateTab('clientes');
       if (modal) modal.classList.add('active');
@@ -1172,7 +1319,17 @@ function renderCadastrosClientesTable() {
       btn.addEventListener('click', async () => {
         const contrato = btn.getAttribute('data-contrato');
         const name = btn.getAttribute('data-name');
-        if (confirm(`Confirma a exclusão do cliente "${name}" (Contrato: ${contrato})?`)) {
+        const confirmed = await showConfirmDialog({
+          title: 'Excluir Cliente / Contrato',
+          message: `Confirma a exclusão do cliente <strong>${name}</strong>?`,
+          details: `Contrato / Elevador: <strong>${contrato}</strong>. Registros operacionais podem ser impactados.`,
+          confirmText: 'Sim, Excluir',
+          cancelText: 'Cancelar',
+          variant: 'danger',
+          icon: 'bi-trash3-fill'
+        });
+
+        if (confirmed) {
           try {
             const res = await api.delete(`/api/clientes/${encodeURIComponent(contrato)}`);
             showToast(res.message || 'Cliente excluído com sucesso!', 'success');
@@ -1255,7 +1412,17 @@ function renderCadastrosTecnicosTable() {
       btn.addEventListener('click', async () => {
         const matricula = btn.getAttribute('data-matricula');
         const name = btn.getAttribute('data-name');
-        if (confirm(`Confirma a exclusão do técnico "${name}" (Matrícula: ${matricula})?`)) {
+        const confirmed = await showConfirmDialog({
+          title: 'Excluir Técnico',
+          message: `Confirma a exclusão do técnico <strong>${name}</strong>?`,
+          details: `Matrícula: <strong>${matricula}</strong>.`,
+          confirmText: 'Sim, Excluir',
+          cancelText: 'Cancelar',
+          variant: 'danger',
+          icon: 'bi-trash3-fill'
+        });
+
+        if (confirmed) {
           try {
             const res = await api.delete(`/api/tecnicos/${encodeURIComponent(matricula)}`);
             showToast(res.message || 'Técnico excluído com sucesso!', 'success');
@@ -2227,7 +2394,17 @@ function renderUsuariosTable() {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-id');
       const name = btn.getAttribute('data-name');
-      if (confirm(`Confirma o reset de senha para o colaborador ${name}?\n\nA senha provisória será definida como 'Tke@1234' e a flag de Primeiro Acesso Obrigatório será reativada.`)) {
+      const confirmed = await showConfirmDialog({
+        title: 'Redefinir Senha de Acesso',
+        message: `Confirma o reset de senha para o colaborador <strong>${name}</strong>?`,
+        details: 'A senha provisória será definida como <code>Tke@1234</code> e a obrigatoriedade de Primeiro Acesso será reativada no próximo login.',
+        confirmText: 'Redefinir Senha',
+        cancelText: 'Cancelar',
+        variant: 'warning',
+        icon: 'bi-key-fill'
+      });
+
+      if (confirmed) {
         try {
           const res = await api.patch(`/api/usuarios/${id}/reset-password`);
           showToast(res.message || 'Senha resetada para Tke@1234 com sucesso!', 'success');
@@ -2246,7 +2423,17 @@ function renderUsuariosTable() {
       const name = btn.getAttribute('data-name');
       const action = currentAtivo ? 'desativar' : 'ativar';
 
-      if (confirm(`Deseja realmente ${action} o acesso de ${name}?`)) {
+      const confirmed = await showConfirmDialog({
+        title: `${action === 'ativar' ? 'Ativar' : 'Desativar'} Acesso`,
+        message: `Deseja realmente <strong>${action}</strong> o acesso do colaborador <strong>${name}</strong>?`,
+        details: currentAtivo ? 'O colaborador não conseguirá realizar login até que o acesso seja reativado.' : 'O colaborador terá acesso liberado ao sistema com suas credenciais.',
+        confirmText: action === 'ativar' ? 'Ativar Acesso' : 'Desativar Acesso',
+        cancelText: 'Cancelar',
+        variant: currentAtivo ? 'warning' : 'primary',
+        icon: currentAtivo ? 'bi-person-x-fill' : 'bi-person-check-fill'
+      });
+
+      if (confirmed) {
         try {
           const res = await api.patch(`/api/usuarios/${id}/toggle-status`, { ativo: !currentAtivo });
           showToast(res.message || `Usuário ${action}do com sucesso!`, 'success');
@@ -2263,7 +2450,17 @@ function renderUsuariosTable() {
       const id = btn.getAttribute('data-id');
       const name = btn.getAttribute('data-name');
 
-      if (confirm(`⚠️ ATENÇÃO: Tem certeza que deseja EXCLUIR permanentemente o colaborador "${name}"?\n\nEsta ação removerá o acesso do usuário ao sistema.`)) {
+      const confirmed = await showConfirmDialog({
+        title: 'Excluir Colaborador Permanentemente',
+        message: `Tem certeza que deseja EXCLUIR permanentemente o colaborador <strong>${name}</strong>?`,
+        details: '⚠️ Esta ação removerá o acesso do usuário de forma definitiva da base de dados corporativa.',
+        confirmText: 'Excluir Permanentemente',
+        cancelText: 'Cancelar',
+        variant: 'danger',
+        icon: 'bi-trash3-fill'
+      });
+
+      if (confirmed) {
         try {
           const res = await api.delete(`/api/usuarios/${id}`);
           showToast(res.message || 'Colaborador excluído com sucesso!', 'success');
