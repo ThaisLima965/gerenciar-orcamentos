@@ -9,23 +9,33 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const isVercel = Boolean(process.env.VERCEL);
 const dbDirectory = path.resolve(__dirname, '../../database');
-if (!fs.existsSync(dbDirectory)) {
-  fs.mkdirSync(dbDirectory, { recursive: true });
+
+if (!isVercel && !fs.existsSync(dbDirectory)) {
+  try {
+    fs.mkdirSync(dbDirectory, { recursive: true });
+  } catch (e) {
+    // Silencia se não conseguir criar pasta
+  }
 }
 
 const dbPath = process.env.DB_PATH 
   ? path.resolve(process.cwd(), process.env.DB_PATH) 
-  : path.join(dbDirectory, 'database.sqlite');
+  : (isVercel ? path.join('/tmp', 'database.sqlite') : path.join(dbDirectory, 'database.sqlite'));
 
 let sqlDb = null;
 
 // Função para persistir o banco de dados em disco
 export function saveDatabase() {
   if (sqlDb) {
-    const data = sqlDb.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(dbPath, buffer);
+    try {
+      const data = sqlDb.export();
+      const buffer = Buffer.from(data);
+      fs.writeFileSync(dbPath, buffer);
+    } catch (err) {
+      console.warn('⚠️ [Database] Aviso ao salvar banco de dados em disco:', err.message);
+    }
   }
 }
 
@@ -33,6 +43,15 @@ export function saveDatabase() {
 export async function initDatabase() {
   try {
     const SQL = await initSqlJs();
+
+    const originalSeedDbPath = path.join(dbDirectory, 'database.sqlite');
+    if (isVercel && !fs.existsSync(dbPath) && fs.existsSync(originalSeedDbPath)) {
+      try {
+        fs.copyFileSync(originalSeedDbPath, dbPath);
+      } catch (e) {
+        console.warn('⚠️ [Database] Não foi possível copiar banco original para /tmp:', e.message);
+      }
+    }
 
     if (fs.existsSync(dbPath)) {
       const fileBuffer = fs.readFileSync(dbPath);
