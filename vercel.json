@@ -1,5 +1,11 @@
 {
   "version": 2,
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "database/**,public/**,node_modules/sql.js/dist/sql-wasm.wasm",
+      "maxDuration": 15
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",
