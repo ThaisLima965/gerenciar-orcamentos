@@ -1,0 +1,64 @@
+{
+  "name": "Gerenciador de Orçamentos",
+  "short_name": "Orçamentos",
+  "description": "Plataforma Corporativa de Gestão de Orçamentos e Liberação GEOR",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
+  "background_color": "#0A0B10",
+  "theme_color": "#6200EA",
+  "orientation": "any",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "finance"],
+  "icons": [
+    {
+      "src": "/images/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/images/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/images/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novo Orçamento",
+      "short_name": "Novo",
+      "description": "Cadastrar um novo chamado ou orçamento",
+      "url": "/index.html?action=new",
+      "icons": [{ "src": "/images/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Apuração de Resultado",
+      "short_name": "Apuração",
+      "description": "Acompanhar ranking e premiações",
+      "url": "/index.html?tab=premiacao",
+      "icons": [{ "src": "/images/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
+}

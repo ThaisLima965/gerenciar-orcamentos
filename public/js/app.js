@@ -1,6 +1,8 @@
 import { api } from './api.js';
 import { auth } from './auth.js';
 import { showConfirmDialog } from './confirmModal.js';
+import { offlineStore } from './offlineStore.js';
+import { pwaManager } from './pwaManager.js';
 
 // Estado global da aplicação no frontend
 const state = {
@@ -131,7 +133,9 @@ function setupUserProfile() {
   const btnExportCsv = document.getElementById('btn-export-csv');
   const btnExportExcel = document.getElementById('btn-export-excel-prem');
   const tabNavUsuarios = document.getElementById('tab-nav-usuarios');
+  const bnavUsuarios = document.getElementById('bnav-usuarios');
   const btnOpenCadastros = document.getElementById('btn-open-cadastros');
+  const bnavCadastros = document.getElementById('bnav-cadastros');
 
   if (user.perfil === 'CONSULTORA') {
     if (roleBadge) {
@@ -142,7 +146,9 @@ function setupUserProfile() {
     if (btnExportCsv) btnExportCsv.style.display = '';
     if (btnExportExcel) btnExportExcel.style.display = '';
     if (tabNavUsuarios) tabNavUsuarios.style.display = '';
-    if (btnOpenCadastros) btnOpenCadastros.style.display = '';
+    if (bnavUsuarios) bnavUsuarios.style.display = 'flex';
+    if (btnOpenCadastros) btnOpenCadastros.style.display = 'inline-flex';
+    if (bnavCadastros) bnavCadastros.style.display = 'flex';
   } else if (user.perfil === 'SUPERVISOR') {
     if (roleBadge) {
       roleBadge.classList.add('role-supervisor');
@@ -152,16 +158,24 @@ function setupUserProfile() {
     if (btnExportCsv) btnExportCsv.style.display = '';
     if (btnExportExcel) btnExportExcel.style.display = '';
     if (tabNavUsuarios) tabNavUsuarios.style.display = 'none';
-    if (btnOpenCadastros) btnOpenCadastros.style.display = '';
-    roleBadge.classList.add('role-tecnico');
-    roleBadge.textContent = 'TÉCNICO';
+    if (bnavUsuarios) bnavUsuarios.style.display = 'none';
+    if (btnOpenCadastros) btnOpenCadastros.style.display = 'none';
+    if (bnavCadastros) bnavCadastros.style.display = 'none';
+  } else {
+    // TECNICO
+    if (roleBadge) {
+      roleBadge.classList.add('role-tecnico');
+      roleBadge.textContent = 'TÉCNICO';
+    }
     document.body.classList.add('role-tecnico-active');
     
-    // Oculta botões de exportação e gestão de usuários para o técnico (mantém cadastros para consulta)
+    // Oculta botões de exportação, gestão de usuários e cadastros de apoio para o técnico
     if (btnExportCsv) btnExportCsv.style.display = 'none';
     if (btnExportExcel) btnExportExcel.style.display = 'none';
     if (tabNavUsuarios) tabNavUsuarios.style.display = 'none';
-    if (btnOpenCadastros) btnOpenCadastros.style.display = '';
+    if (bnavUsuarios) bnavUsuarios.style.display = 'none';
+    if (btnOpenCadastros) btnOpenCadastros.style.display = 'none';
+    if (bnavCadastros) bnavCadastros.style.display = 'none';
 
     // Define filtro escopo padrão inicial como 'meus' chamados para técnicos
     state.filters.escopo = 'meus';
@@ -217,34 +231,38 @@ function setupTheme() {
 function updateThemeIcon(theme) {
   const btn = document.getElementById('theme-toggle-btn');
   if (!btn) return;
-  btn.innerHTML = theme === 'dark' 
-    ? '<i class="bi bi-sun-fill" style="color: #f59e0b;"></i>' 
-    : '<i class="bi bi-moon-stars-fill"></i>';
+  const isDark = theme === 'dark';
+  btn.setAttribute('aria-checked', isDark ? 'true' : 'false');
+  btn.setAttribute('title', isDark ? 'Modo Escuro Ativo (Clique para Modo Claro)' : 'Modo Claro Ativo (Clique para Modo Escuro)');
 }
 
 // =====================================================================
-// CARGA DE DADOS (API)
+// CARGA DE DADOS (API & OFFLINE-FIRST INDEXEDDB)
 // =====================================================================
 async function loadClientes() {
   try {
     const res = await api.get('/api/clientes');
     state.clientes = res.data || [];
-    populateClientesSelect();
-    renderCadastrosClientesTable();
+    await offlineStore.saveClientes(state.clientes);
   } catch (err) {
-    console.error('Erro ao carregar clientes:', err);
+    console.warn('⚠️ [Offline fallback] Carregando clientes do IndexedDB local...');
+    state.clientes = await offlineStore.getClientes();
   }
+  populateClientesSelect();
+  renderCadastrosClientesTable();
 }
 
 async function loadTecnicos() {
   try {
     const res = await api.get('/api/tecnicos');
     state.tecnicos = res.data || [];
-    populateTecnicosSelect();
-    renderCadastrosTecnicosTable();
+    await offlineStore.saveTecnicos(state.tecnicos);
   } catch (err) {
-    console.error('Erro ao carregar técnicos:', err);
+    console.warn('⚠️ [Offline fallback] Carregando técnicos do IndexedDB local...');
+    state.tecnicos = await offlineStore.getTecnicos();
   }
+  populateTecnicosSelect();
+  renderCadastrosTecnicosTable();
 }
 
 async function loadOrcamentos() {
@@ -260,28 +278,83 @@ async function loadOrcamentos() {
       params.matricula_tecnico = state.user.matricula;
     }
 
-    const res = await api.get('/api/orcamentos', params);
-    state.orcamentos = res.data || [];
+    if (navigator.onLine) {
+      try {
+        const res = await api.get('/api/orcamentos', params);
+        state.orcamentos = res.data || [];
+        await offlineStore.saveOrcamentos(state.orcamentos);
 
-    // Atualiza KPIs
-    if (res.stats) {
-      document.getElementById('kpi-total').textContent = res.stats.total;
-      document.getElementById('kpi-geor-wait').textContent = res.stats.aguardando_geor;
-      document.getElementById('kpi-geor-ok').textContent = res.stats.liberados_geor;
-      document.getElementById('kpi-sent').textContent = res.stats.enviados_cliente;
+        // Atualiza KPIs
+        if (res.stats) {
+          const kpiTotal = document.getElementById('kpi-total');
+          const kpiGeorWait = document.getElementById('kpi-geor-wait');
+          const kpiGeorOk = document.getElementById('kpi-geor-ok');
+          const kpiSent = document.getElementById('kpi-sent');
+          if (kpiTotal) kpiTotal.textContent = res.stats.total;
+          if (kpiGeorWait) kpiGeorWait.textContent = res.stats.aguardando_geor;
+          if (kpiGeorOk) kpiGeorOk.textContent = res.stats.liberados_geor;
+          if (kpiSent) kpiSent.textContent = res.stats.enviados_cliente;
+          await offlineStore.setMeta('stats_cache', res.stats);
+        }
+      } catch (networkErr) {
+        throw networkErr;
+      }
+    } else {
+      throw new Error('Offline');
+    }
+  } catch (err) {
+    console.warn('⚠️ [Offline fallback] Carregando orçamentos do IndexedDB local...', err.message);
+    let localData = await offlineStore.getOrcamentos();
+
+    // Filtros locais no IndexedDB
+    if (state.filters.escopo === 'meus' && state.user?.matricula) {
+      localData = localData.filter(o => 
+        String(o.matricula_tecnico || '').trim() === String(state.user.matricula || '').trim() ||
+        Number(o.created_by_id) === Number(state.user.id)
+      );
+    }
+    if (state.filters.q) {
+      const q = state.filters.q.toLowerCase();
+      localData = localData.filter(o => 
+        (o.numero_pgo && o.numero_pgo.toLowerCase().includes(q)) ||
+        (o.nome_cliente && o.nome_cliente.toLowerCase().includes(q)) ||
+        (o.numero_contrato && o.numero_contrato.toLowerCase().includes(q)) ||
+        (o.nome_tecnico && o.nome_tecnico.toLowerCase().includes(q)) ||
+        (o.numero_orcamento && o.numero_orcamento.toLowerCase().includes(q))
+      );
+    }
+    if (state.filters.tipo_servico) {
+      localData = localData.filter(o => o.tipo_servico === state.filters.tipo_servico);
+    }
+    if (state.filters.g_origem) {
+      localData = localData.filter(o => o.g_origem === state.filters.g_origem);
+    }
+    if (state.filters.status) {
+      localData = localData.filter(o => o.status === state.filters.status);
+    }
+    if (state.filters.geor_liberou) {
+      localData = localData.filter(o => o.geor_liberou === state.filters.geor_liberou);
     }
 
-    renderOrcamentosTable();
-  } catch (err) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="12" style="text-align: center; color: #ef4444; padding: 2rem;">
-          <i class="bi bi-exclamation-triangle-fill" style="font-size: 1.5rem;"></i>
-          <div>Falha ao carregar lista de orçamentos: ${err.message}</div>
-        </td>
-      </tr>
-    `;
+    state.orcamentos = localData;
+
+    // Atualiza KPIs calculando a partir dos dados locais
+    const total = localData.length;
+    const aguardando_geor = localData.filter(o => o.geor_liberou === 'Não' || !o.geor_liberou).length;
+    const liberados_geor = localData.filter(o => o.geor_liberou === 'Sim').length;
+    const enviados_cliente = localData.filter(o => o.status === 'Enviado ao Cliente' || o.data_envio_cliente).length;
+
+    const kpiTotal = document.getElementById('kpi-total');
+    const kpiGeorWait = document.getElementById('kpi-geor-wait');
+    const kpiGeorOk = document.getElementById('kpi-geor-ok');
+    const kpiSent = document.getElementById('kpi-sent');
+    if (kpiTotal) kpiTotal.textContent = total;
+    if (kpiGeorWait) kpiGeorWait.textContent = aguardando_geor;
+    if (kpiGeorOk) kpiGeorOk.textContent = liberados_geor;
+    if (kpiSent) kpiSent.textContent = enviados_cliente;
   }
+
+  renderOrcamentosTable();
 }
 
 // =====================================================================
@@ -532,16 +605,25 @@ function applyRbacToModal(isEdit = false, item = null) {
     cancelBtn.innerHTML = 'Cancelar';
   }
 
-  // Reset de classes de bloqueio
+  // Reset de classes de bloqueio e visibilidade padrão
   secTecnico.classList.remove('section-locked');
   secSupervisor.classList.remove('section-locked');
   secConsultora.classList.remove('section-locked');
+  secTecnico.style.display = '';
+  secSupervisor.style.display = '';
+  secConsultora.style.display = '';
   saveBtn.style.display = 'inline-flex';
 
   // =====================================================================
   // CENÁRIO 1: PERFIL TÉCNICO
+  // Exibe EXCLUSIVAMENTE a Seção 1 (Preenchimento da Equipe Técnica)
+  // Oculta completamente Seção 2 (Supervisão) e Seção 3 (Consultoria)
   // =====================================================================
   if (isTecnico) {
+    secTecnico.style.display = 'block';
+    secSupervisor.style.display = 'none';
+    secConsultora.style.display = 'none';
+
     if (isEdit) {
       const isGeorLiberado = item && item.geor_liberou === 'Sim';
       const isOwner = item && (
@@ -552,8 +634,6 @@ function applyRbacToModal(isEdit = false, item = null) {
       if (isGeorLiberado) {
         // Pós-liberação GEOR: estritamente SOMENTE LEITURA
         secTecnico.classList.add('section-locked');
-        secSupervisor.classList.add('section-locked');
-        secConsultora.classList.add('section-locked');
 
         inputMatricula.disabled = true;
         selectTipo.disabled = true;
@@ -561,25 +641,15 @@ function applyRbacToModal(isEdit = false, item = null) {
         inputElevador.disabled = true;
         inputPgo.disabled = true;
         inputDesc.disabled = true;
-
-        inputOrcamento.disabled = true;
-        inputValorTotal.disabled = true;
-        inputDataLiberacao.disabled = true;
-        selectGeor.disabled = true;
-
-        inputDataEnvio.disabled = true;
-        selectStatus.disabled = true;
 
         saveBtn.style.display = 'none';
         if (rbacNotice) rbacNotice.classList.add('rbac-banner-locked');
         if (modalTitle && item) modalTitle.textContent = `Visualizar Chamado - ${item.numero_pgo} (Liberado GEOR)`;
         if (cancelBtn) cancelBtn.innerHTML = '<i class="bi bi-x-circle"></i> Fechar Visualização';
-        rbacText.innerHTML = '🔒 <strong>Modo Somente Leitura:</strong> Este orçamento já foi validado e liberado pelo GEOR da Supervisão e não permite mais alterações operacionais.';
+        rbacText.innerHTML = '🔒 <strong>Modo Somente Leitura:</strong> Este chamado já foi validado e liberado pelo GEOR da Supervisão e não permite alterações pela equipe técnica.';
       } else if (!isOwner) {
         // Chamado de outro técnico: somente leitura
         secTecnico.classList.add('section-locked');
-        secSupervisor.classList.add('section-locked');
-        secConsultora.classList.add('section-locked');
 
         inputMatricula.disabled = true;
         selectTipo.disabled = true;
@@ -587,14 +657,6 @@ function applyRbacToModal(isEdit = false, item = null) {
         inputElevador.disabled = true;
         inputPgo.disabled = true;
         inputDesc.disabled = true;
-
-        inputOrcamento.disabled = true;
-        inputValorTotal.disabled = true;
-        inputDataLiberacao.disabled = true;
-        selectGeor.disabled = true;
-
-        inputDataEnvio.disabled = true;
-        selectStatus.disabled = true;
 
         saveBtn.style.display = 'none';
         if (rbacNotice) rbacNotice.classList.add('rbac-banner-locked');
@@ -604,8 +666,6 @@ function applyRbacToModal(isEdit = false, item = null) {
       } else {
         // Pendente de GEOR e pertence a ele: Edição Liberada na Seção 1!
         secTecnico.classList.remove('section-locked');
-        secSupervisor.classList.add('section-locked');
-        secConsultora.classList.add('section-locked');
 
         inputMatricula.disabled = true; // Vinculado a ele mesmo
         selectTipo.disabled = false;
@@ -614,14 +674,6 @@ function applyRbacToModal(isEdit = false, item = null) {
         inputPgo.disabled = false;
         inputDesc.disabled = false;
 
-        inputOrcamento.disabled = true;
-        inputValorTotal.disabled = true;
-        inputDataLiberacao.disabled = true;
-        selectGeor.disabled = true;
-
-        inputDataEnvio.disabled = true;
-        selectStatus.disabled = true;
-
         saveBtn.style.display = 'inline-flex';
         saveBtnText.textContent = 'Salvar Alterações (Técnico)';
         if (rbacNotice) rbacNotice.classList.add('rbac-banner-editable');
@@ -629,10 +681,7 @@ function applyRbacToModal(isEdit = false, item = null) {
         rbacText.innerHTML = '✏️ <strong>Equipe Técnica (Edição Liberada):</strong> Você pode atualizar os dados da Seção 1 (Elevador, Tipo de Serviço, G e Descrição) enquanto a validação GEOR estiver pendente.';
       }
     } else {
-      // Momento da Criação: Preenche Seção 1. Seções 2 e 3 bloqueadas.
-      secSupervisor.classList.add('section-locked');
-      secConsultora.classList.add('section-locked');
-
+      // Momento da Criação: Preenche Seção 1.
       inputMatricula.value = user.matricula;
       inputNomeTecnico.value = user.nome;
       inputMatricula.disabled = true; // Vinculado compulsoriamente a ele mesmo
@@ -642,18 +691,10 @@ function applyRbacToModal(isEdit = false, item = null) {
       inputPgo.disabled = false;
       inputDesc.disabled = false;
 
-      inputOrcamento.disabled = true;
-      inputValorTotal.disabled = true;
-      inputDataLiberacao.disabled = true;
-      selectGeor.disabled = true;
-
-      inputDataEnvio.disabled = true;
-      selectStatus.disabled = true;
-
       saveBtn.style.display = 'inline-flex';
       saveBtnText.textContent = 'Salvar Chamado (Técnico)';
       if (rbacNotice) rbacNotice.classList.add('rbac-banner-editable');
-      if (modalTitle) modalTitle.textContent = 'Novo Chamado TKE (Abertura Técnico)';
+      if (modalTitle) modalTitle.textContent = 'Novo Chamado (Abertura Técnico)';
       rbacText.innerHTML = '🛠️ <strong>Equipe Técnica:</strong> Preencha os dados da Seção 1 (Elevador, Tipo de Serviço, G de Origem e PGO). Você poderá atualizar este registro enquanto a liberação GEOR estiver pendente.';
     }
     return;
@@ -663,6 +704,10 @@ function applyRbacToModal(isEdit = false, item = null) {
   // CENÁRIO 2: PERFIL SUPERVISOR
   // =====================================================================
   if (isSupervisor) {
+    secTecnico.style.display = 'block';
+    secSupervisor.style.display = 'block';
+    secConsultora.style.display = 'block';
+
     // Seção 1 é sempre Somente Leitura para o Supervisor
     secTecnico.classList.add('section-locked');
     inputMatricula.disabled = true;
@@ -701,6 +746,10 @@ function applyRbacToModal(isEdit = false, item = null) {
   // =====================================================================
   // CENÁRIO 3: PERFIL CONSULTORA (ADMIN)
   // =====================================================================
+  secTecnico.style.display = 'block';
+  secSupervisor.style.display = 'block';
+  secConsultora.style.display = 'block';
+
   // Controle Total e Irrestrito em todas as seções 1, 2 e 3
   inputMatricula.disabled = false;
   selectTipo.disabled = false;
@@ -723,7 +772,7 @@ function applyRbacToModal(isEdit = false, item = null) {
 
 function openNewModal() {
   state.editingId = null;
-  document.getElementById('modal-title').textContent = 'Novo Chamado / Orçamento TKE';
+  document.getElementById('modal-title').textContent = 'Novo Chamado / Orçamento';
   document.getElementById('orcamento-form').reset();
   document.getElementById('form-id').value = '';
   document.getElementById('form-g-origem').value = 'G11';
@@ -747,7 +796,7 @@ function openEditModal(id) {
   if (!item) return;
 
   state.editingId = item.id;
-  document.getElementById('modal-title').textContent = `Orçamento TKE - ${item.numero_pgo} (#${item.id})`;
+  document.getElementById('modal-title').textContent = `Orçamento - ${item.numero_pgo} (#${item.id})`;
 
   document.getElementById('form-id').value = item.id;
   document.getElementById('form-tecnico-matricula').value = item.matricula_tecnico;
@@ -797,7 +846,7 @@ function setupEventListeners() {
   document.getElementById('btn-logout').addEventListener('click', async () => {
     const confirmed = await showConfirmDialog({
       title: 'Encerrar Sessão Corporativa',
-      message: 'Deseja realmente sair do sistema corporativo TKE?',
+      message: 'Deseja realmente sair do sistema corporativo?',
       details: 'Sua sessão atual e autenticação segura serão encerradas.',
       confirmText: 'Sair do Sistema',
       cancelText: 'Permanecer Conectado',
@@ -881,7 +930,7 @@ function setupEventListeners() {
   elevadorInput.addEventListener('input', handleElevadorLookup);
   elevadorInput.addEventListener('change', handleElevadorLookup);
 
-  // Salvar Orçamento (Create / Update)
+  // Salvar Orçamento (Create / Update com suporte Offline-First)
   document.getElementById('orcamento-form').addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -889,42 +938,76 @@ function setupEventListeners() {
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Salvando...';
 
-    try {
-      const payload = {
-        matricula_tecnico: document.getElementById('form-tecnico-matricula').value.trim(),
-        nome_tecnico: document.getElementById('form-tecnico-nome').value.trim(),
-        tipo_servico: document.getElementById('form-tipo').value,
-        g_origem: document.getElementById('form-g-origem').value,
-        numero_contrato: document.getElementById('form-elevador').value.trim(),
-        numero_elevador: document.getElementById('form-elevador').value.trim(),
-        nome_cliente: document.getElementById('form-cliente-nome').value.trim(),
-        numero_pgo: document.getElementById('form-pgo').value.trim(),
-        numero_orcamento: document.getElementById('form-orcamento').value.trim() || null,
-        valor_total: Number(document.getElementById('form-valor-total').value) || 0.00,
-        descricao_servico: document.getElementById('form-descricao-servico').value.trim() || null,
-        geor_liberou: document.getElementById('form-geor').value,
-        data_liberacao: document.getElementById('form-data-liberacao').value || null,
-        data_envio_cliente: document.getElementById('form-data-envio').value || null,
-        status: document.getElementById('form-status').value
-      };
+    const payload = {
+      matricula_tecnico: document.getElementById('form-tecnico-matricula').value.trim(),
+      nome_tecnico: document.getElementById('form-tecnico-nome').value.trim(),
+      tipo_servico: document.getElementById('form-tipo').value,
+      g_origem: document.getElementById('form-g-origem').value,
+      numero_contrato: document.getElementById('form-elevador').value.trim(),
+      numero_elevador: document.getElementById('form-elevador').value.trim(),
+      nome_cliente: document.getElementById('form-cliente-nome').value.trim(),
+      numero_pgo: document.getElementById('form-pgo').value.trim(),
+      numero_orcamento: document.getElementById('form-orcamento').value.trim() || null,
+      valor_total: Number(document.getElementById('form-valor-total').value) || 0.00,
+      descricao_servico: document.getElementById('form-descricao-servico').value.trim() || null,
+      geor_liberou: document.getElementById('form-geor').value,
+      data_liberacao: document.getElementById('form-data-liberacao').value || null,
+      data_envio_cliente: document.getElementById('form-data-envio').value || null,
+      status: document.getElementById('form-status').value
+    };
 
-      if (state.editingId) {
-        await api.put(`/api/orcamentos/${state.editingId}`, payload);
-        showToast('Registro atualizado com sucesso!', 'success');
-      } else {
-        await api.post('/api/orcamentos', payload);
-        showToast('Novo chamado cadastrado com sucesso!', 'success');
+    if (navigator.onLine) {
+      try {
+        if (state.editingId) {
+          const res = await api.put(`/api/orcamentos/${state.editingId}`, payload);
+          if (res?.data) await offlineStore.saveOrcamentoLocal(res.data);
+          showToast('Registro atualizado com sucesso!', 'success');
+        } else {
+          const res = await api.post('/api/orcamentos', payload);
+          if (res?.data) await offlineStore.saveOrcamentoLocal(res.data);
+          showToast('Novo chamado cadastrado com sucesso!', 'success');
+        }
+        closeModal();
+        await loadOrcamentos();
+      } catch (err) {
+        console.warn('Falha na requisição online, salvando no IndexedDB offline:', err);
+        await handleOfflineSave(payload);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> <span id="modal-save-btn-text">Salvar Registro</span>';
       }
-
-      closeModal();
-      await loadOrcamentos();
-    } catch (err) {
-      showToast(err.message || 'Erro ao salvar registro', 'error');
-    } finally {
+    } else {
+      await handleOfflineSave(payload);
       saveBtn.disabled = false;
       saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> <span id="modal-save-btn-text">Salvar Registro</span>';
     }
   });
+
+  async function handleOfflineSave(payload) {
+    pwaManager.vibrate(25);
+    if (state.editingId) {
+      const existing = await offlineStore.getOrcamentoById(state.editingId) || {};
+      const updated = { ...existing, ...payload, id: state.editingId, _offline_pending: true };
+      await offlineStore.saveOrcamentoLocal(updated);
+      await offlineStore.enqueueMutation(`/api/orcamentos/${state.editingId}`, 'PUT', payload);
+      showToast('📦 Alteração salva no dispositivo! Será sincronizada automaticamente.', 'warning');
+    } else {
+      const tempId = `temp_${Date.now()}`;
+      const newLocalItem = {
+        ...payload,
+        id: tempId,
+        created_by_id: state.user?.id,
+        data_criacao: new Date().toISOString(),
+        _offline_pending: true
+      };
+      await offlineStore.saveOrcamentoLocal(newLocalItem);
+      await offlineStore.enqueueMutation('/api/orcamentos', 'POST', payload, tempId);
+      showToast('📦 Novo chamado salvo no dispositivo! Sincronização automática em segundo plano.', 'warning');
+    }
+    await pwaManager.updateConnectionPill();
+    closeModal();
+    await loadOrcamentos();
+  }
 
   // Filtros em tempo real
   let debounceTimer;
@@ -1039,10 +1122,9 @@ function setupCadastrosModal() {
 
   if (btnOpen) {
     btnOpen.addEventListener('click', () => {
-      const isTec = state.user?.perfil === 'TECNICO';
-      const tecNotice = document.getElementById('cadastros-tecnico-notice');
-      if (tecNotice) {
-        tecNotice.style.display = isTec ? 'flex' : 'none';
+      if (state.user?.perfil !== 'CONSULTORA') {
+        showToast('Opção disponível exclusivamente para a Consultora.', 'warning');
+        return;
       }
       activateTab('clientes');
       if (modal) modal.classList.add('active');
@@ -1764,12 +1846,18 @@ function escapeHtml(text) {
 }
 
 // =====================================================================
-// NAVEGAÇÃO DE ABAS PRINCIPAIS (ORÇAMENTOS vs. DASHBOARD vs. USUÁRIOS)
+// NAVEGAÇÃO DE ABAS PRINCIPAIS & BOTTOM NAVIGATION BAR MOBILE
 // =====================================================================
 function setupMainTabs() {
   const tabBtnOrcamentos = document.getElementById('tab-nav-orcamentos');
   const tabBtnPremiacao = document.getElementById('tab-nav-premiacao');
   const tabBtnUsuarios = document.getElementById('tab-nav-usuarios');
+
+  const bnavOrcamentos = document.getElementById('bnav-orcamentos');
+  const bnavPremiacao = document.getElementById('bnav-premiacao');
+  const bnavNew = document.getElementById('bnav-new-orcamento');
+  const bnavUsuarios = document.getElementById('bnav-usuarios');
+  const bnavCadastros = document.getElementById('bnav-cadastros');
 
   const viewOrcamentos = document.getElementById('view-orcamentos');
   const viewPremiacao = document.getElementById('view-dashboard-premiacao');
@@ -1786,6 +1874,10 @@ function setupMainTabs() {
     if (tabBtnOrcamentos) tabBtnOrcamentos.classList.toggle('active', activeTab === 'orcamentos');
     if (tabBtnPremiacao) tabBtnPremiacao.classList.toggle('active', activeTab === 'premiacao');
     if (tabBtnUsuarios) tabBtnUsuarios.classList.toggle('active', activeTab === 'usuarios');
+
+    if (bnavOrcamentos) bnavOrcamentos.classList.toggle('active', activeTab === 'orcamentos');
+    if (bnavPremiacao) bnavPremiacao.classList.toggle('active', activeTab === 'premiacao');
+    if (bnavUsuarios) bnavUsuarios.classList.toggle('active', activeTab === 'usuarios');
 
     if (viewOrcamentos) viewOrcamentos.style.display = activeTab === 'orcamentos' ? 'block' : 'none';
     if (viewPremiacao) viewPremiacao.style.display = activeTab === 'premiacao' ? 'block' : 'none';
@@ -1816,7 +1908,59 @@ function setupMainTabs() {
     });
   }
 
-  // Verifica se a URL solicita abertura direta de uma aba (#acesso, #usuarios, #premiacao)
+  // Cliques na Barra de Navegação Móvel (Bottom Nav)
+  if (bnavOrcamentos) {
+    bnavOrcamentos.addEventListener('click', (e) => {
+      e.preventDefault();
+      pwaManager.vibrate(10);
+      switchTab('orcamentos');
+      loadOrcamentos();
+    });
+  }
+
+  if (bnavPremiacao) {
+    bnavPremiacao.addEventListener('click', (e) => {
+      e.preventDefault();
+      pwaManager.vibrate(10);
+      switchTab('premiacao');
+      loadDashboardPremiacao();
+    });
+  }
+
+  if (bnavNew) {
+    bnavNew.addEventListener('click', (e) => {
+      e.preventDefault();
+      pwaManager.vibrate(15);
+      openNewModal();
+    });
+  }
+
+  if (bnavUsuarios) {
+    bnavUsuarios.addEventListener('click', (e) => {
+      e.preventDefault();
+      pwaManager.vibrate(10);
+      switchTab('usuarios');
+      loadUsuarios();
+    });
+  }
+
+  if (bnavCadastros) {
+    bnavCadastros.addEventListener('click', (e) => {
+      e.preventDefault();
+      pwaManager.vibrate(10);
+      const btnOpenCad = document.getElementById('btn-open-cadastros');
+      if (btnOpenCad) btnOpenCad.click();
+    });
+  }
+
+  // Listener para sincronização concluída em background
+  window.addEventListener('pwa-sync-completed', async () => {
+    await loadOrcamentos();
+    await loadClientes();
+    await loadTecnicos();
+  });
+
+  // Verifica se a URL solicita abertura direta de uma aba (#acesso, #usuarios, #premiacao) ou atalho PWA (?action=new)
   const urlParams = new URLSearchParams(window.location.search);
   const requestedTab = (urlParams.get('tab') || window.location.hash.replace('#', '')).toLowerCase();
   if (requestedTab === 'acesso' || requestedTab === 'usuarios') {
@@ -1825,6 +1969,10 @@ function setupMainTabs() {
   } else if (requestedTab === 'premiacao' || requestedTab === 'resultado') {
     switchTab('premiacao');
     loadDashboardPremiacao();
+  }
+
+  if (urlParams.get('action') === 'new') {
+    setTimeout(() => openNewModal(), 350);
   }
 
   // Setup dos Controles do Dashboard de Premiação

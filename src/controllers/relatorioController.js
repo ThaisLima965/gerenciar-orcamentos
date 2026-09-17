@@ -102,62 +102,68 @@ export const relatorioController = {
       const { ciclo: cicloParam, mes: mesParam, g_origem } = req.query;
       const periodo = parsePeriodoCiclo(cicloParam, mesParam);
 
-      // SQL de Ranking Preventivo (Todos os técnicos via LEFT JOIN)
+      // SQL de Ranking Preventivo (Sincronizado diretamente com a base de colaboradores em Gestão de Acesso)
       let sqlPreventivo = `
         SELECT 
-          t.matricula,
-          t.nome_sobrenome as nome_tecnico,
+          u.matricula,
+          u.nome as nome_tecnico,
           COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
-          COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
+          COALESCE(u.grupo, 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
-        FROM tecnicos t
-        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON (t.matricula = u.matricula OR LOWER(t.email) = LOWER(u.email))
         LEFT JOIN chamados_orcamentos c 
-          ON t.matricula = c.matricula_tecnico
+          ON (c.matricula_tecnico = u.matricula OR (t.matricula IS NOT NULL AND c.matricula_tecnico = t.matricula))
           AND c.tipo_servico = 'Preventivo'
           AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
+        WHERE u.perfil = 'TECNICO'
+          AND u.ativo = 1
+          AND (LOWER(COALESCE(t.funcao, '')) NOT LIKE '%supervisor%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%consult%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%admin%')
       `;
       const paramsPreventivo = [periodo.dataInicio, periodo.dataFim];
 
       if (g_origem) {
-        sqlPreventivo += ` WHERE (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+        sqlPreventivo += ` AND (COALESCE(u.grupo, 'G11') = ?) `;
         paramsPreventivo.push(g_origem);
       }
 
       sqlPreventivo += `
-        GROUP BY t.matricula, t.nome_sobrenome, t.funcao, u.grupo
+        GROUP BY u.matricula, u.nome, t.funcao, u.grupo
       `;
 
-      // SQL de Ranking Corretivo (Todos os técnicos via LEFT JOIN)
+      // SQL de Ranking Corretivo (Sincronizado diretamente com a base de colaboradores em Gestão de Acesso)
       let sqlCorretivo = `
         SELECT 
-          t.matricula,
-          t.nome_sobrenome as nome_tecnico,
+          u.matricula,
+          u.nome as nome_tecnico,
           COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
-          COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
+          COALESCE(u.grupo, 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
-        FROM tecnicos t
-        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON (t.matricula = u.matricula OR LOWER(t.email) = LOWER(u.email))
         LEFT JOIN chamados_orcamentos c 
-          ON t.matricula = c.matricula_tecnico
+          ON (c.matricula_tecnico = u.matricula OR (t.matricula IS NOT NULL AND c.matricula_tecnico = t.matricula))
           AND c.tipo_servico = 'Corretivo'
           AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
+        WHERE u.perfil = 'TECNICO'
+          AND u.ativo = 1
+          AND (LOWER(COALESCE(t.funcao, '')) NOT LIKE '%supervisor%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%consult%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%admin%')
       `;
       const paramsCorretivo = [periodo.dataInicio, periodo.dataFim];
 
       if (g_origem) {
-        sqlCorretivo += ` WHERE (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+        sqlCorretivo += ` AND (COALESCE(u.grupo, 'G11') = ?) `;
         paramsCorretivo.push(g_origem);
       }
 
       sqlCorretivo += `
-        GROUP BY t.matricula, t.nome_sobrenome, t.funcao, u.grupo
+        GROUP BY u.matricula, u.nome, t.funcao, u.grupo
       `;
 
       const rawPreventivo = db.prepare(sqlPreventivo).all(...paramsPreventivo);
@@ -271,55 +277,61 @@ export const relatorioController = {
       const { ciclo: cicloParam, mes: mesParam, g_origem } = req.query;
       const periodo = parsePeriodoCiclo(cicloParam, mesParam);
 
-      // 1. Busca dados Preventivo (Todos os técnicos via LEFT JOIN)
+      // 1. Busca dados Preventivo (Sincronizado com Gestão de Acesso)
       let sqlPreventivo = `
         SELECT 
-          t.matricula,
-          t.nome_sobrenome as nome_tecnico,
+          u.matricula,
+          u.nome as nome_tecnico,
           COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
-          COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
+          COALESCE(u.grupo, 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
-        FROM tecnicos t
-        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON (t.matricula = u.matricula OR LOWER(t.email) = LOWER(u.email))
         LEFT JOIN chamados_orcamentos c 
-          ON t.matricula = c.matricula_tecnico
+          ON (c.matricula_tecnico = u.matricula OR (t.matricula IS NOT NULL AND c.matricula_tecnico = t.matricula))
           AND c.tipo_servico = 'Preventivo'
           AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
+        WHERE u.perfil = 'TECNICO'
+          AND u.ativo = 1
+          AND (LOWER(COALESCE(t.funcao, '')) NOT LIKE '%supervisor%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%consult%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%admin%')
       `;
       const paramsPreventivo = [periodo.dataInicio, periodo.dataFim];
       if (g_origem) {
-        sqlPreventivo += ` WHERE (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+        sqlPreventivo += ` AND (COALESCE(u.grupo, 'G11') = ?) `;
         paramsPreventivo.push(g_origem);
       }
-      sqlPreventivo += ` GROUP BY t.matricula, t.nome_sobrenome, t.funcao, u.grupo `;
+      sqlPreventivo += ` GROUP BY u.matricula, u.nome, t.funcao, u.grupo `;
 
-      // 2. Busca dados Corretivo (Todos os técnicos via LEFT JOIN)
+      // 2. Busca dados Corretivo (Sincronizado com Gestão de Acesso)
       let sqlCorretivo = `
         SELECT 
-          t.matricula,
-          t.nome_sobrenome as nome_tecnico,
+          u.matricula,
+          u.nome as nome_tecnico,
           COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
-          COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
+          COALESCE(u.grupo, 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
-        FROM tecnicos t
-        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON (t.matricula = u.matricula OR LOWER(t.email) = LOWER(u.email))
         LEFT JOIN chamados_orcamentos c 
-          ON t.matricula = c.matricula_tecnico
+          ON (c.matricula_tecnico = u.matricula OR (t.matricula IS NOT NULL AND c.matricula_tecnico = t.matricula))
           AND c.tipo_servico = 'Corretivo'
           AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
+        WHERE u.perfil = 'TECNICO'
+          AND u.ativo = 1
+          AND (LOWER(COALESCE(t.funcao, '')) NOT LIKE '%supervisor%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%consult%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%admin%')
       `;
       const paramsCorretivo = [periodo.dataInicio, periodo.dataFim];
       if (g_origem) {
-        sqlCorretivo += ` WHERE (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+        sqlCorretivo += ` AND (COALESCE(u.grupo, 'G11') = ?) `;
         paramsCorretivo.push(g_origem);
       }
-      sqlCorretivo += ` GROUP BY t.matricula, t.nome_sobrenome, t.funcao, u.grupo `;
+      sqlCorretivo += ` GROUP BY u.matricula, u.nome, t.funcao, u.grupo `;
 
       const rawPreventivo = db.prepare(sqlPreventivo).all(...paramsPreventivo);
       const rawCorretivo = db.prepare(sqlCorretivo).all(...paramsCorretivo);
@@ -497,31 +509,32 @@ export const relatorioController = {
         { nome: `Set/${periodo.anoFim}`, mesNum: 9, ano: periodo.anoFim }
       ];
 
-      // Busca todos os técnicos (excluindo supervisores) e calcula a matriz mês a mês consolidada
+      // Busca todos os técnicos (sincronizado com Gestão de Acesso) e calcula a matriz mês a mês consolidada
       let sqlTodosTecnicos = `
         SELECT 
-          t.matricula,
-          t.nome_sobrenome as nome_tecnico,
+          u.matricula,
+          u.nome as nome_tecnico,
           COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
-          COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
+          COALESCE(u.grupo, 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_total_ciclo,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total_ciclo
-        FROM tecnicos t
-        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON (t.matricula = u.matricula OR LOWER(t.email) = LOWER(u.email))
         LEFT JOIN chamados_orcamentos c 
-          ON t.matricula = c.matricula_tecnico
+          ON (c.matricula_tecnico = u.matricula OR (t.matricula IS NOT NULL AND c.matricula_tecnico = t.matricula))
           AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
           AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
-        WHERE (u.perfil = 'TECNICO' OR u.perfil IS NULL)
-          AND (t.funcao NOT LIKE '%Supervisor%' AND t.funcao NOT LIKE '%Consult%')
+        WHERE u.perfil = 'TECNICO'
+          AND u.ativo = 1
+          AND (LOWER(COALESCE(t.funcao, '')) NOT LIKE '%supervisor%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%consult%' AND LOWER(COALESCE(t.funcao, '')) NOT LIKE '%admin%')
       `;
       const paramsCiclo = [`${periodo.anoInicio}-10-01`, `${periodo.anoFim}-09-30`];
       if (g_origem) {
-        sqlTodosTecnicos += ` AND (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+        sqlTodosTecnicos += ` AND (COALESCE(u.grupo, 'G11') = ?) `;
         paramsCiclo.push(g_origem);
       }
-      sqlTodosTecnicos += ` GROUP BY t.matricula, t.nome_sobrenome, t.funcao, u.grupo `;
+      sqlTodosTecnicos += ` GROUP BY u.matricula, u.nome, t.funcao, u.grupo `;
 
       const rawTodos = db.prepare(sqlTodosTecnicos).all(...paramsCiclo);
       // Ordena por 2 camadas no consolidado anual
@@ -567,14 +580,14 @@ export const relatorioController = {
             SELECT COALESCE(COUNT(c.id), 0) as qtd, COALESCE(SUM(c.valor_total), 0.0) as val
             FROM chamados_orcamentos c
             LEFT JOIN usuarios u ON (u.matricula = c.matricula_tecnico)
-            WHERE c.matricula_tecnico = ?
+            WHERE (c.matricula_tecnico = ? OR u.matricula = ?)
               AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
               AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
               AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
           `;
-          const paramsMes = [tec.matricula, dIni, dFim];
+          const paramsMes = [tec.matricula, tec.matricula, dIni, dFim];
           if (g_origem) {
-            sqlMes += ` AND (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+            sqlMes += ` AND (COALESCE(u.grupo, 'G11') = ?) `;
             paramsMes.push(g_origem);
           }
 

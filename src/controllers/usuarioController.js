@@ -708,9 +708,12 @@ export const usuarioController = {
         });
       }
 
-      // Se for técnico, desassocia de chamados vinculados
+      // Se for técnico, desassocia de chamados vinculados e remove da tabela de apoio
       try {
         db.prepare('UPDATE chamados_orcamentos SET created_by_id = NULL WHERE created_by_id = ?').run(id);
+        if (user.matricula) {
+          db.prepare('DELETE FROM tecnicos WHERE matricula = ? OR LOWER(email) = ?').run(user.matricula, String(user.email || '').toLowerCase());
+        }
       } catch (e) {}
 
       db.prepare('DELETE FROM usuarios WHERE id = ?').run(id);

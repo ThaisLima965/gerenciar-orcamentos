@@ -201,6 +201,123 @@ body {
   gap: 1.15rem;
 }
 
+/* =====================================================================
+   TOGGLE SWITCH: MODO ESCURO / CLARO (NEO-GLOW SUN & MOON)
+   ===================================================================== */
+.theme-switch-btn {
+  position: relative;
+  width: 54px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex-shrink: 0;
+}
+
+.theme-switch-btn:hover {
+  transform: scale(1.08);
+}
+
+.theme-switch-btn:active {
+  transform: scale(0.95);
+}
+
+.theme-switch-track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Modo Claro: Borda Gradiente Laranja / Magenta com brilho sutil */
+[data-theme="light"] .theme-switch-track,
+:root:not([data-theme="dark"]) .theme-switch-track {
+  border: 2px solid transparent;
+  background: linear-gradient(#0A0C16, #0A0C16) padding-box,
+              linear-gradient(135deg, #FF6B00 0%, #FF007A 100%) border-box;
+  box-shadow: 0 0 10px rgba(255, 107, 0, 0.3), inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Modo Escuro: Borda Gradiente Ciano / Azul Elétrico com brilho */
+[data-theme="dark"] .theme-switch-track {
+  border: 2px solid transparent;
+  background: linear-gradient(#080A14, #080A14) padding-box,
+              linear-gradient(135deg, #00F2FE 0%, #2979FF 100%) border-box;
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.35), inset 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.theme-switch-thumb {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.35s ease, box-shadow 0.35s ease;
+  box-sizing: border-box;
+}
+
+/* Thumb Modo Claro: Gradiente Sol Radiante */
+[data-theme="light"] .theme-switch-thumb,
+:root:not([data-theme="dark"]) .theme-switch-thumb {
+  transform: translateX(0);
+  background: linear-gradient(135deg, #FFA726 0%, #FF5722 65%, #E91E63 100%);
+  box-shadow: 0 0 10px rgba(255, 87, 34, 0.7), 0 2px 4px rgba(0, 0, 0, 0.35);
+  color: #260505;
+}
+
+/* Thumb Modo Escuro: Gradiente Lua / Céu Cósmico */
+[data-theme="dark"] .theme-switch-thumb {
+  transform: translateX(26px);
+  background: linear-gradient(135deg, #00F2FE 0%, #38BDF8 50%, #2563EB 100%);
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.75), 0 2px 4px rgba(0, 0, 0, 0.4);
+  color: #03152E;
+}
+
+.theme-icon-sun,
+.theme-icon-moon {
+  position: absolute;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+[data-theme="light"] .theme-icon-sun,
+:root:not([data-theme="dark"]) .theme-icon-sun {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+}
+
+[data-theme="light"] .theme-icon-moon,
+:root:not([data-theme="dark"]) .theme-icon-moon {
+  opacity: 0;
+  transform: scale(0.3) rotate(-90deg);
+}
+
+[data-theme="dark"] .theme-icon-sun {
+  opacity: 0;
+  transform: scale(0.3) rotate(90deg);
+}
+
+[data-theme="dark"] .theme-icon-moon {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+}
+
 .user-profile-badge {
   display: flex;
   align-items: center;
@@ -2017,7 +2134,7 @@ body.role-tecnico-active .btn-export-trigger {
   }
   
   body.role-tecnico-active::before {
-    content: "⚠️ AVISO DE SEGURANÇA DA INFORMAÇÃO TKE:\A Impressão, cópia e exportação de dados não são permitidas para o perfil Técnico.";
+    content: "⚠️ AVISO DE SEGURANÇA DA INFORMAÇÃO:\A Impressão, cópia e exportação de dados não são permitidas para o perfil Técnico.";
     white-space: pre-wrap !important;
     display: block !important;
     visibility: visible !important;
@@ -2271,5 +2388,341 @@ body.role-tecnico-active .btn-export-trigger {
 .confirm-btn-action.variant-info:hover {
   background: #1D4ED8;
   transform: translateY(-1px);
+}
+
+/* =====================================================================
+   PWA DESIGN SYSTEM & MOBILE NATIVE COMPONENTS (TKE ELEVATORS)
+   ===================================================================== */
+
+/* 1. Pill Indicador de Conexão (Online / Offline / Sincronizando) */
+.pwa-connection-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.32rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: var(--transition-normal);
+  user-select: none;
+}
+
+.pwa-connection-pill.status-online {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="dark"] .pwa-connection-pill.status-online {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34D399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.pwa-connection-pill.status-offline {
+  background: rgba(245, 158, 11, 0.12);
+  color: #D97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  animation: pulse-offline 2s infinite ease-in-out;
+}
+
+[data-theme="dark"] .pwa-connection-pill.status-offline {
+  background: rgba(245, 158, 11, 0.2);
+  color: #FBBF24;
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.pwa-connection-pill.status-syncing {
+  background: rgba(98, 0, 234, 0.1);
+  color: var(--tke-purple);
+  border: 1px solid rgba(98, 0, 234, 0.25);
+}
+
+.pwa-connection-pill i.spin {
+  animation: pwa-spin 1s linear infinite;
+}
+
+@keyframes pwa-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse-offline {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+/* 2. Botão de Instalação no Header */
+.btn-tke-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: linear-gradient(135deg, var(--tke-purple) 0%, var(--tke-magenta) 100%);
+  color: #FFFFFF !important;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.42rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(98, 0, 234, 0.25);
+  transition: var(--transition-fast);
+}
+
+.btn-tke-install:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.35);
+}
+
+/* 3. Banner Flutuante de Instalação Mobile (A2HS) */
+.pwa-install-banner {
+  position: fixed;
+  bottom: -180px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  max-width: 520px;
+  width: calc(100% - 1.5rem);
+  z-index: 1050;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), bottom 0.4s ease;
+  pointer-events: none;
+}
+
+.pwa-install-banner.active {
+  bottom: calc(4.8rem + env(safe-area-inset-bottom, 0px));
+  pointer-events: auto;
+}
+
+@media (min-width: 769px) {
+  .pwa-install-banner.active {
+    bottom: 1.5rem;
+    right: 1.5rem;
+    left: auto;
+    width: 380px;
+  }
+}
+
+.pwa-banner-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 1.15rem;
+  box-shadow: var(--shadow-xl);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.pwa-banner-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.pwa-banner-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(98, 0, 234, 0.25);
+  flex-shrink: 0;
+}
+
+.pwa-banner-info h4 {
+  margin: 0 0 0.2rem 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.pwa-banner-info p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.pwa-banner-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+/* 4. Bottom Navigation Bar Mobile (Exclusiva para Telas Pequenas) */
+.pwa-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(3.85rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  z-index: 1000;
+  align-items: center;
+  justify-content: space-around;
+  backdrop-filter: blur(12px);
+}
+
+@media (max-width: 768px) {
+  .pwa-bottom-nav {
+    display: flex;
+  }
+
+  /* Adiciona espaçamento no container principal para não cobrir conteúdo com a barra */
+  .main-container {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  padding: 0.25rem 0;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav-item i {
+  font-size: 1.25rem;
+  transition: var(--transition-fast);
+}
+
+.bottom-nav-item:hover,
+.bottom-nav-item.active {
+  color: var(--tke-purple);
+}
+
+[data-theme="dark"] .bottom-nav-item:hover,
+[data-theme="dark"] .bottom-nav-item.active {
+  color: #A05EFF;
+}
+
+.bottom-nav-item.active i {
+  transform: translateY(-2px);
+}
+
+/* Botão FAB Central da Barra Mobile */
+.bottom-nav-item.bnav-fab-btn {
+  position: relative;
+  top: -0.65rem;
+}
+
+.bottom-nav-item.bnav-fab-btn .bnav-fab-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--tke-purple) 0%, var(--tke-magenta) 100%);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(98, 0, 234, 0.4);
+  font-size: 1.4rem;
+  transition: var(--transition-fast);
+}
+
+.bottom-nav-item.bnav-fab-btn:active .bnav-fab-icon {
+  transform: scale(0.92);
+}
+
+/* 5. Toasts Flutuantes PWA */
+.pwa-toast-container {
+  position: fixed;
+  top: 4.8rem;
+  right: 1.25rem;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 360px;
+  width: calc(100% - 2.5rem);
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .pwa-toast-container {
+    top: auto;
+    bottom: calc(4.8rem + env(safe-area-inset-bottom, 0px));
+    right: 0;
+    left: 0;
+    margin: 0 auto;
+  }
+}
+
+.pwa-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.15rem;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.35;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+
+.pwa-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.pwa-toast-success {
+  border-left: 4px solid #10B981;
+}
+
+.pwa-toast-success i {
+  color: #10B981;
+  font-size: 1.2rem;
+}
+
+.pwa-toast-warning {
+  border-left: 4px solid #F59E0B;
+}
+
+.pwa-toast-warning i {
+  color: #F59E0B;
+  font-size: 1.2rem;
+}
+
+.pwa-toast-error {
+  border-left: 4px solid #EF4444;
+}
+
+.pwa-toast-error i {
+  color: #EF4444;
+  font-size: 1.2rem;
+}
+
+.pwa-toast-info {
+  border-left: 4px solid var(--tke-purple);
+}
+
+.pwa-toast-info i {
+  color: var(--tke-purple);
+  font-size: 1.2rem;
 }
 
