@@ -16,7 +16,12 @@ export function csrfProtection(req, res, next) {
   }
 
   // Requisições de login e recuperação de senha públicas podem gerar novo CSRF e passar se ainda não autenticadas
-  if (req.path === '/api/auth/login' || req.path === '/api/auth/csrf' || req.path === '/api/auth/forgot-password') {
+  if (
+    req.path === '/api/auth/login' || 
+    req.path === '/api/auth/csrf' || 
+    req.path === '/api/auth/forgot-password' ||
+    req.path === '/api/auth/reset-password'
+  ) {
     return next();
   }
 

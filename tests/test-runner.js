@@ -501,11 +501,59 @@ async function runTests() {
     const forgotValido = await postJson('/api/auth/forgot-password', { identificador: testEmail });
     assert(forgotValido.res.statusCode === 200, 'Recuperação válida deve retornar 200 OK');
     assert(forgotValido.body.success === true, 'Deve indicar success: true');
-    assert(forgotValido.body.senha_temporaria === 'Tke@1234', 'Deve retornar senha temporária padrão');
+    assert(forgotValido.body.senha_temporaria === undefined, 'NÃO deve expor senha temporária na resposta da API');
+    assert(forgotValido.body.email_mascarado.length > 0, 'Deve retornar e-mail mascarado');
 
-    const userAfterForgot = db.prepare('SELECT primeiro_acesso FROM usuarios WHERE email = ?').get(testEmail);
-    assert(userAfterForgot.primeiro_acesso === 1, 'primeiro_acesso deve ser 1 após forgot-password');
-    console.log('   ✅ Fluxo de Esqueci Minha Senha validado com sucesso (rejeição de inativo/inexistente e reset para Tke@1234 com primeiro_acesso).');
+    // Recupera token gerado no banco de dados para testar fluxo de redefinição
+    const resetRecord = db.prepare('SELECT token FROM password_resets WHERE user_id = ? AND used = 0 ORDER BY id DESC LIMIT 1').get(novoUserId);
+    assert(resetRecord && resetRecord.token, 'Token de redefinição deve ser gravado na tabela password_resets');
+
+    // Validação do token
+    const tokenValido = await getJson(`/api/auth/validate-reset-token?token=${resetRecord.token}`);
+    assert(tokenValido.res.statusCode === 200, 'Validação de token válido deve retornar 200 OK');
+    assert(tokenValido.body.valid === true, 'Token deve ser válido');
+
+    // Tentativa com confirmação divergente
+    const resetMismatch = await postJson('/api/auth/reset-password', {
+      token: resetRecord.token,
+      nova_senha: 'NovaSenhaForte@2026',
+      confirmar_nova_senha: 'Diferente@2026'
+    });
+    assert(resetMismatch.res.statusCode === 400, 'Senhas divergentes devem retornar 400');
+
+    // Tentativa com senha muito curta
+    const resetCurto = await postJson('/api/auth/reset-password', {
+      token: resetRecord.token,
+      nova_senha: '123',
+      confirmar_nova_senha: '123'
+    });
+    assert(resetCurto.res.statusCode === 400, 'Senha com menos de 8 caracteres deve retornar 400');
+
+    // Redefinição com sucesso
+    const novaSenhaTeste = 'NovaSenhaCorporativa@2026';
+    const resetOk = await postJson('/api/auth/reset-password', {
+      token: resetRecord.token,
+      nova_senha: novaSenhaTeste,
+      confirmar_nova_senha: novaSenhaTeste
+    });
+    assert(resetOk.res.statusCode === 200, 'Redefinição válida deve retornar 200 OK');
+    assert(resetOk.body.success === true, 'Deve indicar success: true');
+
+    // Login com a nova senha redefinida
+    const loginNovaSenha = await postJson('/api/auth/login', {
+      identificador: testEmail,
+      senha: novaSenhaTeste
+    });
+    assert(loginNovaSenha.res.statusCode === 200, 'Login com a nova senha deve funcionar');
+
+    // Tentativa de reutilizar o mesmo token
+    const tokenReuso = await postJson('/api/auth/reset-password', {
+      token: resetRecord.token,
+      nova_senha: 'OutraSenha@2026',
+      confirmar_nova_senha: 'OutraSenha@2026'
+    });
+    assert(tokenReuso.res.statusCode === 400, 'Token já utilizado deve ser rejeitado (400)');
+    console.log('   ✅ Fluxo completo de Recuperação por E-mail validado com sucesso (token expirável, NIST 800-63B, e-mail mascarado e bloqueio de reuso).');
 
     // 8.13. Teste de Exclusão de Colaborador (DELETE /api/usuarios/:id)
     console.log('   🗑️ Testando exclusão de colaborador (DELETE /api/usuarios/:id)...');

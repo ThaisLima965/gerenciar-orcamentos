@@ -72,6 +72,17 @@ CREATE TABLE IF NOT EXISTS chamados_orcamentos (
     FOREIGN KEY (created_by_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
+-- 5. TABELA DE REDEFINIÇÃO DE SENHAS (RESET TOKENS EXPIRÁVEIS)
+CREATE TABLE IF NOT EXISTS password_resets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token VARCHAR(100) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES usuarios(id)
+);
+
 -- ÍNDICES DE PERFORMANCE E CONSULTAS FREQUENTES
 CREATE INDEX IF NOT EXISTS idx_chamados_matricula ON chamados_orcamentos(matricula_tecnico);
 CREATE INDEX IF NOT EXISTS idx_chamados_contrato ON chamados_orcamentos(numero_contrato);
@@ -80,3 +91,4 @@ CREATE INDEX IF NOT EXISTS idx_chamados_geor ON chamados_orcamentos(geor_liberou
 CREATE INDEX IF NOT EXISTS idx_chamados_pgo ON chamados_orcamentos(numero_pgo);
 CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_usuarios_matricula ON usuarios(matricula);
+CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);

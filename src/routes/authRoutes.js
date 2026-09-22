@@ -14,6 +14,12 @@ router.post('/primeiro-acesso', authController.primeiroAcesso);
 // Rota de recuperação de senha (Esqueci minha senha)
 router.post('/forgot-password', authController.forgotPassword);
 
+// Rota de validação de token de redefinição
+router.get('/validate-reset-token', authController.validateResetToken);
+
+// Rota de execução de redefinição de senha via token
+router.post('/reset-password', authController.resetPassword);
+
 // Rota de verificação do usuário atual autenticado
 router.get('/me', authenticate, authController.me);
 

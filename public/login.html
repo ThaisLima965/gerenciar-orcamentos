@@ -213,16 +213,16 @@
 
   <!-- MODAL DE RECUPERAÇÃO DE SENHA (ESQUECI MINHA SENHA) -->
   <div id="modal-recuperar-senha" class="modal-primeiro-acesso-backdrop" style="display: none;">
-    <div class="login-glass-card first-access-card animate-fade-in" style="max-width: 440px;">
-      <div style="display: flex; align-items: center; justify-content: center; width: 54px; height: 54px; border-radius: 50%; background: rgba(98, 0, 234, 0.1); color: var(--tke-purple); margin: 0 auto 1rem auto; font-size: 1.5rem;">
-        <i class="bi bi-key-fill"></i>
+    <div class="login-glass-card first-access-card animate-fade-in" style="max-width: 460px;">
+      <div id="forgot-modal-icon" style="display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; background: rgba(98, 0, 234, 0.1); color: var(--tke-purple); margin: 0 auto 1rem auto; font-size: 1.5rem;">
+        <i class="bi bi-envelope-lock-fill"></i>
       </div>
 
-      <h2 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.35rem; color: #111827; margin-bottom: 0.35rem;">
+      <h2 id="forgot-modal-title" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.35rem; color: #111827; margin-bottom: 0.35rem;">
         Recuperação de Acesso
       </h2>
-      <p style="font-size: 0.85rem; color: #4B5563; margin-bottom: 1.25rem; line-height: 1.4;">
-        Informe seu e-mail corporativo ou matrícula cadastrada para redefinir sua senha provisória de acesso.
+      <p id="forgot-modal-subtitle" style="font-size: 0.85rem; color: #4B5563; margin-bottom: 1.25rem; line-height: 1.4;">
+        Informe seu e-mail corporativo ou matrícula cadastrada para enviarmos as instruções e o link seguro de redefinição de senha para sua caixa de entrada.
       </p>
 
       <div id="forgot-error-alert" style="display: none; background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
@@ -230,16 +230,22 @@
         <span id="forgot-error-msg"></span>
       </div>
 
-      <div id="forgot-success-alert" style="display: none; background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; padding: 0.85rem; border-radius: 8px; font-size: 0.84rem; margin-bottom: 1.25rem; text-align: left; line-height: 1.45;">
-        <div style="font-weight: 700; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.35rem;">
-          <i class="bi bi-check-circle-fill" style="color: #10B981;"></i>
-          <span>Acesso Redefinido com Sucesso!</span>
+      <div id="forgot-success-alert" style="display: none; background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; padding: 1rem; border-radius: 10px; font-size: 0.84rem; margin-bottom: 1.25rem; text-align: left; line-height: 1.5;">
+        <div style="font-weight: 700; margin-bottom: 0.45rem; display: flex; align-items: center; gap: 0.45rem; font-size: 0.95rem;">
+          <i class="bi bi-check-circle-fill" style="color: #10B981; font-size: 1.1rem;"></i>
+          <span>E-mail de Redefinição Enviado!</span>
         </div>
-        <div id="forgot-success-msg" style="margin-bottom: 0.75rem;"></div>
-        <div style="background: rgba(255,255,255,0.8); border: 1px dashed #6EE7B7; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.8rem; color: #111827;">
-          <div><strong>Senha Provisória:</strong> <code style="font-weight: 800; color: #6200EA; font-size: 0.95rem;">Tke@1234</code></div>
-          <div style="font-size: 0.72rem; color: #6B7280; margin-top: 0.2rem;">Ao entrar com a senha provisória, o sistema solicitará o cadastro da sua nova senha pessoal.</div>
+        <div id="forgot-success-msg" style="margin-bottom: 0.75rem; color: #1F2937;"></div>
+        <div style="background: rgba(255,255,255,0.9); border: 1px solid #A7F3D0; border-radius: 8px; padding: 0.75rem; font-size: 0.8rem; color: #374151;">
+          <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+            <i class="bi bi-info-circle-fill" style="color: #6200EA; font-size: 1rem; margin-top: 2px;"></i>
+            <div>
+              <strong>Próximo passo:</strong> Abra o seu aplicativo de e-mail corporativo, localize a mensagem com o assunto <em>"Recuperação de Acesso"</em> e clique no botão de redefinição para cadastrar sua nova senha pessoal.
+              <div style="font-size: 0.74rem; color: #6B7280; margin-top: 0.35rem;">⏱️ O link seguro é de uso único e expira em 15 minutos.</div>
+            </div>
+          </div>
         </div>
+        <div id="forgot-dev-box" style="display: none; margin-top: 0.75rem;"></div>
       </div>
 
       <form id="forgot-password-form">
@@ -259,14 +265,15 @@
             Voltar
           </button>
           <button type="submit" id="btn-submit-forgot" class="btn-tkemobile-purple" style="flex: 2; margin-top: 0;">
-            <span>Redefinir Senha</span>
+            <i class="bi bi-send-fill" style="margin-right: 0.3rem;"></i>
+            <span>Enviar Link por E-mail</span>
           </button>
         </div>
       </form>
 
       <div id="forgot-back-to-login" style="display: none; margin-top: 0.5rem;">
         <button type="button" id="btn-proceed-to-login" class="btn-tkemobile-purple" style="width: 100%;">
-          <span>Ir para a Tela de Login</span>
+          <span>Entendido, Voltar ao Login</span>
         </button>
       </div>
     </div>

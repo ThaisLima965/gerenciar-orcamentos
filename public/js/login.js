@@ -221,12 +221,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         btnSubmitForgot.disabled = true;
-        btnSubmitForgot.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Verificando...</span>';
+        btnSubmitForgot.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Enviando e-mail...</span>';
 
         try {
           const res = await auth.forgotPassword(ident);
           recoveredUserEmail = res.email || ident;
-          forgotSuccessMsg.textContent = `Identificamos o cadastro de ${res.nome || 'colaborador'}. A senha foi redefinida provisoriamente.`;
+          const displayEmail = res.email_mascarado || res.email;
+          forgotSuccessMsg.innerHTML = `Identificamos o cadastro de <strong>${res.nome || 'colaborador'}</strong>. As orientações e o link de recuperação foram enviados para: <strong style="color: #6200EA;">${displayEmail}</strong>.`;
+
+          const forgotDevBox = document.getElementById('forgot-dev-box');
+          if (forgotDevBox) {
+            if (res.dev_preview_url) {
+              forgotDevBox.innerHTML = `
+                <div style="background: rgba(98, 0, 234, 0.08); border: 1px dashed #7C3AED; border-radius: 8px; padding: 0.75rem;">
+                  <div style="font-size: 0.76rem; font-weight: 700; color: #6200EA; margin-bottom: 0.25rem;">
+                    <i class="bi bi-terminal-fill"></i> Modo de Teste Local (E-mail Simulado)
+                  </div>
+                  <div style="font-size: 0.74rem; color: #4B5563; margin-bottom: 0.5rem; line-height: 1.35;">
+                    Como o servidor local está em modo de teste, acesse o link de redefinição gerado:
+                  </div>
+                  <a href="${res.dev_preview_url}" class="btn-tkemobile-purple" style="display: block; text-align: center; text-decoration: none; padding: 0.55rem; font-size: 0.8rem; border-radius: 6px;">
+                    <i class="bi bi-box-arrow-up-right" style="margin-right: 0.3rem;"></i> Abrir Link de Redefinição Direto
+                  </a>
+                </div>
+              `;
+              forgotDevBox.style.display = 'block';
+            } else {
+              forgotDevBox.style.display = 'none';
+            }
+          }
+
           forgotSuccessAlert.style.display = 'block';
           forgotPasswordForm.style.display = 'none';
           forgotBackToLogin.style.display = 'block';
@@ -235,7 +259,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           forgotErrorAlert.style.display = 'block';
         } finally {
           btnSubmitForgot.disabled = false;
-          btnSubmitForgot.innerHTML = '<span>Redefinir Senha</span>';
+          btnSubmitForgot.innerHTML = '<i class="bi bi-send-fill" style="margin-right: 0.3rem;"></i> <span>Enviar Link por E-mail</span>';
         }
       });
     }
@@ -243,9 +267,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnProceedToLogin) {
       btnProceedToLogin.addEventListener('click', () => {
         modalRecuperarSenha.style.display = 'none';
-        identificadorInput.value = recoveredUserEmail;
-        senhaInput.value = 'Tke@1234';
-        // Foco e destaque
+        if (recoveredUserEmail) {
+          identificadorInput.value = recoveredUserEmail;
+        }
+        senhaInput.value = '';
         senhaInput.focus();
       });
     }

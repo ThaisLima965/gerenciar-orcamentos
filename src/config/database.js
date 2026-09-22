@@ -140,6 +140,16 @@ CREATE TABLE IF NOT EXISTS chamados_orcamentos (
     FOREIGN KEY (created_by_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS password_resets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token VARCHAR(100) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES usuarios(id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_chamados_matricula ON chamados_orcamentos(matricula_tecnico);
 CREATE INDEX IF NOT EXISTS idx_chamados_contrato ON chamados_orcamentos(numero_contrato);
 CREATE INDEX IF NOT EXISTS idx_chamados_status ON chamados_orcamentos(status);
@@ -147,6 +157,7 @@ CREATE INDEX IF NOT EXISTS idx_chamados_geor ON chamados_orcamentos(geor_liberou
 CREATE INDEX IF NOT EXISTS idx_chamados_pgo ON chamados_orcamentos(numero_pgo);
 CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_usuarios_matricula ON usuarios(matricula);
+CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
 `;
 
 // SEED EMBUTIDO DE SEGURANÇA (30 USUÁRIOS + TÉCNICOS + CLIENTES BASE)
@@ -281,7 +292,17 @@ export async function initDatabase() {
       "ALTER TABLE chamados_orcamentos ADD COLUMN g_origem VARCHAR(10) DEFAULT 'G11';",
       "ALTER TABLE chamados_orcamentos ADD COLUMN valor_total REAL DEFAULT 0.00;",
       "ALTER TABLE usuarios ADD COLUMN primeiro_acesso INTEGER DEFAULT 0;",
-      "ALTER TABLE usuarios ADD COLUMN grupo VARCHAR(10) DEFAULT 'G11';"
+      "ALTER TABLE usuarios ADD COLUMN grupo VARCHAR(10) DEFAULT 'G11';",
+      `CREATE TABLE IF NOT EXISTS password_resets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token VARCHAR(100) NOT NULL UNIQUE,
+        expires_at DATETIME NOT NULL,
+        used INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES usuarios(id)
+      );`,
+      'CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);'
     ];
 
     for (const sqlMig of safeMigrations) {

@@ -57,13 +57,35 @@ export const auth = {
     throw new Error(res.error || 'Falha ao redefinir senha.');
   },
 
-  // Recuperação de acesso / Esqueci minha senha
+  // Recuperação de acesso / Esqueci minha senha (disparo de e-mail)
   async forgotPassword(identificador) {
     const res = await api.post('/api/auth/forgot-password', { identificador });
     if (res.success) {
       return res;
     }
     throw new Error(res.error || 'Falha ao solicitar recuperação de senha.');
+  },
+
+  // Validação de token de redefinição recebido por e-mail
+  async validateResetToken(token) {
+    const res = await api.get(`/api/auth/validate-reset-token?token=${encodeURIComponent(token)}`);
+    if (res.success) {
+      return res;
+    }
+    throw new Error(res.error || 'Token de redefinição inválido ou expirado.');
+  },
+
+  // Redefinição efetiva de senha com nova senha e token
+  async resetPassword(token, nova_senha, confirmar_nova_senha) {
+    const res = await api.post('/api/auth/reset-password', {
+      token,
+      nova_senha,
+      confirmar_nova_senha
+    });
+    if (res.success) {
+      return res;
+    }
+    throw new Error(res.error || 'Falha ao redefinir a nova senha.');
   },
 
   // Efetua logout seguro

@@ -1,8 +1,10 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { db } from '../config/database.js';
 import { SECURITY_CONFIG } from '../config/security.js';
 import { generateCsrfToken } from '../middleware/csrf.js';
+import { sendPasswordResetEmail, sendPasswordChangedConfirmationEmail, maskEmail } from '../services/emailService.js';
 
 export const authController = {
   // Login corporativo seguro
@@ -261,7 +263,7 @@ export const authController = {
     });
   },
 
-  // Esqueci minha senha / Recuperação de acesso corporativo
+  // Esqueci minha senha / Disparo seguro para o e-mail cadastrado
   async forgotPassword(req, res) {
     try {
       const { identificador } = req.body;
@@ -293,28 +295,226 @@ export const authController = {
         });
       }
 
-      // Redefine a senha para a provisória padrão 'Tke@1234' e ativa primeiro_acesso = 1
-      const defaultPass = 'Tke@1234';
-      const newHash = bcrypt.hashSync(defaultPass, 10);
+      // Gera token criptograficamente seguro (expiração em 15 minutos)
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiresInMinutes = 15;
+      const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
 
+      // Invalida tokens anteriores não utilizados do mesmo usuário
       db.prepare(`
-        UPDATE usuarios 
-        SET senha_hash = ?, primeiro_acesso = 1, updated_at = CURRENT_TIMESTAMP 
-        WHERE id = ?
-      `).run(newHash, user.id);
+        UPDATE password_resets 
+        SET used = 1 
+        WHERE user_id = ? AND used = 0
+      `).run(user.id);
+
+      // Salva novo token no banco de dados
+      db.prepare(`
+        INSERT INTO password_resets (user_id, token, expires_at, used) 
+        VALUES (?, ?, ?, 0)
+      `).run(user.id, resetToken, expiresAt);
+
+      // Dispara o e-mail corporativo para o endereço do usuário cadastrado
+      const emailResult = await sendPasswordResetEmail({
+        nome: user.nome,
+        email: user.email,
+        resetToken,
+        expiresInMinutes
+      });
+
+      const maskedEmail = maskEmail(user.email);
 
       return res.status(200).json({
         success: true,
-        message: `Senha provisória de recuperação definida para "${defaultPass}". Use-a para entrar e cadastrar sua nova senha pessoal.`,
+        message: `As instruções de redefinição de acesso foram enviadas com sucesso para o e-mail corporativo cadastrado (${maskedEmail}).`,
         email: user.email,
+        email_mascarado: maskedEmail,
         nome: user.nome,
-        senha_temporaria: defaultPass
+        is_simulated: emailResult?.mode === 'simulated',
+        dev_preview_url: emailResult?.mode === 'simulated' ? emailResult.resetUrl : undefined
       });
     } catch (error) {
       console.error('❌ Erro na recuperação de senha:', error);
       return res.status(500).json({
         success: false,
         error: 'Erro interno ao processar recuperação de senha.'
+      });
+    }
+  },
+
+  // Validação de Token de Redefinição (GET /api/auth/validate-reset-token)
+  async validateResetToken(req, res) {
+    try {
+      const { token } = req.query;
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          valid: false,
+          error: 'Token de redefinição não fornecido.'
+        });
+      }
+
+      const resetRecord = db.prepare(`
+        SELECT pr.id, pr.user_id, pr.expires_at, pr.used, u.nome, u.email, u.ativo
+        FROM password_resets pr
+        JOIN usuarios u ON u.id = pr.user_id
+        WHERE pr.token = ?
+      `).get(token);
+
+      if (!resetRecord) {
+        return res.status(404).json({
+          success: false,
+          valid: false,
+          error: 'Link de redefinição inválido ou não encontrado.'
+        });
+      }
+
+      if (resetRecord.used === 1) {
+        return res.status(400).json({
+          success: false,
+          valid: false,
+          error: 'Este link de redefinição já foi utilizado anteriormente.'
+        });
+      }
+
+      const now = new Date();
+      const expiresAt = new Date(resetRecord.expires_at);
+      if (now > expiresAt) {
+        return res.status(410).json({
+          success: false,
+          valid: false,
+          error: 'Este link de redefinição expirou. Por favor, solicite um novo link.'
+        });
+      }
+
+      if (resetRecord.ativo !== 1) {
+        return res.status(403).json({
+          success: false,
+          valid: false,
+          error: 'Usuário desativado.'
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        valid: true,
+        nome: resetRecord.nome,
+        email_mascarado: maskEmail(resetRecord.email)
+      });
+    } catch (error) {
+      console.error('❌ Erro ao validar token de redefinição:', error);
+      return res.status(500).json({
+        success: false,
+        valid: false,
+        error: 'Erro ao validar token de redefinição.'
+      });
+    }
+  },
+
+  // Execução da Redefinição de Senha via Token (POST /api/auth/reset-password)
+  async resetPassword(req, res) {
+    try {
+      const { token, nova_senha, confirmar_nova_senha } = req.body;
+
+      if (!token || !nova_senha || !confirmar_nova_senha) {
+        return res.status(400).json({
+          success: false,
+          error: 'Token, nova senha e confirmação de senha são obrigatórios.'
+        });
+      }
+
+      if (nova_senha !== confirmar_nova_senha) {
+        return res.status(400).json({
+          success: false,
+          error: 'A nova senha e a confirmação não coincidem.'
+        });
+      }
+
+      // Validação de Segurança e Robustez (NIST SP 800-63B)
+      if (nova_senha.length < 8) {
+        return res.status(400).json({
+          success: false,
+          error: 'A senha deve conter no mínimo 8 caracteres (recomendado 12+).'
+        });
+      }
+
+      const hasLetters = /[a-zA-Z]/.test(nova_senha);
+      const hasNumbers = /[0-9]/.test(nova_senha);
+      if (!hasLetters || !hasNumbers) {
+        return res.status(400).json({
+          success: false,
+          error: 'A senha deve conter uma combinação de letras e números.'
+        });
+      }
+
+      const resetRecord = db.prepare(`
+        SELECT pr.id, pr.user_id, pr.expires_at, pr.used, u.nome, u.email, u.ativo
+        FROM password_resets pr
+        JOIN usuarios u ON u.id = pr.user_id
+        WHERE pr.token = ?
+      `).get(token);
+
+      if (!resetRecord) {
+        return res.status(404).json({
+          success: false,
+          error: 'Link de redefinição inválido.'
+        });
+      }
+
+      if (resetRecord.used === 1) {
+        return res.status(400).json({
+          success: false,
+          error: 'Este link de redefinição já foi utilizado.'
+        });
+      }
+
+      const now = new Date();
+      const expiresAt = new Date(resetRecord.expires_at);
+      if (now > expiresAt) {
+        return res.status(410).json({
+          success: false,
+          error: 'Este link de redefinição expirou. Solicite um novo link na tela de login.'
+        });
+      }
+
+      if (resetRecord.ativo !== 1) {
+        return res.status(403).json({
+          success: false,
+          error: 'Usuário desativado.'
+        });
+      }
+
+      // Atualiza a senha no banco e zera o flag de primeiro acesso
+      const saltRounds = 10;
+      const newHash = bcrypt.hashSync(nova_senha, saltRounds);
+
+      db.prepare(`
+        UPDATE usuarios 
+        SET senha_hash = ?, primeiro_acesso = 0, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `).run(newHash, resetRecord.user_id);
+
+      // Marca o token como consumido
+      db.prepare(`
+        UPDATE password_resets 
+        SET used = 1 
+        WHERE id = ?
+      `).run(resetRecord.id);
+
+      // Envia notificação por e-mail informando a redefinição com sucesso
+      await sendPasswordChangedConfirmationEmail({
+        nome: resetRecord.nome,
+        email: resetRecord.email
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Sua senha foi redefinida com sucesso! Você já pode realizar login.'
+      });
+    } catch (error) {
+      console.error('❌ Erro na redefinição de senha:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno ao redefinir senha.'
       });
     }
   }
