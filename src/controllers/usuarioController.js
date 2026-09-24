@@ -2,6 +2,7 @@ import * as xlsx from 'xlsx';
 import bcrypt from 'bcryptjs';
 import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
+import { sendProvisionalPasswordEmail } from '../services/emailService.js';
 
 export const usuarioController = {
   // Listar usuários do sistema (Exclusivo Consultora)
@@ -105,6 +106,19 @@ export const usuarioController = {
             nome_sobrenome = excluded.nome_sobrenome,
             email = excluded.email
         `).run(cleanMatricula, cleanNome, cleanEmail);
+      }
+
+      if (cleanEmail) {
+        try {
+          await sendProvisionalPasswordEmail({
+            nome: cleanNome,
+            email: cleanEmail,
+            matricula: cleanMatricula,
+            senhaProvisoria: rawSenha
+          });
+        } catch (mailErr) {
+          console.error('⚠️ [UsuarioController] Falha ao enviar e-mail de boas-vindas:', mailErr.message);
+        }
       }
 
       return res.status(201).json({
@@ -319,9 +333,23 @@ export const usuarioController = {
         WHERE id = ?
       `).run(senhaHash, id);
 
+      // Dispara envio do e-mail com a nova senha provisória
+      if (user.email) {
+        try {
+          await sendProvisionalPasswordEmail({
+            nome: user.nome,
+            email: user.email,
+            matricula: user.matricula,
+            senhaProvisoria: rawSenha
+          });
+        } catch (mailErr) {
+          console.error('⚠️ [UsuarioController] Falha ao enviar e-mail de senha provisória:', mailErr.message);
+        }
+      }
+
       return res.status(200).json({
         success: true,
-        message: `Senha de ${user.nome} resetada com sucesso para a provisória "${rawSenha}". O usuário deverá trocá-la no próximo acesso.`,
+        message: `Senha de ${user.nome} resetada com sucesso para a provisória "${rawSenha}". Instruções enviadas para o e-mail cadastrado (${user.email}).`,
         data: {
           id: user.id,
           nome: user.nome,

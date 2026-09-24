@@ -9,7 +9,8 @@
     "dev": "node --watch server.js",
     "seed": "node database/seed.js",
     "migrate:neon": "node scripts/migrate-to-neon.js",
-    "test": "node tests/test-runner.js"
+    "test": "node tests/test-runner.js",
+    "test:email": "node scripts/test-email.js"
   },
   "keywords": [
     "orcamentos",
