@@ -32,10 +32,10 @@ async function testSmtp() {
   if (targetEmail) {
     console.log(`📧 Enviando e-mail de teste para: ${targetEmail}...`);
     const result = await sendPasswordResetEmail({
-      nome: 'Teste Corporativo',
+      nome: 'Thaís Lima',
       email: targetEmail,
-      resetToken: 'teste_token_123456_verificacao',
-      expiresInMinutes: 15
+      matricula: '55011190',
+      senhaProvisoria: 'Tke@849201'
     });
 
     if (result.mode === 'smtp') {

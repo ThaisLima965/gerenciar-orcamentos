@@ -78,14 +78,11 @@ export function maskEmail(email) {
 }
 
 /**
- * Envia e-mail com link de redefinição de senha e senha provisória de acesso imediato (Esqueci Minha Senha)
+ * Envia e-mail com senha provisória de acesso imediato (SEM LINKS EXTERNOS para evitar bloqueios anti-phishing)
  */
-export async function sendPasswordResetEmail({ nome, email, matricula, senhaProvisoria, resetToken, expiresInMinutes = 15, reqBaseUrl = null }) {
-  const appUrl = reqBaseUrl || process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+export async function sendPasswordResetEmail({ nome, email, matricula, senhaProvisoria, resetToken }) {
   const smtpFrom = process.env.SMTP_FROM || `"Suporte Corporativo de orçamentos" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
-  const resetUrl = `${appUrl}/redefinir-senha.html?token=${encodeURIComponent(resetToken)}`;
-  const loginUrl = `${appUrl}/login.html`;
-  const subject = '🔒 Recuperação de Acesso - Gerenciamento Corporativo de Orçamentos';
+  const subject = '🔑 Senha Provisória de Acesso - Gerenciamento Corporativo';
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -99,13 +96,13 @@ export async function sendPasswordResetEmail({ nome, email, matricula, senhaProv
       <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F3F4F6; padding: 24px 0;">
         <tr>
           <td align="center">
-            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #E5E7EB;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #E5E7EB;">
               
               <!-- CABEÇALHO -->
               <tr>
                 <td align="center" style="background: linear-gradient(135deg, #111827 0%, #1F2937 60%, #6200EA 100%); background-color: #1F2937; padding: 32px 24px;">
                   <h1 style="margin: 0; color: #FFFFFF; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">Gerenciamento Corporativo</h1>
-                  <div style="color: #EDE9FE; font-size: 13px; margin-top: 6px; font-weight: 500;">Recuperação Segura de Acesso</div>
+                  <div style="color: #EDE9FE; font-size: 13px; margin-top: 6px; font-weight: 500;">Recuperação de Senha de Acesso</div>
                 </td>
               </tr>
 
@@ -115,63 +112,43 @@ export async function sendPasswordResetEmail({ nome, email, matricula, senhaProv
                   <div style="font-size: 17px; font-weight: 700; color: #111827; margin-bottom: 12px;">
                     Olá, ${nome || 'Colaborador(a)'}!
                   </div>
-                  <p style="margin: 0 0 16px 0; color: #4B5563;">
-                    Recebemos uma solicitação para redefinir o acesso à sua conta vinculada a este e-mail corporativo.
+                  <p style="margin: 0 0 18px 0; color: #4B5563;">
+                    Recebemos uma solicitação para redefinir a senha de acesso à sua conta corporativa. Uma nova <strong>senha provisória</strong> foi gerada para o seu login.
                   </p>
 
-                  ${senhaProvisoria ? `
-                  <!-- QUADRO DE SENHA PROVISÓRIA -->
+                  <!-- QUADRO DE CREDENCIAIS PROVISÓRIAS -->
                   <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; margin: 20px 0;">
                     <tr>
-                      <td style="padding: 16px 20px;">
-                        <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748B; letter-spacing: 0.5px; margin-bottom: 8px;">
-                          🔑 Senha Provisória de Acesso Imediato:
+                      <td style="padding: 18px 22px;">
+                        <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748B; letter-spacing: 0.5px; margin-bottom: 6px;">
+                          Usuário de Acesso:
                         </div>
-                        <div style="font-size: 20px; font-weight: 700; color: #6200EA; font-family: Consolas, Monaco, monospace; background-color: #EDE9FE; padding: 8px 14px; border-radius: 6px; display: inline-block; letter-spacing: 1px;">
+                        <div style="font-size: 15px; font-weight: 600; color: #0F172A; margin-bottom: 14px;">
+                          ${email} ${matricula ? `<span style="color: #64748B; font-weight: normal;">(Matrícula: <strong>${matricula}</strong>)</span>` : ''}
+                        </div>
+
+                        <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748B; letter-spacing: 0.5px; margin-bottom: 6px;">
+                          🔑 Senha Provisória:
+                        </div>
+                        <div style="font-size: 22px; font-weight: 700; color: #6200EA; font-family: Consolas, Monaco, monospace; background-color: #EDE9FE; padding: 10px 16px; border-radius: 6px; display: inline-block; letter-spacing: 1.5px; border: 1px dashed #7C3AED;">
                           ${senhaProvisoria}
                         </div>
-                        ${matricula ? `<div style="font-size: 13px; color: #64748B; margin-top: 8px;">Matrícula Funcional: <strong style="color: #1E293B;">${matricula}</strong></div>` : ''}
                       </td>
                     </tr>
                   </table>
-                  ` : ''}
 
-                  <!-- OPÇÃO 1: BOTÃO DIRETO -->
-                  <div style="margin: 28px 0; text-align: center;">
-                    <table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto;">
-                      <tr>
-                        <td align="center" style="border-radius: 8px; background-color: #6200EA;">
-                          <a href="${resetUrl}" target="_blank" style="font-size: 15px; font-weight: 700; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; display: inline-block; background-color: #6200EA; border: 1px solid #6200EA;">
-                            🔗 Clique Aqui para Redefinir Sua Senha
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
+                  <!-- INSTRUÇÕES PASSO A PASSO -->
+                  <div style="background-color: #F0FDF4; border-left: 4px solid #10B981; border-radius: 4px; padding: 14px 18px; margin: 22px 0; font-size: 13.5px; color: #065F46; line-height: 1.6;">
+                    <strong>Como acessar sua conta:</strong><br>
+                    1. Abra o navegador em seu computador ou celular.<br>
+                    2. Acesse a plataforma de <strong>Gerenciamento Corporativo de Orçamentos</strong>.<br>
+                    3. Informe seu e-mail ou matrícula e digite a <strong>senha provisória</strong> acima.<br>
+                    4. No primeiro login, você será solicitado a cadastrar sua <strong>nova senha pessoal definitiva</strong>.
                   </div>
 
-                  <!-- AVISO DE SEGURANÇA E EXPIRAÇÃO -->
-                  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 4px; margin: 20px 0;">
-                    <tr>
-                      <td style="padding: 12px 16px; font-size: 13px; color: #92400E; line-height: 1.5;">
-                        ⏱️ <strong>Atenção:</strong> O link acima é de uso único e expira em <strong>${expiresInMinutes} minutos</strong>.<br>
-                        Caso você não tenha solicitado esta redefinição, sua conta permanecerá segura.
-                      </td>
-                    </tr>
-                  </table>
-
-                  <!-- LINKS EM TEXTO PURO (FALLBACK) -->
-                  <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #E5E7EB;">
-                    <div style="font-size: 13px; font-weight: 600; color: #4B5563; margin-bottom: 6px;">
-                      Ou acesse diretamente através dos links abaixo:
-                    </div>
-                    <div style="font-size: 12px; color: #6B7280; margin-bottom: 4px;">• <strong>Link Direto de Redefinição:</strong></div>
-                    <div style="word-break: break-all; font-size: 12px; color: #6200EA; background-color: #F3F4F6; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-family: Consolas, monospace;">
-                      <a href="${resetUrl}" style="color: #6200EA; text-decoration: underline;">${resetUrl}</a>
-                    </div>
-                    <div style="font-size: 12px; color: #6B7280; margin-bottom: 4px;">• <strong>Página de Login:</strong></div>
-                    <div style="word-break: break-all; font-size: 12px; color: #4B5563; background-color: #F3F4F6; padding: 8px 12px; border-radius: 6px; font-family: Consolas, monospace;">
-                      <a href="${loginUrl}" style="color: #4B5563; text-decoration: underline;">${loginUrl}</a>
-                    </div>
+                  <!-- AVISO DE SEGURANÇA ANTIPHISHING -->
+                  <div style="font-size: 12px; color: #6B7280; margin-top: 24px; padding-top: 16px; border-top: 1px solid #E5E7EB; line-height: 1.4;">
+                    🛡️ <em>Por conformidade com as políticas corporativas de segurança e prevenção a phishing, este comunicado é estritamente informativo e não contém links externos clicáveis.</em>
                   </div>
 
                 </td>
@@ -181,7 +158,7 @@ export async function sendPasswordResetEmail({ nome, email, matricula, senhaProv
               <tr>
                 <td align="center" style="background-color: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 20px 24px; font-size: 12px; color: #9CA3AF; line-height: 1.4;">
                   Sistema Corporativo de Gerenciamento de Orçamentos.<br>
-                  Por motivos de segurança, nunca compartilhe seus dados ou links com terceiros.
+                  Caso você não tenha solicitado esta alteração, contate a administração do sistema.
                 </td>
               </tr>
 
@@ -196,16 +173,21 @@ export async function sendPasswordResetEmail({ nome, email, matricula, senhaProv
   const plainText = [
     `Olá ${nome || 'Colaborador(a)'},`,
     '',
-    'Recebemos uma solicitação para redefinir a senha de acesso à sua conta corporativa.',
-    senhaProvisoria ? `\n🔑 SENHA PROVISÓRIA DE ACESSO: ${senhaProvisoria}\nMatrícula: ${matricula || 'N/D'}` : '',
+    'Recebemos uma solicitação de redefinição de senha para a sua conta corporativa.',
     '',
-    `🔗 LINK DIRETO DE REDEFINIÇÃO (Válido por ${expiresInMinutes} minutos):`,
-    resetUrl,
+    '========================================',
+    `USUÁRIO: ${email}`,
+    matricula ? `MATRÍCULA: ${matricula}` : '',
+    `🔑 SENHA PROVISÓRIA: ${senhaProvisoria}`,
+    '========================================',
     '',
-    `🌐 PÁGINA DE LOGIN:`,
-    loginUrl,
+    'INSTRUÇÕES DE ACESSO:',
+    '1. Abra o navegador em seu computador ou celular.',
+    '2. Acesse a plataforma de Gerenciamento Corporativo de Orçamentos.',
+    '3. Faça login com seu e-mail/matrícula e a senha provisória acima.',
+    '4. Cadastre sua nova senha pessoal definitiva no primeiro acesso.',
     '',
-    'Se você não solicitou esta redefinição, por favor ignore esta mensagem.'
+    'Por motivos de segurança corporativa, este e-mail não contém links externos clicáveis.'
   ].filter(Boolean).join('\n');
 
   const emailPayload = {
@@ -215,7 +197,6 @@ export async function sendPasswordResetEmail({ nome, email, matricula, senhaProv
     html: htmlContent,
     text: plainText,
     sentAt: new Date().toISOString(),
-    resetUrl,
     resetToken
   };
 
@@ -231,8 +212,8 @@ export async function sendPasswordResetEmail({ nome, email, matricula, senhaProv
         html: emailPayload.html,
         text: emailPayload.text
       });
-      console.log(`✅ [EmailService] E-mail de redefinição enviado com sucesso para ${email} (MessageID: ${info.messageId})`);
-      return { success: true, messageId: info.messageId, mode: 'smtp', resetUrl };
+      console.log(`✅ [EmailService] E-mail com senha provisória (sem links) enviado para ${email} (MessageID: ${info.messageId})`);
+      return { success: true, messageId: info.messageId, mode: 'smtp' };
     } catch (err) {
       console.error(`❌ [EmailService] Erro ao enviar e-mail via SMTP para ${email}:`, err.message);
     }
@@ -242,128 +223,21 @@ export async function sendPasswordResetEmail({ nome, email, matricula, senhaProv
   console.log(`\n==================== 📧 E-MAIL CORPORATIVO DISPARADO ====================`);
   console.log(`📨 Para: ${nome} <${email}>`);
   console.log(`📌 Assunto: ${subject}`);
-  if (senhaProvisoria) console.log(`🔑 Senha Provisória: ${senhaProvisoria}`);
-  console.log(`⏱️ Validade: ${expiresInMinutes} minutos`);
-  console.log(`🔗 Link de Redefinição: ${resetUrl}`);
-  console.log(`========================================================================\n`);
-
-  return { success: true, mode: 'simulated', resetUrl };
-}
-
-
-/**
- * Envia e-mail com senha provisória / reset administrativo
- */
-export async function sendProvisionalPasswordEmail({ nome, email, matricula, senhaProvisoria }) {
-  const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const smtpFrom = process.env.SMTP_FROM || `"Suporte Corporativo de orçamentos" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
-  const loginUrl = `${appUrl}/login.html`;
-  const subject = '🔑 Senha Provisória de Acesso - Gerenciamento Corporativo';
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-      <meta charset="utf-8">
-      <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F3F4F6; margin: 0; padding: 0; }
-        .container { max-width: 580px; margin: 30px auto; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .header { background: linear-gradient(135deg, #111827 0%, #1F2937 50%, #6200EA 100%); padding: 32px 24px; text-align: center; color: #FFFFFF; }
-        .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
-        .content { padding: 32px 28px; color: #374151; font-size: 15px; line-height: 1.6; }
-        .greeting { font-size: 17px; font-weight: 600; color: #111827; margin-bottom: 12px; }
-        .credentials-box { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 18px 22px; margin: 20px 0; }
-        .credential-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
-        .credential-label { color: #64748B; font-weight: 500; }
-        .credential-value { font-weight: 700; color: #0F172A; font-family: monospace; font-size: 15px; }
-        .button-box { text-align: center; margin: 28px 0; }
-        .btn-login { display: inline-block; background: #6200EA; color: #FFFFFF !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; }
-        .info-card { background: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 4px; padding: 14px 18px; margin: 20px 0; font-size: 13px; color: #92400E; }
-        .footer { background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 20px 24px; text-align: center; font-size: 12px; color: #9CA3AF; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Gerenciamento Corporativo</h1>
-          <div style="font-size: 13px; opacity: 0.85; margin-top: 4px;">Acesso ao Sistema</div>
-        </div>
-        <div class="content">
-          <div class="greeting">Olá, ${nome || 'Colaborador(a)'}!</div>
-          <p>Sua senha de acesso ao sistema corporativo de orçamentos foi definida ou redefinida pela administração.</p>
-          
-          <div class="credentials-box">
-            <div class="credential-row">
-              <span class="credential-label">E-mail:</span>
-              <span class="credential-value">${email}</span>
-            </div>
-            ${matricula ? `
-            <div class="credential-row">
-              <span class="credential-label">Matrícula:</span>
-              <span class="credential-value">${matricula}</span>
-            </div>` : ''}
-            <div class="credential-row" style="margin-bottom:0;">
-              <span class="credential-label">Senha Provisória:</span>
-              <span class="credential-value" style="color: #6200EA; background: #EDE9FE; padding: 2px 8px; border-radius: 4px;">${senhaProvisoria}</span>
-            </div>
-          </div>
-
-          <div class="info-card">
-            🔒 <strong>Primeiro Acesso Obrigatório:</strong> Por motivos de segurança, ao realizar o primeiro login com a senha provisória acima, você deverá cadastrar uma nova senha pessoal definitiva.
-          </div>
-
-          <div class="button-box">
-            <a href="${loginUrl}" class="btn-login" target="_blank">Acessar a Plataforma</a>
-          </div>
-        </div>
-        <div class="footer">
-          Sistema Corporativo de Gerenciamento de Orçamentos.<br>
-          Se você não solicitou esta alteração, entre em contato imediatamente com o suporte.
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-
-  const emailPayload = {
-    from: smtpFrom,
-    to: email,
-    subject,
-    html: htmlContent,
-    text: `Olá ${nome || 'Colaborador(a)'},\n\nSua senha de acesso foi definida/redefinida:\nE-mail: ${email}\nMatrícula: ${matricula || 'N/D'}\nSenha Provisória: ${senhaProvisoria}\n\nAcesse: ${loginUrl} para cadastrar sua nova senha.`,
-    sentAt: new Date().toISOString()
-  };
-
-  emailHistory.push(emailPayload);
-
-  const transporter = getTransporter();
-  if (transporter) {
-    try {
-      const info = await transporter.sendMail({
-        from: emailPayload.from,
-        to: emailPayload.to,
-        subject: emailPayload.subject,
-        html: emailPayload.html,
-        text: emailPayload.text
-      });
-      console.log(`✅ [EmailService] E-mail com senha provisória enviado para ${email} (MessageID: ${info.messageId})`);
-      return { success: true, messageId: info.messageId, mode: 'smtp' };
-    } catch (err) {
-      console.error(`❌ [EmailService] Erro ao enviar e-mail via SMTP para ${email}:`, err.message);
-    }
-  }
-
-  console.log(`\n==================== 📧 E-MAIL DE SENHA PROVISÓRIA ====================`);
-  console.log(`📨 Para: ${nome} <${email}>`);
-  console.log(`📌 Senha Provisória: ${senhaProvisoria}`);
-  console.log(`🔗 Link de Login: ${loginUrl}`);
+  console.log(`🔑 Senha Provisória: ${senhaProvisoria}`);
   console.log(`========================================================================\n`);
 
   return { success: true, mode: 'simulated' };
 }
 
 /**
- * Envia e-mail de confirmação de senha alterada com sucesso
+ * Envia e-mail com senha provisória / reset administrativo (SEM LINKS EXTERNOS)
+ */
+export async function sendProvisionalPasswordEmail({ nome, email, matricula, senhaProvisoria }) {
+  return sendPasswordResetEmail({ nome, email, matricula, senhaProvisoria });
+}
+
+/**
+ * Envia e-mail de confirmação de senha alterada com sucesso (SEM LINKS EXTERNOS)
  */
 export async function sendPasswordChangedConfirmationEmail({ nome, email }) {
   const smtpFrom = process.env.SMTP_FROM || `"Suporte Corporativo de orçamentos" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
@@ -384,11 +258,11 @@ export async function sendPasswordChangedConfirmationEmail({ nome, email }) {
     <body>
       <div class="container">
         <div class="header">
-          <h2 style="margin:0;">Senha Alterada com Sucesso</h2>
+          <h2 style="margin:0; font-size: 19px;">Senha Alterada com Sucesso</h2>
         </div>
         <div class="content">
           <p>Olá, <strong>${nome || 'Colaborador(a)'}</strong>,</p>
-          <p>Informamos que a senha de acesso à sua conta corporativa foi redefinida com sucesso.</p>
+          <p>Informamos que a senha de acesso à sua conta corporativa foi atualizada com sucesso.</p>
           <p>Se você realizou esta alteração, não é necessária nenhuma ação adicional.</p>
           <p style="color: #DC2626; font-size: 13px;"><strong>Não reconhece esta alteração?</strong> Entre em contato imediatamente com a administração do sistema.</p>
         </div>
@@ -418,4 +292,3 @@ export async function sendPasswordChangedConfirmationEmail({ nome, email }) {
   console.log(`📧 [EmailService] Notificação de confirmação de senha enviada para ${email}`);
   return { success: true };
 }
-
