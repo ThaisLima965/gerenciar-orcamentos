@@ -82,7 +82,7 @@ export function maskEmail(email) {
  */
 export async function sendPasswordResetEmail({ nome, email, resetToken, expiresInMinutes = 15 }) {
   const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const smtpFrom = process.env.SMTP_FROM || `"TKE Suporte Corporativo" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
+  const smtpFrom = process.env.SMTP_FROM || `"Suporte Corporativo de orçamentos" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
   const resetUrl = `${appUrl}/redefinir-senha.html?token=${encodeURIComponent(resetToken)}`;
   const subject = '🔒 Recuperação de Acesso - Gerenciamento Corporativo de Orçamentos';
 
@@ -186,7 +186,7 @@ export async function sendPasswordResetEmail({ nome, email, resetToken, expiresI
  */
 export async function sendProvisionalPasswordEmail({ nome, email, matricula, senhaProvisoria }) {
   const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const smtpFrom = process.env.SMTP_FROM || `"TKE Suporte Corporativo" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
+  const smtpFrom = process.env.SMTP_FROM || `"Suporte Corporativo de orçamentos" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
   const loginUrl = `${appUrl}/login.html`;
   const subject = '🔑 Senha Provisória de Acesso - Gerenciamento Corporativo';
 
@@ -296,7 +296,7 @@ export async function sendProvisionalPasswordEmail({ nome, email, matricula, sen
  * Envia e-mail de confirmação de senha alterada com sucesso
  */
 export async function sendPasswordChangedConfirmationEmail({ nome, email }) {
-  const smtpFrom = process.env.SMTP_FROM || `"TKE Suporte Corporativo" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
+  const smtpFrom = process.env.SMTP_FROM || `"Suporte Corporativo de orçamentos" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
   const subject = '🔒 Senha Alterada com Sucesso - Gerenciamento Corporativo';
   const htmlContent = `
     <!DOCTYPE html>
