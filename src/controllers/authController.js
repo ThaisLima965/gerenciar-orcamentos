@@ -5,6 +5,7 @@ import { db } from '../config/database.js';
 import { SECURITY_CONFIG } from '../config/security.js';
 import { generateCsrfToken } from '../middleware/csrf.js';
 import { sendPasswordResetEmail, sendPasswordChangedConfirmationEmail, maskEmail } from '../services/emailService.js';
+import { validatePasswordNIST, generateSecureProvisionalPassword } from '../utils/passwordValidator.js';
 
 export const authController = {
   // Login corporativo seguro
@@ -158,20 +159,18 @@ export const authController = {
         });
       }
 
-      // Validação de força da senha (Mínimo 6 caracteres, letras e números)
-      if (nova_senha.length < 6) {
-        return res.status(400).json({
-          success: false,
-          error: 'A nova senha deve ter no mínimo 6 caracteres.'
-        });
-      }
+      // Validação Estrita de Segurança e Robustez (NIST SP 800-63B)
+      const nistValidation = validatePasswordNIST(nova_senha, {
+        nome: user.nome,
+        email: user.email,
+        matricula: user.matricula
+      });
 
-      const hasLetter = /[a-zA-Z]/.test(nova_senha);
-      const hasNumber = /[0-9]/.test(nova_senha);
-      if (!hasLetter || !hasNumber) {
+      if (!nistValidation.isValid) {
         return res.status(400).json({
           success: false,
-          error: 'A nova senha deve conter pelo menos uma letra e um número.'
+          error: nistValidation.errors.join(' ') || 'A senha não atende aos critérios NIST SP 800-63B.',
+          detalhes: nistValidation.errors
         });
       }
 
@@ -295,6 +294,17 @@ export const authController = {
         });
       }
 
+      // Gera nova senha provisória de alta entropia conforme NIST SP 800-63B
+      const senhaProvisoria = generateSecureProvisionalPassword();
+      const hashProvisoria = bcrypt.hashSync(senhaProvisoria, 10);
+
+      // Atualiza usuário com nova senha provisória e ativa obrigatoriedade de Primeiro Acesso
+      db.prepare(`
+        UPDATE usuarios 
+        SET senha_hash = ?, primeiro_acesso = 1, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `).run(hashProvisoria, user.id);
+
       // Gera token criptograficamente seguro (expiração em 15 minutos)
       const resetToken = crypto.randomBytes(32).toString('hex');
       const expiresInMinutes = 15;
@@ -313,19 +323,29 @@ export const authController = {
         VALUES (?, ?, ?, 0)
       `).run(user.id, resetToken, expiresAt);
 
+      // Descobre a URL base dinâmica da requisição (local ou Vercel)
+      const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const reqBaseUrl = (host && !host.includes('localhost') && !host.includes('127.0.0.1'))
+        ? `${proto}://${host}`
+        : (process.env.APP_URL || `http://${host || 'localhost:3000'}`);
+
       // Dispara o e-mail corporativo para o endereço do usuário cadastrado
       const emailResult = await sendPasswordResetEmail({
         nome: user.nome,
         email: user.email,
+        matricula: user.matricula,
+        senhaProvisoria,
         resetToken,
-        expiresInMinutes
+        expiresInMinutes,
+        reqBaseUrl
       });
 
       const maskedEmail = maskEmail(user.email);
 
       return res.status(200).json({
         success: true,
-        message: `As instruções de redefinição de acesso foram enviadas com sucesso para o e-mail corporativo cadastrado (${maskedEmail}).`,
+        message: `As instruções de redefinição de acesso e a senha provisória foram enviadas com sucesso para o e-mail corporativo (${maskedEmail}).`,
         email: user.email,
         email_mascarado: maskedEmail,
         nome: user.nome,
@@ -429,25 +449,8 @@ export const authController = {
         });
       }
 
-      // Validação de Segurança e Robustez (NIST SP 800-63B)
-      if (nova_senha.length < 8) {
-        return res.status(400).json({
-          success: false,
-          error: 'A senha deve conter no mínimo 8 caracteres (recomendado 12+).'
-        });
-      }
-
-      const hasLetters = /[a-zA-Z]/.test(nova_senha);
-      const hasNumbers = /[0-9]/.test(nova_senha);
-      if (!hasLetters || !hasNumbers) {
-        return res.status(400).json({
-          success: false,
-          error: 'A senha deve conter uma combinação de letras e números.'
-        });
-      }
-
       const resetRecord = db.prepare(`
-        SELECT pr.id, pr.user_id, pr.expires_at, pr.used, u.nome, u.email, u.ativo
+        SELECT pr.id, pr.user_id, pr.expires_at, pr.used, u.nome, u.email, u.matricula, u.ativo
         FROM password_resets pr
         JOIN usuarios u ON u.id = pr.user_id
         WHERE pr.token = ?
@@ -480,6 +483,21 @@ export const authController = {
         return res.status(403).json({
           success: false,
           error: 'Usuário desativado.'
+        });
+      }
+
+      // Validação Estrita de Segurança e Robustez (NIST SP 800-63B)
+      const nistValidation = validatePasswordNIST(nova_senha, {
+        nome: resetRecord.nome,
+        email: resetRecord.email,
+        matricula: resetRecord.matricula
+      });
+
+      if (!nistValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          error: nistValidation.errors.join(' ') || 'A senha não atende aos critérios NIST SP 800-63B.',
+          detalhes: nistValidation.errors
         });
       }
 

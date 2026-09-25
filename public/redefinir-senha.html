@@ -124,16 +124,24 @@
         </div>
 
         <!-- REGRAS DE SEGURANÇA (NIST SP 800-63B) -->
-        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.75rem; margin-bottom: 1.25rem; text-align: left; font-size: 0.76rem; color: #4B5563;">
-          <div style="font-weight: 700; color: #111827; margin-bottom: 0.35rem;">Requisitos de Segurança:</div>
-          <div id="rule-length" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.2rem; color: #9CA3AF;">
-            <i class="bi bi-circle"></i> Mínimo de 8 caracteres
+        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.85rem; margin-bottom: 1.25rem; text-align: left; font-size: 0.76rem; color: #4B5563;">
+          <div style="font-weight: 700; color: #111827; margin-bottom: 0.4rem; font-size: 0.78rem;">
+            <i class="bi bi-shield-lock-fill" style="color: #6200EA;"></i> Requisitos de Segurança (NIST SP 800-63B):
           </div>
-          <div id="rule-mixed" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.2rem; color: #9CA3AF;">
-            <i class="bi bi-circle"></i> Combinação de letras e números
+          <div id="rule-length" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; color: #9CA3AF;">
+            <i class="bi bi-circle"></i> Mínimo de 9 caracteres (ideal 12+)
+          </div>
+          <div id="rule-context" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; color: #9CA3AF;">
+            <i class="bi bi-circle"></i> Não conter dados pessoais (nome, e-mail ou matrícula)
+          </div>
+          <div id="rule-patterns" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; color: #9CA3AF;">
+            <i class="bi bi-circle"></i> Sem repetições ou sequências óbvias (ex: 1234, qwerty)
+          </div>
+          <div id="rule-common" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; color: #9CA3AF;">
+            <i class="bi bi-circle"></i> Sem palavras comuns ou termos de dicionário
           </div>
           <div id="rule-match" style="display: flex; align-items: center; gap: 0.35rem; color: #9CA3AF;">
-            <i class="bi bi-circle"></i> As senhas coincidem exatamente
+            <i class="bi bi-circle"></i> As duas senhas coincidem exatamente
           </div>
         </div>
 

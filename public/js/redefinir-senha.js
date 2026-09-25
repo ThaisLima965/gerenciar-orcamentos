@@ -25,8 +25,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnSubmitReset = document.getElementById('btn-submit-reset');
 
   const ruleLength = document.getElementById('rule-length');
-  const ruleMixed = document.getElementById('rule-mixed');
+  const ruleContext = document.getElementById('rule-context');
+  const rulePatterns = document.getElementById('rule-patterns');
+  const ruleCommon = document.getElementById('rule-common');
   const ruleMatch = document.getElementById('rule-match');
+
+  let currentUserContext = {};
 
   // Toggle visualização de senhas
   if (btnToggleSenha && novaSenhaInput) {
@@ -56,6 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Valida o token junto à API
   try {
     const check = await auth.validateResetToken(token);
+    currentUserContext = check || {};
     
     if (userName) userName.textContent = check.nome || 'Colaborador';
     if (userEmail) userEmail.textContent = check.email_mascarado || 'e-mail cadastrado';
@@ -73,35 +78,79 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Validação dinâmica em tempo real das regras de senha (NIST SP 800-63B)
-  function updateRuleStatus(el, isValid) {
-    if (isValid) {
-      el.style.color = '#10B981';
-      el.innerHTML = '<i class="bi bi-check-circle-fill" style="color: #10B981;"></i> ' + el.textContent.trim();
-    } else {
-      el.style.color = '#9CA3AF';
-      el.innerHTML = '<i class="bi bi-circle" style="color: #9CA3AF;"></i> ' + el.textContent.trim();
-    }
-  }
+  const WEAK_WORDS = ['123456789', 'password', 'senha123', 'admin123', 'trocar123', 'mudar123', 'elevador', 'tkelevator', 'orcamento'];
 
   function checkPasswordRules() {
-    const pass = novaSenhaInput.value;
-    const confirm = confirmarNovaSenhaInput.value;
+    const pass = (novaSenhaInput.value || '').trim();
+    const confirm = (confirmarNovaSenhaInput.value || '').trim();
+    const lowerPass = pass.toLowerCase();
 
-    const validLength = pass.length >= 8;
-    const validMixed = /[a-zA-Z]/.test(pass) && /[0-9]/.test(pass);
+    // 1. Mínimo 9 caracteres
+    const validLength = pass.length >= 9;
+
+    // 2. Sem dados pessoais
+    let validContext = true;
+    if (currentUserContext.nome) {
+      const parts = currentUserContext.nome.toLowerCase().split(/\s+/).filter(p => p.length >= 3);
+      for (const p of parts) {
+        if (lowerPass.includes(p)) validContext = false;
+      }
+    }
+    if (currentUserContext.email) {
+      const emailUser = currentUserContext.email.split('@')[0].toLowerCase();
+      const parts = emailUser.split(/[._-]/).filter(p => p.length >= 3);
+      for (const p of parts) {
+        if (lowerPass.includes(p)) validContext = false;
+      }
+    }
+    if (currentUserContext.matricula && lowerPass.includes(String(currentUserContext.matricula).toLowerCase())) {
+      validContext = false;
+    }
+
+    // 3. Sem repetições excessivas ou sequências óbvias
+    let validPatterns = true;
+    if (/(.)\1{3,}/.test(pass)) validPatterns = false;
+    const sequences = ['0123456789', 'abcdefghijklmnopqrstuvwxyz', 'qwertyuiop', 'asdfghjkl'];
+    for (const seq of sequences) {
+      for (let i = 0; i <= seq.length - 4; i++) {
+        if (lowerPass.includes(seq.substring(i, i + 4))) validPatterns = false;
+      }
+    }
+
+    // 4. Sem senhas comuns / dicionário
+    let validCommon = true;
+    for (const w of WEAK_WORDS) {
+      if (lowerPass.includes(w)) validCommon = false;
+    }
+
+    // 5. Coincidência
     const validMatch = pass.length > 0 && pass === confirm;
 
-    ruleLength.style.color = validLength ? '#059669' : '#9CA3AF';
-    ruleLength.querySelector('i').className = validLength ? 'bi bi-check-circle-fill' : 'bi bi-circle';
+    // Atualiza indicadores visuais
+    if (ruleLength) {
+      ruleLength.style.color = validLength ? '#059669' : '#9CA3AF';
+      ruleLength.querySelector('i').className = validLength ? 'bi bi-check-circle-fill' : 'bi bi-circle';
+    }
+    if (ruleContext) {
+      ruleContext.style.color = (pass.length > 0 && validContext) ? '#059669' : '#9CA3AF';
+      ruleContext.querySelector('i').className = (pass.length > 0 && validContext) ? 'bi bi-check-circle-fill' : 'bi bi-circle';
+    }
+    if (rulePatterns) {
+      rulePatterns.style.color = (pass.length > 0 && validPatterns) ? '#059669' : '#9CA3AF';
+      rulePatterns.querySelector('i').className = (pass.length > 0 && validPatterns) ? 'bi bi-check-circle-fill' : 'bi bi-circle';
+    }
+    if (ruleCommon) {
+      ruleCommon.style.color = (pass.length > 0 && validCommon) ? '#059669' : '#9CA3AF';
+      ruleCommon.querySelector('i').className = (pass.length > 0 && validCommon) ? 'bi bi-check-circle-fill' : 'bi bi-circle';
+    }
+    if (ruleMatch) {
+      ruleMatch.style.color = validMatch ? '#059669' : '#9CA3AF';
+      ruleMatch.querySelector('i').className = validMatch ? 'bi bi-check-circle-fill' : 'bi bi-circle';
+    }
 
-    ruleMixed.style.color = validMixed ? '#059669' : '#9CA3AF';
-    ruleMixed.querySelector('i').className = validMixed ? 'bi bi-check-circle-fill' : 'bi bi-circle';
-
-    ruleMatch.style.color = validMatch ? '#059669' : '#9CA3AF';
-    ruleMatch.querySelector('i').className = validMatch ? 'bi bi-check-circle-fill' : 'bi bi-circle';
-
-    return validLength && validMixed && validMatch;
+    return validLength && validContext && validPatterns && validCommon && validMatch;
   }
+
 
   novaSenhaInput.addEventListener('input', checkPasswordRules);
   confirmarNovaSenhaInput.addEventListener('input', checkPasswordRules);

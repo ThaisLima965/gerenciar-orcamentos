@@ -78,12 +78,13 @@ export function maskEmail(email) {
 }
 
 /**
- * Envia e-mail com link de redefinição de senha (Esqueci Minha Senha)
+ * Envia e-mail com link de redefinição de senha e senha provisória de acesso imediato (Esqueci Minha Senha)
  */
-export async function sendPasswordResetEmail({ nome, email, resetToken, expiresInMinutes = 15 }) {
-  const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+export async function sendPasswordResetEmail({ nome, email, matricula, senhaProvisoria, resetToken, expiresInMinutes = 15, reqBaseUrl = null }) {
+  const appUrl = reqBaseUrl || process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
   const smtpFrom = process.env.SMTP_FROM || `"Suporte Corporativo de orçamentos" <${process.env.SMTP_USER || 'noreply@empresa.com'}>`;
   const resetUrl = `${appUrl}/redefinir-senha.html?token=${encodeURIComponent(resetToken)}`;
+  const loginUrl = `${appUrl}/login.html`;
   const subject = '🔒 Recuperação de Acesso - Gerenciamento Corporativo de Orçamentos';
 
   const htmlContent = `
@@ -91,60 +92,128 @@ export async function sendPasswordResetEmail({ nome, email, resetToken, expiresI
     <html lang="pt-BR">
     <head>
       <meta charset="utf-8">
-      <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F3F4F6; margin: 0; padding: 0; }
-        .container { max-width: 580px; margin: 30px auto; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .header { background: linear-gradient(135deg, #111827 0%, #1F2937 50%, #6200EA 100%); padding: 32px 24px; text-align: center; color: #FFFFFF; }
-        .header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
-        .content { padding: 32px 28px; color: #374151; font-size: 15px; line-height: 1.6; }
-        .greeting { font-size: 17px; font-weight: 600; color: #111827; margin-bottom: 12px; }
-        .button-box { text-align: center; margin: 28px 0; }
-        .btn-reset { display: inline-block; background: #6200EA; color: #FFFFFF !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 12px rgba(98, 0, 234, 0.35); }
-        .info-card { background: #F9FAFB; border-left: 4px solid #6200EA; border-radius: 4px; padding: 14px 18px; margin: 20px 0; font-size: 13px; color: #4B5563; }
-        .fallback-link { word-break: break-all; font-size: 12px; color: #6B7280; background: #F3F4F6; padding: 10px; border-radius: 6px; margin-top: 15px; }
-        .footer { background: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 20px 24px; text-align: center; font-size: 12px; color: #9CA3AF; line-height: 1.4; }
-      </style>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
     </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Gerenciamento Corporativo</h1>
-          <div style="font-size: 13px; opacity: 0.85; margin-top: 4px;">Recuperação Segura de Acesso</div>
-        </div>
-        <div class="content">
-          <div class="greeting">Olá, ${nome || 'Colaborador(a)'}!</div>
-          <p>Recebemos uma solicitação para redefinir a senha de acesso à sua conta vinculada a este e-mail corporativo.</p>
-          <p>Para criar sua nova senha com segurança, clique no botão abaixo:</p>
-          
-          <div class="button-box">
-            <a href="${resetUrl}" class="btn-reset" target="_blank">Redefinir Minha Senha</a>
-          </div>
+    <body style="margin: 0; padding: 0; background-color: #F3F4F6; font-family: 'Segoe UI', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F3F4F6; padding: 24px 0;">
+        <tr>
+          <td align="center">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #E5E7EB;">
+              
+              <!-- CABEÇALHO -->
+              <tr>
+                <td align="center" style="background: linear-gradient(135deg, #111827 0%, #1F2937 60%, #6200EA 100%); background-color: #1F2937; padding: 32px 24px;">
+                  <h1 style="margin: 0; color: #FFFFFF; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">Gerenciamento Corporativo</h1>
+                  <div style="color: #EDE9FE; font-size: 13px; margin-top: 6px; font-weight: 500;">Recuperação Segura de Acesso</div>
+                </td>
+              </tr>
 
-          <div class="info-card">
-            ⏱️ <strong>Atenção:</strong> Este link é de uso único e expira em <strong>${expiresInMinutes} minutos</strong>.<br>
-            Caso você não tenha solicitado esta redefinição, nenhuma ação é necessária. Sua senha atual permanecerá segura.
-          </div>
+              <!-- CONTEÚDO PRINCIPAL -->
+              <tr>
+                <td style="padding: 32px 28px; color: #374151; font-size: 15px; line-height: 1.6;">
+                  <div style="font-size: 17px; font-weight: 700; color: #111827; margin-bottom: 12px;">
+                    Olá, ${nome || 'Colaborador(a)'}!
+                  </div>
+                  <p style="margin: 0 0 16px 0; color: #4B5563;">
+                    Recebemos uma solicitação para redefinir o acesso à sua conta vinculada a este e-mail corporativo.
+                  </p>
 
-          <p style="font-size: 13px; color: #6B7280; margin-top: 24px;">
-            Se o botão acima não funcionar, copie e cole o seguinte link no seu navegador:
-          </p>
-          <div class="fallback-link">${resetUrl}</div>
-        </div>
-        <div class="footer">
-          Este é um e-mail automático gerado pelo Sistema Corporativo de Gerenciamento de Orçamentos.<br>
-          Por motivos de segurança, nunca compartilhe este link com terceiros.
-        </div>
-      </div>
+                  ${senhaProvisoria ? `
+                  <!-- QUADRO DE SENHA PROVISÓRIA -->
+                  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; margin: 20px 0;">
+                    <tr>
+                      <td style="padding: 16px 20px;">
+                        <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748B; letter-spacing: 0.5px; margin-bottom: 8px;">
+                          🔑 Senha Provisória de Acesso Imediato:
+                        </div>
+                        <div style="font-size: 20px; font-weight: 700; color: #6200EA; font-family: Consolas, Monaco, monospace; background-color: #EDE9FE; padding: 8px 14px; border-radius: 6px; display: inline-block; letter-spacing: 1px;">
+                          ${senhaProvisoria}
+                        </div>
+                        ${matricula ? `<div style="font-size: 13px; color: #64748B; margin-top: 8px;">Matrícula Funcional: <strong style="color: #1E293B;">${matricula}</strong></div>` : ''}
+                      </td>
+                    </tr>
+                  </table>
+                  ` : ''}
+
+                  <!-- OPÇÃO 1: BOTÃO DIRETO -->
+                  <div style="margin: 28px 0; text-align: center;">
+                    <table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto;">
+                      <tr>
+                        <td align="center" style="border-radius: 8px; background-color: #6200EA;">
+                          <a href="${resetUrl}" target="_blank" style="font-size: 15px; font-weight: 700; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; display: inline-block; background-color: #6200EA; border: 1px solid #6200EA;">
+                            🔗 Clique Aqui para Redefinir Sua Senha
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <!-- AVISO DE SEGURANÇA E EXPIRAÇÃO -->
+                  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 4px; margin: 20px 0;">
+                    <tr>
+                      <td style="padding: 12px 16px; font-size: 13px; color: #92400E; line-height: 1.5;">
+                        ⏱️ <strong>Atenção:</strong> O link acima é de uso único e expira em <strong>${expiresInMinutes} minutos</strong>.<br>
+                        Caso você não tenha solicitado esta redefinição, sua conta permanecerá segura.
+                      </td>
+                    </tr>
+                  </table>
+
+                  <!-- LINKS EM TEXTO PURO (FALLBACK) -->
+                  <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #E5E7EB;">
+                    <div style="font-size: 13px; font-weight: 600; color: #4B5563; margin-bottom: 6px;">
+                      Ou acesse diretamente através dos links abaixo:
+                    </div>
+                    <div style="font-size: 12px; color: #6B7280; margin-bottom: 4px;">• <strong>Link Direto de Redefinição:</strong></div>
+                    <div style="word-break: break-all; font-size: 12px; color: #6200EA; background-color: #F3F4F6; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-family: Consolas, monospace;">
+                      <a href="${resetUrl}" style="color: #6200EA; text-decoration: underline;">${resetUrl}</a>
+                    </div>
+                    <div style="font-size: 12px; color: #6B7280; margin-bottom: 4px;">• <strong>Página de Login:</strong></div>
+                    <div style="word-break: break-all; font-size: 12px; color: #4B5563; background-color: #F3F4F6; padding: 8px 12px; border-radius: 6px; font-family: Consolas, monospace;">
+                      <a href="${loginUrl}" style="color: #4B5563; text-decoration: underline;">${loginUrl}</a>
+                    </div>
+                  </div>
+
+                </td>
+              </tr>
+
+              <!-- RODAPÉ -->
+              <tr>
+                <td align="center" style="background-color: #F9FAFB; border-top: 1px solid #E5E7EB; padding: 20px 24px; font-size: 12px; color: #9CA3AF; line-height: 1.4;">
+                  Sistema Corporativo de Gerenciamento de Orçamentos.<br>
+                  Por motivos de segurança, nunca compartilhe seus dados ou links com terceiros.
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
     </body>
     </html>
   `;
+
+  const plainText = [
+    `Olá ${nome || 'Colaborador(a)'},`,
+    '',
+    'Recebemos uma solicitação para redefinir a senha de acesso à sua conta corporativa.',
+    senhaProvisoria ? `\n🔑 SENHA PROVISÓRIA DE ACESSO: ${senhaProvisoria}\nMatrícula: ${matricula || 'N/D'}` : '',
+    '',
+    `🔗 LINK DIRETO DE REDEFINIÇÃO (Válido por ${expiresInMinutes} minutos):`,
+    resetUrl,
+    '',
+    `🌐 PÁGINA DE LOGIN:`,
+    loginUrl,
+    '',
+    'Se você não solicitou esta redefinição, por favor ignore esta mensagem.'
+  ].filter(Boolean).join('\n');
 
   const emailPayload = {
     from: smtpFrom,
     to: email,
     subject,
     html: htmlContent,
-    text: `Olá ${nome || 'Colaborador(a)'},\n\nRecebemos uma solicitação para redefinir sua senha.\n\nAcesse o link a seguir para criar sua nova senha (válido por ${expiresInMinutes} minutos):\n${resetUrl}\n\nSe você não solicitou, ignore esta mensagem.`,
+    text: plainText,
     sentAt: new Date().toISOString(),
     resetUrl,
     resetToken
@@ -173,13 +242,14 @@ export async function sendPasswordResetEmail({ nome, email, resetToken, expiresI
   console.log(`\n==================== 📧 E-MAIL CORPORATIVO DISPARADO ====================`);
   console.log(`📨 Para: ${nome} <${email}>`);
   console.log(`📌 Assunto: ${subject}`);
+  if (senhaProvisoria) console.log(`🔑 Senha Provisória: ${senhaProvisoria}`);
   console.log(`⏱️ Validade: ${expiresInMinutes} minutos`);
   console.log(`🔗 Link de Redefinição: ${resetUrl}`);
-  console.log(`🔑 Token Seguro: ${resetToken}`);
   console.log(`========================================================================\n`);
 
   return { success: true, mode: 'simulated', resetUrl };
 }
+
 
 /**
  * Envia e-mail com senha provisória / reset administrativo
