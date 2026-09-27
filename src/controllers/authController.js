@@ -797,5 +797,58 @@ export const authController = {
         error: 'Erro ao validar token de redefinição.'
       });
     }
+  },
+
+  // 5. Status da Conexão do WhatsApp & QR Code (GET /api/auth/whatsapp-status)
+  async getWhatsAppStatus(req, res) {
+    try {
+      const apiUrl = process.env.WHATSAPP_API_URL;
+      const apiKey = process.env.WHATSAPP_API_KEY;
+      const instance = process.env.WHATSAPP_INSTANCE || 'tke_orcamentos';
+
+      if (!apiUrl || !apiKey) {
+        return res.status(200).json({
+          success: true,
+          configured: false,
+          state: 'UNCONFIGURED',
+          message: 'Servidor WhatsApp não configurado no .env'
+        });
+      }
+
+      const cleanUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+      const connectRes = await fetch(`${cleanUrl}/instance/connect/${instance}`, {
+        headers: { 'apikey': apiKey }
+      });
+      const connectData = await connectRes.json();
+
+      let state = connectData?.instance?.state || connectData?.state || 'connecting';
+      let qrcode = connectData?.base64 || null;
+
+      if (state === 'open' || state === 'connected') {
+        return res.status(200).json({
+          success: true,
+          configured: true,
+          state: 'CONNECTED',
+          instance,
+          message: 'WhatsApp conectado e operacional!'
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        configured: true,
+        state: state.toUpperCase(),
+        instance,
+        qrcode,
+        message: 'Aguardando leitura do QR Code pelo WhatsApp.'
+      });
+    } catch (err) {
+      return res.status(200).json({
+        success: false,
+        configured: true,
+        state: 'ERROR',
+        error: err.message
+      });
+    }
   }
 };

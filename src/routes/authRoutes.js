@@ -29,6 +29,9 @@ router.get('/me', authenticate, authController.me);
 // Rota de obtenção/renovação do token CSRF
 router.get('/csrf', authController.getCsrf);
 
+// Rota de monitoramento da conexão do WhatsApp
+router.get('/whatsapp-status', authController.getWhatsAppStatus);
+
 // Rota de Logout seguro
 router.post('/logout', authController.logout);
 
