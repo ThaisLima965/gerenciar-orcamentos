@@ -202,6 +202,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const forgotStep2Form = document.getElementById('forgot-step2-form');
   const forgotOtpInput = document.getElementById('forgot-otp-input');
   const step2MaskedPhone = document.getElementById('step2-masked-phone');
+  const step2OtpHelperCard = document.getElementById('step2-otp-helper-card');
+  const step2OtpHelperCode = document.getElementById('step2-otp-helper-code');
+  const btnAutofillOtp = document.getElementById('btn-autofill-otp');
   const step2AttemptsText = document.getElementById('step2-attempts-text');
   const step2TimerText = document.getElementById('step2-timer-text');
   const step2TimerCount = document.getElementById('step2-timer-count');
@@ -233,6 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     maskedPhone: '',
     resetTicket: '',
     waMeUrl: '',
+    otp: '',
     timerInterval: null,
     timeLeft: 60
   };
@@ -300,6 +304,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (step2MaskedPhone) step2MaskedPhone.textContent = recoveryState.maskedPhone || 'WhatsApp cadastrado';
       if (step2AttemptsText) step2AttemptsText.innerHTML = '<i class="bi bi-shield-check"></i> 3 tentativas restantes';
       
+      // Exibe Helper Card com código e botão de inserção rápida
+      if (step2OtpHelperCard && step2OtpHelperCode) {
+        if (recoveryState.otp) {
+          step2OtpHelperCode.textContent = recoveryState.otp;
+          step2OtpHelperCard.style.display = 'block';
+          if (btnAutofillOtp) {
+            btnAutofillOtp.onclick = (ev) => {
+              ev.preventDefault();
+              if (forgotOtpInput) {
+                forgotOtpInput.value = recoveryState.otp;
+                forgotOtpInput.focus();
+              }
+            };
+          }
+        } else {
+          step2OtpHelperCard.style.display = 'none';
+        }
+      }
+
       // Exibe botão para abrir mensagem no WhatsApp se link estiver disponível
       if (btnOpenWaDirect) {
         if (recoveryState.waMeUrl) {
@@ -371,10 +394,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           recoveryState.identificador = ident;
           recoveryState.maskedPhone = res.masked_phone || '(11) 9****-****';
           recoveryState.waMeUrl = res.wa_me_url || '';
+          recoveryState.otp = res.dev_otp || '';
           goToStep(2);
-          if (res.dev_otp) {
-            showInfo(`💡 Código gerado: ${res.dev_otp} (clique em "Abrir Mensagem no WhatsApp" ou digite o código abaixo).`);
-          }
         } catch (err) {
           showError(err.message || 'Falha ao solicitar código via WhatsApp.');
         } finally {
@@ -436,11 +457,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const res = await auth.forgotPassword(recoveryState.identificador);
             recoveryState.maskedPhone = res.masked_phone || recoveryState.maskedPhone;
             recoveryState.waMeUrl = res.wa_me_url || recoveryState.waMeUrl;
-            if (res.dev_otp) {
-              showInfo(`💡 Novo código gerado: ${res.dev_otp}`);
-            } else {
-              showInfo(`Novo código enviado para o WhatsApp ${recoveryState.maskedPhone}.`);
+            recoveryState.otp = res.dev_otp || '';
+            if (step2OtpHelperCard && step2OtpHelperCode && recoveryState.otp) {
+              step2OtpHelperCode.textContent = recoveryState.otp;
+              step2OtpHelperCard.style.display = 'block';
             }
+            showInfo(`Novo código enviado para o WhatsApp ${recoveryState.maskedPhone}.`);
             if (btnOpenWaDirect && recoveryState.waMeUrl) {
               btnOpenWaDirect.href = recoveryState.waMeUrl;
               btnOpenWaDirect.style.display = 'flex';

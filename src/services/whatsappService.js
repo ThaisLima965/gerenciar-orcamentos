@@ -199,7 +199,31 @@ export async function sendResetOtpWhatsapp({ nome, telefone, otp, expiresInMinut
     }
   }
 
-  // 3. Modo Padrão / Simulado / Link Direto (100% Grátis)
+  // 3. Integração com CallMeBot (100% Gratuito - sem necessidade de servidor próprio)
+  const callmebotKey = process.env.CALLMEBOT_API_KEY;
+  if (callmebotKey) {
+    try {
+      const callmebotUrl = `https://api.callmebot.com/whatsapp.php?phone=+${waNumber}&text=${encodeURIComponent(messageText)}&apikey=${callmebotKey}`;
+      const response = await fetch(callmebotUrl);
+      if (response.ok) {
+        record.provider = 'callmebot';
+        record.status = 'DELIVERED_CALLMEBOT';
+        whatsappHistory.push(record);
+        console.log(`💬 [WhatsApp Service: CallMeBot] Mensagem enviada para ${maskedPhone} (${waNumber})`);
+        return {
+          success: true,
+          provider: 'callmebot',
+          messageId: record.id,
+          maskedPhone,
+          waMeUrl
+        };
+      }
+    } catch (err) {
+      console.error('❌ [WhatsApp Service: CallMeBot] Erro no envio:', err.message);
+    }
+  }
+
+  // 4. Modo Link Direto wa.me / Simulação Segura (100% Grátis)
   record.provider = 'direct_whatsapp';
   whatsappHistory.push(record);
 

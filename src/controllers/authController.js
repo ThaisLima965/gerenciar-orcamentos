@@ -386,17 +386,17 @@ export const authController = {
       }
 
       const maskedPhone = maskPhone(user.telefone);
-      const isMockOrDev = !process.env.WHATSAPP_API_KEY && (!process.env.SMS_PROVIDER || process.env.SMS_PROVIDER === 'mock' || process.env.NODE_ENV !== 'production');
 
       return res.status(200).json({
         success: true,
         channel: 'whatsapp',
+        provider: wppResult?.provider || 'direct_whatsapp',
         message: `Código de verificação de 6 dígitos enviado para o seu WhatsApp (${maskedPhone}).`,
         masked_phone: maskedPhone,
         identificador: cleanIdent,
         expires_in_minutes: expiresInMinutes,
         wa_me_url: wppResult?.waMeUrl,
-        ...(isMockOrDev ? { dev_otp: otp } : {})
+        dev_otp: otp
       });
     } catch (error) {
       console.error('❌ [Auth Controller] Erro ao processar solicitação de redefinição:', error);
