@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const forgotInfoAlert = document.getElementById('forgot-info-alert');
   const forgotInfoMsg = document.getElementById('forgot-info-msg');
 
-  // Elementos da Etapa 1 (Solicitação de SMS)
+  // Elementos da Etapa 1 (Solicitação de WhatsApp)
   const forgotStep1 = document.getElementById('forgot-step-1');
   const forgotStep1Form = document.getElementById('forgot-step1-form');
   const forgotIdentificadorInput = document.getElementById('forgot-identificador');
@@ -208,6 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnResendOtp = document.getElementById('btn-resend-otp');
   const btnBackToStep1 = document.getElementById('btn-back-to-step1');
   const btnSubmitStep2 = document.getElementById('btn-submit-step2');
+  const btnOpenWaDirect = document.getElementById('btn-open-wa-direct');
 
   // Elementos da Etapa 3 (Definição de Nova Senha)
   const forgotStep3 = document.getElementById('forgot-step-3');
@@ -231,6 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     identificador: '',
     maskedPhone: '',
     resetTicket: '',
+    waMeUrl: '',
     timerInterval: null,
     timeLeft: 60
   };
@@ -284,19 +286,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (forgotStep4) forgotStep4.style.display = step === 4 ? 'block' : 'none';
 
     if (step === 1) {
-      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-phone-vibrate-fill';
-      if (forgotModalTitle) forgotModalTitle.textContent = 'Redefinição de Senha via SMS';
-      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Informe seu e-mail corporativo, matrícula ou celular cadastrado para receber o código via SMS.';
+      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-whatsapp';
+      if (forgotModalTitle) forgotModalTitle.textContent = 'Recuperação via WhatsApp';
+      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Informe seu e-mail corporativo, matrícula ou celular para receber o código no seu WhatsApp.';
       if (forgotIdentificadorInput) {
         forgotIdentificadorInput.value = identificadorInput.value.trim() || '';
         setTimeout(() => forgotIdentificadorInput.focus(), 150);
       }
     } else if (step === 2) {
-      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-shield-lock-fill';
-      if (forgotModalTitle) forgotModalTitle.textContent = 'Código de Verificação';
-      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Digite o código de 6 dígitos que enviamos para o seu celular cadastrado.';
-      if (step2MaskedPhone) step2MaskedPhone.textContent = recoveryState.maskedPhone || 'Celular cadastrado';
+      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-whatsapp';
+      if (forgotModalTitle) forgotModalTitle.textContent = 'Código de Verificação WhatsApp';
+      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Digite o código de 6 dígitos que enviamos para o seu WhatsApp.';
+      if (step2MaskedPhone) step2MaskedPhone.textContent = recoveryState.maskedPhone || 'WhatsApp cadastrado';
       if (step2AttemptsText) step2AttemptsText.innerHTML = '<i class="bi bi-shield-check"></i> 3 tentativas restantes';
+      
+      // Exibe botão para abrir mensagem no WhatsApp se link estiver disponível
+      if (btnOpenWaDirect) {
+        if (recoveryState.waMeUrl) {
+          btnOpenWaDirect.href = recoveryState.waMeUrl;
+          btnOpenWaDirect.style.display = 'flex';
+        } else {
+          btnOpenWaDirect.style.display = 'none';
+        }
+      }
+
       if (forgotOtpInput) {
         forgotOtpInput.value = '';
         setTimeout(() => forgotOtpInput.focus(), 150);
@@ -305,7 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (step === 3) {
       if (forgotModalIcon) forgotModalIcon.className = 'bi bi-key-fill';
       if (forgotModalTitle) forgotModalTitle.textContent = 'Cadastrar Nova Senha';
-      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Código SMS validado! Cadastre agora sua nova senha pessoal.';
+      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Código WhatsApp validado! Cadastre agora sua nova senha pessoal.';
       if (forgotNovaSenha) forgotNovaSenha.value = '';
       if (forgotConfirmarNovaSenha) forgotConfirmarNovaSenha.value = '';
       setTimeout(() => forgotNovaSenha && forgotNovaSenha.focus(), 150);
@@ -338,7 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    // ETAPA 1: Envio do SMS
+    // ETAPA 1: Envio do WhatsApp
     if (forgotStep1Form) {
       forgotStep1Form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -351,21 +364,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         btnSubmitStep1.disabled = true;
-        btnSubmitStep1.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Enviando SMS...</span>';
+        btnSubmitStep1.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Enviando no WhatsApp...</span>';
 
         try {
           const res = await auth.forgotPassword(ident);
           recoveryState.identificador = ident;
           recoveryState.maskedPhone = res.masked_phone || '(11) 9****-****';
+          recoveryState.waMeUrl = res.wa_me_url || '';
           goToStep(2);
           if (res.dev_otp) {
-            showInfo(`💡 Modo de Teste Local: Seu código OTP é ${res.dev_otp} (também registrado no terminal).`);
+            showInfo(`💡 Código gerado: ${res.dev_otp} (clique em "Abrir Mensagem no WhatsApp" ou digite o código abaixo).`);
           }
         } catch (err) {
-          showError(err.message || 'Falha ao solicitar código SMS.');
+          showError(err.message || 'Falha ao solicitar código via WhatsApp.');
         } finally {
           btnSubmitStep1.disabled = false;
-          btnSubmitStep1.innerHTML = '<span>Enviar Código SMS</span>';
+          btnSubmitStep1.innerHTML = '<i class="bi bi-whatsapp" style="margin-right: 0.35rem;"></i> <span>Enviar no WhatsApp</span>';
         }
       });
     }
@@ -411,7 +425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
 
-      // Reenvio de SMS
+      // Reenvio de WhatsApp
       if (btnResendOtp) {
         btnResendOtp.addEventListener('click', async () => {
           hideAlerts();
@@ -421,16 +435,21 @@ document.addEventListener('DOMContentLoaded', async () => {
           try {
             const res = await auth.forgotPassword(recoveryState.identificador);
             recoveryState.maskedPhone = res.masked_phone || recoveryState.maskedPhone;
+            recoveryState.waMeUrl = res.wa_me_url || recoveryState.waMeUrl;
             if (res.dev_otp) {
               showInfo(`💡 Novo código gerado: ${res.dev_otp}`);
             } else {
-              showInfo(`Novo código SMS enviado para ${recoveryState.maskedPhone}.`);
+              showInfo(`Novo código enviado para o WhatsApp ${recoveryState.maskedPhone}.`);
+            }
+            if (btnOpenWaDirect && recoveryState.waMeUrl) {
+              btnOpenWaDirect.href = recoveryState.waMeUrl;
+              btnOpenWaDirect.style.display = 'flex';
             }
             startResendTimer();
           } catch (err) {
-            showError(err.message || 'Erro ao reenviar SMS.');
+            showError(err.message || 'Erro ao reenviar no WhatsApp.');
             btnResendOtp.disabled = false;
-            btnResendOtp.textContent = 'Reenviar SMS';
+            btnResendOtp.innerHTML = '<i class="bi bi-whatsapp"></i> Reenviar no WhatsApp';
           }
         });
       }

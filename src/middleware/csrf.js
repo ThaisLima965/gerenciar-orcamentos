@@ -19,7 +19,11 @@ export function csrfProtection(req, res, next) {
   if (
     req.path === '/api/auth/login' || 
     req.path === '/api/auth/csrf' || 
+    req.path === '/api/auth/primeiro-acesso' ||
     req.path === '/api/auth/forgot-password' ||
+    req.path === '/api/auth/verify-token' ||
+    req.path === '/api/auth/verify-reset-otp' ||
+    req.path === '/api/auth/reset-password-otp' ||
     req.path === '/api/auth/reset-password'
   ) {
     return next();

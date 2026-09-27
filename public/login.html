@@ -223,21 +223,21 @@
     </div>
   </div>
 
-  <!-- MODAL DE RECUPERAÇÃO DE SENHA VIA TOKEN POR SMS -->
+  <!-- MODAL DE RECUPERAÇÃO DE SENHA VIA WHATSAPP / CELULAR -->
   <div id="modal-recuperar-senha" class="modal-primeiro-acesso-backdrop" style="display: none;">
     <div class="login-glass-card first-access-card animate-fade-in" style="max-width: 460px; width: 100%;">
       
       <!-- ÍCONE DO TOPO -->
-      <div id="forgot-modal-icon-container" style="display: flex; align-items: center; justify-content: center; width: 54px; height: 54px; border-radius: 50%; background: rgba(98, 0, 234, 0.1); color: var(--tke-purple); margin: 0 auto 1rem auto; font-size: 1.5rem;">
-        <i id="forgot-modal-icon" class="bi bi-phone-vibrate-fill"></i>
+      <div id="forgot-modal-icon-container" style="display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; background: rgba(37, 211, 102, 0.12); color: #16A34A; margin: 0 auto 1rem auto; font-size: 1.65rem;">
+        <i id="forgot-modal-icon" class="bi bi-whatsapp"></i>
       </div>
 
       <!-- TÍTULO E SUBTÍTULO DINÂMICOS -->
       <h2 id="forgot-modal-title" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.35rem; color: #111827; margin-bottom: 0.35rem;">
-        Redefinição de Senha via SMS
+        Recuperação via WhatsApp
       </h2>
       <p id="forgot-modal-subtitle" style="font-size: 0.85rem; color: #4B5563; margin-bottom: 1.25rem; line-height: 1.4;">
-        Informe seu e-mail corporativo, matrícula ou celular cadastrado para receber um código de 6 dígitos via SMS.
+        Informe seu e-mail corporativo, matrícula ou celular para receber o código de 6 dígitos no seu WhatsApp.
       </p>
 
       <!-- ALERTAS DE ERRO E STATUS -->
@@ -251,7 +251,7 @@
         <span id="forgot-info-msg"></span>
       </div>
 
-      <!-- ETAPA 1: SOLICITAÇÃO DE SMS (IDENTIFICADOR) -->
+      <!-- ETAPA 1: SOLICITAÇÃO (IDENTIFICADOR) -->
       <div id="forgot-step-1" class="forgot-step-pane">
         <form id="forgot-step1-form">
           <div class="login-input-group">
@@ -266,15 +266,16 @@
           </div>
 
           <p style="font-size: 0.76rem; color: #6B7280; text-align: left; margin: -0.25rem 0 1rem 0; line-height: 1.35;">
-            <i class="bi bi-shield-check" style="color: #6200EA;"></i> O código será enviado exclusivamente para o celular previamente vinculado à conta no banco de dados.
+            <i class="bi bi-shield-check" style="color: #16A34A;"></i> O código é enviado instantaneamente para o número de celular vinculado ao seu cadastro.
           </p>
 
           <div style="display: flex; gap: 0.5rem;">
             <button type="button" id="btn-cancel-forgot" class="btn btn-secondary" style="flex: 1; border-radius: 8px; padding: 0.7rem;">
               Voltar
             </button>
-            <button type="submit" id="btn-submit-step1" class="btn-tkemobile-purple" style="flex: 2; margin-top: 0;">
-              <span>Enviar Código SMS</span>
+            <button type="submit" id="btn-submit-step1" class="btn-tkemobile-purple" style="flex: 2; margin-top: 0; background: linear-gradient(135deg, #16A34A, #15803D);">
+              <i class="bi bi-whatsapp" style="margin-right: 0.35rem;"></i>
+              <span>Enviar no WhatsApp</span>
             </button>
           </div>
         </form>
@@ -283,10 +284,19 @@
       <!-- ETAPA 2: DIGITAÇÃO DO TOKEN OTP DE 6 DÍGITOS -->
       <div id="forgot-step-2" class="forgot-step-pane" style="display: none;">
         <!-- Card informativo com telefone mascarado -->
-        <div style="background: rgba(98, 0, 234, 0.05); border: 1px solid rgba(98, 0, 234, 0.15); border-radius: 8px; padding: 0.75rem 0.9rem; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
-          <div style="font-size: 0.75rem; color: #6B7280; margin-bottom: 0.2rem;">SMS enviado para:</div>
-          <div id="step2-masked-phone" style="font-weight: 800; font-size: 1rem; color: #6200EA; letter-spacing: 0.05rem;">(11) 9****-****</div>
+        <div style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.25); border-radius: 8px; padding: 0.75rem 0.9rem; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
+          <div style="font-size: 0.75rem; color: #4B5563; margin-bottom: 0.2rem; display: flex; align-items: center; gap: 0.35rem;">
+            <i class="bi bi-whatsapp" style="color: #16A34A;"></i>
+            <span>Código enviado para o WhatsApp:</span>
+          </div>
+          <div id="step2-masked-phone" style="font-weight: 800; font-size: 1.05rem; color: #15803D; letter-spacing: 0.05rem;">(11) 9****-****</div>
         </div>
+
+        <!-- Botão opcional para abrir direto no WhatsApp Web / App -->
+        <a id="btn-open-wa-direct" href="#" target="_blank" style="display: none; align-items: center; justify-content: center; gap: 0.45rem; background: #16A34A; color: #ffffff; padding: 0.65rem 0.85rem; border-radius: 8px; font-weight: 700; font-size: 0.82rem; text-decoration: none; margin-bottom: 1rem; box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);">
+          <i class="bi bi-box-arrow-up-right"></i>
+          <span>Abrir Mensagem no WhatsApp</span>
+        </a>
 
         <form id="forgot-step2-form">
           <div class="login-input-group" style="margin-bottom: 0.75rem;">
@@ -305,10 +315,10 @@
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #6B7280; margin-bottom: 1.15rem;">
-            <span id="step2-attempts-text"><i class="bi bi-shield-exclamation"></i> 3 tentativas restantes</span>
+            <span id="step2-attempts-text"><i class="bi bi-shield-check"></i> 3 tentativas restantes</span>
             <span id="step2-timer-text">Reenviar em: <strong id="step2-timer-count">60s</strong></span>
-            <button type="button" id="btn-resend-otp" class="btn-link" style="display: none; font-size: 0.75rem; color: #6200EA; font-weight: 700; background: none; border: none; padding: 0; cursor: pointer;">
-              Reenviar SMS
+            <button type="button" id="btn-resend-otp" class="btn-link" style="display: none; font-size: 0.75rem; color: #16A34A; font-weight: 700; background: none; border: none; padding: 0; cursor: pointer;">
+              <i class="bi bi-whatsapp"></i> Reenviar no WhatsApp
             </button>
           </div>
 

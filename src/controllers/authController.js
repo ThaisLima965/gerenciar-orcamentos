@@ -6,6 +6,7 @@ import { SECURITY_CONFIG } from '../config/security.js';
 import { generateCsrfToken } from '../middleware/csrf.js';
 import { sendPasswordResetEmail, sendPasswordChangedConfirmationEmail, maskEmail } from '../services/emailService.js';
 import { sendResetOtpSms, maskPhone, formatE164 } from '../services/smsService.js';
+import { sendResetOtpWhatsapp, formatWhatsAppNumber } from '../services/whatsappService.js';
 import { validatePasswordNIST, generateSecureProvisionalPassword } from '../utils/passwordValidator.js';
 
 export const authController = {
@@ -364,27 +365,41 @@ export const authController = {
         VALUES (?, ?, ?, 0, ?)
       `).run(user.id, tokenHash, expiresAt, ipAddress);
 
-      // Dispara o SMS corporativo para o número gravado no perfil do usuário
-      await sendResetOtpSms({
+      // Dispara o WhatsApp corporativo para o número gravado no perfil do usuário
+      const wppResult = await sendResetOtpWhatsapp({
         nome: user.nome,
         telefone: user.telefone,
         otp: otp,
         expiresInMinutes: expiresInMinutes
       });
 
+      // Dispara também via SMS / logger
+      try {
+        await sendResetOtpSms({
+          nome: user.nome,
+          telefone: user.telefone,
+          otp: otp,
+          expiresInMinutes: expiresInMinutes
+        });
+      } catch (e) {
+        // Silencia fallback SMS
+      }
+
       const maskedPhone = maskPhone(user.telefone);
-      const isMockOrDev = !process.env.SMS_PROVIDER || process.env.SMS_PROVIDER === 'mock' || process.env.NODE_ENV !== 'production';
+      const isMockOrDev = !process.env.WHATSAPP_API_KEY && (!process.env.SMS_PROVIDER || process.env.SMS_PROVIDER === 'mock' || process.env.NODE_ENV !== 'production');
 
       return res.status(200).json({
         success: true,
-        message: `Código de verificação de 6 dígitos enviado com sucesso para ${maskedPhone}.`,
+        channel: 'whatsapp',
+        message: `Código de verificação de 6 dígitos enviado para o seu WhatsApp (${maskedPhone}).`,
         masked_phone: maskedPhone,
         identificador: cleanIdent,
         expires_in_minutes: expiresInMinutes,
+        wa_me_url: wppResult?.waMeUrl,
         ...(isMockOrDev ? { dev_otp: otp } : {})
       });
     } catch (error) {
-      console.error('❌ [Auth Controller] Erro ao processar solicitação de redefinição SMS:', error);
+      console.error('❌ [Auth Controller] Erro ao processar solicitação de redefinição:', error);
       return res.status(500).json({
         success: false,
         error: error.message || 'Erro interno ao processar redefinição de senha.'
