@@ -139,7 +139,8 @@ export async function sendResetOtpWhatsapp({ nome, telefone, otp, expiresInMinut
             presence: 'composing',
             linkPreview: false
           }
-        })
+        }),
+        signal: AbortSignal.timeout(15000)
       });
 
       const data = await response.json();
