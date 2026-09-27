@@ -1,6 +1,7 @@
 import * as xlsx from 'xlsx';
 import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
+import { normalizePhoneDDD11 } from './usuarioController.js';
 
 export const tecnicoController = {
   // Listar todos os técnicos
@@ -119,6 +120,8 @@ export const tecnicoController = {
         }
       }
 
+      const cleanTelefone = normalizePhoneDDD11(telefone);
+
       // Atualiza registro do técnico
       db.prepare(`
         UPDATE tecnicos 
@@ -129,7 +132,7 @@ export const tecnicoController = {
         cleanFuncao,
         finalNome,
         email ? String(email).trim() : null,
-        telefone ? String(telefone).trim() : null,
+        cleanTelefone,
         cleanMatricula
       );
 
@@ -388,7 +391,7 @@ export const tecnicoController = {
         const cleanMatricula = matricula.trim();
         const cleanNome = nomeSobrenome.trim();
         const cleanEmail = email ? email.toLowerCase().trim() : null;
-        const cleanTelefone = telefone ? telefone.trim() : null;
+        const cleanTelefone = normalizePhoneDDD11(telefone);
 
         // Tratamento de duplicados (Upsert / Atualização sem quebrar integridade)
         const existing = db.prepare('SELECT matricula, funcao, email, telefone FROM tecnicos WHERE matricula = ?').get(cleanMatricula);
@@ -421,10 +424,11 @@ export const tecnicoController = {
             : db.prepare('SELECT id FROM usuarios WHERE matricula = ?').get(cleanMatricula);
           
           if (userExisting) {
-            db.prepare('UPDATE usuarios SET grupo = ?, perfil = ?, nome = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+            db.prepare('UPDATE usuarios SET grupo = ?, perfil = ?, nome = ?, telefone = COALESCE(?, telefone), updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
               finalGrupo,
               finalPerfil,
               cleanNome,
+              cleanTelefone,
               userExisting.id
             );
           }
@@ -457,9 +461,9 @@ export const tecnicoController = {
       const format = (req.query.format || 'xlsx').toLowerCase();
       
       const sampleData = [
-        { 'Matricula': '1001', 'Funcao': 'Técnico de Manutenção', 'Nome_Completo': 'Thiago Silva Santos' },
-        { 'Matricula': '1002', 'Funcao': 'Técnico Residente', 'Nome_Completo': 'Marcos Vinicius Costa' },
-        { 'Matricula': '1003', 'Funcao': 'Técnico Especialista', 'Nome_Completo': 'Rafael Fernandes Oliveira' }
+        { 'Matricula': '1001', 'Funcao': 'Técnico de Manutenção', 'Nome_Completo': 'Thiago Silva Santos', 'Celular': '(11) 98765-4321', 'Email': 'thiago.santos@empresa.com' },
+        { 'Matricula': '1002', 'Funcao': 'Técnico Residente', 'Nome_Completo': 'Marcos Vinicius Costa', 'Celular': '(11) 97654-3210', 'Email': 'marcos.costa@empresa.com' },
+        { 'Matricula': '1003', 'Funcao': 'Técnico Especialista', 'Nome_Completo': 'Rafael Fernandes Oliveira', 'Celular': '(11) 96543-2109', 'Email': 'rafael.oliveira@empresa.com' }
       ];
 
       const ws = xlsx.utils.json_to_sheet(sampleData);

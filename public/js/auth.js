@@ -57,27 +57,30 @@ export const auth = {
     throw new Error(res.error || 'Falha ao redefinir senha.');
   },
 
-  // Recuperação de acesso / Esqueci minha senha (disparo de e-mail)
+  // Recuperação de acesso via SMS (Solicita código OTP de 6 dígitos)
   async forgotPassword(identificador) {
     const res = await api.post('/api/auth/forgot-password', { identificador });
     if (res.success) {
       return res;
     }
-    throw new Error(res.error || 'Falha ao solicitar recuperação de senha.');
+    throw new Error(res.error || 'Falha ao solicitar código de verificação via SMS.');
   },
 
-  // Validação de token de redefinição recebido por e-mail
-  async validateResetToken(token) {
-    const res = await api.get(`/api/auth/validate-reset-token?token=${encodeURIComponent(token)}`);
+  // Validação do Token de 6 Dígitos recebido por SMS
+  async verifyToken(identificador, token) {
+    const res = await api.post('/api/auth/verify-token', { identificador, token });
     if (res.success) {
       return res;
     }
-    throw new Error(res.error || 'Token de redefinição inválido ou expirado.');
+    const err = new Error(res.error || 'Código de verificação incorreto ou expirado.');
+    err.attempts_remaining = res.attempts_remaining;
+    throw err;
   },
 
-  // Redefinição efetiva de senha com nova senha e token
-  async resetPassword(token, nova_senha, confirmar_nova_senha) {
+  // Redefinição efetiva da senha (com reset_ticket JWT ou token)
+  async resetPassword({ reset_ticket, token, nova_senha, confirmar_nova_senha }) {
     const res = await api.post('/api/auth/reset-password', {
+      reset_ticket,
       token,
       nova_senha,
       confirmar_nova_senha
@@ -86,6 +89,15 @@ export const auth = {
       return res;
     }
     throw new Error(res.error || 'Falha ao redefinir a nova senha.');
+  },
+
+  // Validação legada de link de e-mail
+  async validateResetToken(token) {
+    const res = await api.get(`/api/auth/validate-reset-token?token=${encodeURIComponent(token)}`);
+    if (res.success) {
+      return res;
+    }
+    throw new Error(res.error || 'Token de redefinição inválido ou expirado.');
   },
 
   // Efetua logout seguro

@@ -71,6 +71,7 @@ app.use('/api/', apiGeneralRateLimiter);
 
 // 6. Rotas da API
 app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
 app.use('/api/orcamentos', orcamentoRoutes);
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/tecnicos', tecnicoRoutes);
@@ -83,7 +84,7 @@ app.use(express.static(publicPath));
 
 // 8. Rota de Fallback para SPA / Home
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/')) {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
     return res.status(404).json({ success: false, error: 'Endpoint da API não encontrado.' });
   }
   res.sendFile(path.join(publicPath, 'index.html'));

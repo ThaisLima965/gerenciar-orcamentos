@@ -84,6 +84,61 @@ function formatCurrency(value) {
   });
 }
 
+function formatPhoneNumber(val) {
+  if (!val) return '';
+  let digits = String(val).replace(/\D/g, '');
+  if (!digits) return '';
+
+  // Remove DDI 55 se houver
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
+    digits = digits.slice(2);
+  }
+
+  // Se tiver 8 dígitos (ex: 72238863 ou 97223863): sempre prefixa DDD 11
+  if (digits.length === 8) {
+    if (digits.startsWith('9')) {
+      digits = '11' + digits;
+    } else {
+      digits = '119' + digits;
+    }
+  }
+  // Se tiver 9 dígitos (ex: 972238863 da planilha): sempre prefixa DDD 11
+  else if (digits.length === 9) {
+    digits = '11' + digits;
+  }
+  // Se tiver 10 dígitos (ex: 1172238863 sem o 9 no celular)
+  else if (digits.length === 10 && digits.startsWith('11')) {
+    const local = digits.slice(2);
+    if (!local.startsWith('9')) {
+      digits = '119' + local;
+    }
+  }
+
+  digits = digits.slice(0, 11);
+
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+}
+
+function handlePhoneMask(e) {
+  const input = e.target;
+  let val = input.value;
+  let digits = val.replace(/\D/g, '');
+  
+  // Se colou ou digitou 8 ou 9 dígitos sem o DDD, aplica a conversão automática para DDD 11
+  if (digits.length === 9 && !digits.startsWith('11')) {
+    digits = '11' + digits;
+    val = digits;
+  } else if (digits.length === 8 && !digits.startsWith('11')) {
+    digits = digits.startsWith('9') ? '11' + digits : '119' + digits;
+    val = digits;
+  }
+  
+  input.value = formatPhoneNumber(val);
+}
+
 // =====================================================================
 // INICIALIZAÇÃO
 // =====================================================================
@@ -1600,6 +1655,7 @@ function setupEditCadastroModal() {
           const perfil = document.getElementById('edit-usr-perfil').value;
           const grupo = document.getElementById('edit-usr-grupo').value;
           const ativo = document.getElementById('edit-usr-ativo').value === '1';
+          const telefone = (document.getElementById('edit-usr-telefone')?.value || '').trim();
 
           const res = await api.put(`/api/usuarios/${id}`, {
             nome,
@@ -1607,7 +1663,8 @@ function setupEditCadastroModal() {
             matricula,
             perfil,
             grupo,
-            ativo
+            ativo,
+            telefone
           });
 
           showToast(res.message || 'Colaborador alterado com sucesso!', 'success');
@@ -1673,10 +1730,15 @@ function openEditTecnicoModal(matricula) {
       </div>
       <div class="form-group">
         <label style="font-weight: 700; font-size: 0.85rem;">Telefone / Ramal</label>
-        <input type="text" id="edit-tec-telefone" class="form-control" value="${escapeHtml(tec.telefone || '')}" placeholder="(11) 98765-4321">
+        <input type="text" id="edit-tec-telefone" class="form-control" value="${escapeHtml(formatPhoneNumber(tec.telefone || ''))}" placeholder="(11) 98765-4321">
       </div>
     </div>
   `;
+
+  const tecTelInput = document.getElementById('edit-tec-telefone');
+  if (tecTelInput) {
+    tecTelInput.addEventListener('input', handlePhoneMask);
+  }
 
   document.getElementById('edit-cadastro-modal').classList.add('active');
 }
@@ -1785,7 +1847,17 @@ function openEditUsuarioModal(id) {
         </select>
       </div>
     </div>
+    <div class="form-group" style="margin-bottom: 1rem;">
+      <label style="font-weight: 700; font-size: 0.85rem;">Número do Celular / WhatsApp</label>
+      <input type="tel" id="edit-usr-telefone" class="form-control" value="${escapeHtml(formatPhoneNumber(user.telefone || ''))}" placeholder="(11) 98765-4321" autocomplete="tel">
+      <span style="font-size: 0.72rem; color: var(--text-muted);"><i class="bi bi-shield-lock"></i> Informação administrativa privada (oculta nas tabelas e telas principais de orçamentos).</span>
+    </div>
   `;
+
+  const telInput = document.getElementById('edit-usr-telefone');
+  if (telInput) {
+    telInput.addEventListener('input', handlePhoneMask);
+  }
 
   document.getElementById('edit-cadastro-modal').classList.add('active');
 }
@@ -2720,6 +2792,11 @@ function setupUsuariosEventListeners() {
     });
   }
 
+  const inputTel = document.getElementById('user-form-telefone');
+  if (inputTel) {
+    inputTel.addEventListener('input', handlePhoneMask);
+  }
+
   if (form) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -2735,6 +2812,7 @@ function setupUsuariosEventListeners() {
           matricula: document.getElementById('user-form-matricula').value.trim() || undefined,
           perfil: document.getElementById('user-form-perfil').value,
           grupo: document.getElementById('user-form-grupo').value,
+          telefone: (document.getElementById('user-form-telefone')?.value || '').trim() || undefined,
           senha_padrao: document.getElementById('user-form-senha').value.trim()
         };
 

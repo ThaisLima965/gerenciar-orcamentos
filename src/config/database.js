@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     grupo VARCHAR(10) NOT NULL DEFAULT 'G11' CHECK(grupo IN ('G11', 'G06', 'G05')),
     primeiro_acesso INTEGER NOT NULL DEFAULT 1 CHECK(primeiro_acesso IN (0, 1)),
     ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0, 1)),
+    telefone VARCHAR(30),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -150,6 +151,18 @@ CREATE TABLE IF NOT EXISTS password_resets (
     FOREIGN KEY (user_id) REFERENCES usuarios(id)
 );
 
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token_hash TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    attempts INTEGER DEFAULT 0,
+    used_at DATETIME DEFAULT NULL,
+    ip_address VARCHAR(50),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_chamados_matricula ON chamados_orcamentos(matricula_tecnico);
 CREATE INDEX IF NOT EXISTS idx_chamados_contrato ON chamados_orcamentos(numero_contrato);
 CREATE INDEX IF NOT EXISTS idx_chamados_status ON chamados_orcamentos(status);
@@ -158,6 +171,8 @@ CREATE INDEX IF NOT EXISTS idx_chamados_pgo ON chamados_orcamentos(numero_pgo);
 CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_usuarios_matricula ON usuarios(matricula);
 CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_prt_expires ON password_reset_tokens(expires_at);
 `;
 
 // SEED EMBUTIDO DE SEGURANÇA (30 USUÁRIOS + TÉCNICOS + CLIENTES BASE)
@@ -293,6 +308,7 @@ export async function initDatabase() {
       "ALTER TABLE chamados_orcamentos ADD COLUMN valor_total REAL DEFAULT 0.00;",
       "ALTER TABLE usuarios ADD COLUMN primeiro_acesso INTEGER DEFAULT 0;",
       "ALTER TABLE usuarios ADD COLUMN grupo VARCHAR(10) DEFAULT 'G11';",
+      "ALTER TABLE usuarios ADD COLUMN telefone VARCHAR(30);",
       `CREATE TABLE IF NOT EXISTS password_resets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -302,7 +318,20 @@ export async function initDatabase() {
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES usuarios(id)
       );`,
-      'CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);'
+      'CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);',
+      `CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token_hash TEXT NOT NULL,
+        expires_at DATETIME NOT NULL,
+        attempts INTEGER DEFAULT 0,
+        used_at DATETIME DEFAULT NULL,
+        ip_address VARCHAR(50),
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      );`,
+      'CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);',
+      'CREATE INDEX IF NOT EXISTS idx_prt_expires ON password_reset_tokens(expires_at);'
     ];
 
     for (const sqlMig of safeMigrations) {

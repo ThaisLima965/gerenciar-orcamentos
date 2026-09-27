@@ -100,15 +100,19 @@
               placeholder="Senha" 
               required 
               autocomplete="current-password"
-              style="padding-right: 2.5rem;"
+              style="padding-right: 3rem;"
             >
             <button 
               type="button" 
               id="toggle-password" 
-              style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6B7280; cursor: pointer;"
+              class="btn-toggle-password"
+              aria-label="Mostrar ou ocultar senha"
               title="Mostrar / Ocultar Senha"
             >
-              <i class="bi bi-eye"></i>
+              <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
             </button>
           </div>
         </div>
@@ -162,15 +166,19 @@
               placeholder="Nova Senha" 
               required 
               autocomplete="new-password"
-              style="padding-right: 2.5rem;"
+              style="padding-right: 3rem;"
             >
             <button 
               type="button" 
               id="toggle-nova-senha" 
-              style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6B7280; cursor: pointer;"
+              class="btn-toggle-password"
+              aria-label="Mostrar ou ocultar nova senha"
               title="Mostrar / Ocultar Senha"
             >
-              <i class="bi bi-eye"></i>
+              <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
             </button>
           </div>
         </div>
@@ -184,15 +192,19 @@
               placeholder="Confirmar Nova Senha" 
               required 
               autocomplete="new-password"
-              style="padding-right: 2.5rem;"
+              style="padding-right: 3rem;"
             >
             <button 
               type="button" 
               id="toggle-confirmar-senha" 
-              style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6B7280; cursor: pointer;"
+              class="btn-toggle-password"
+              aria-label="Mostrar ou ocultar confirmação de senha"
               title="Mostrar / Ocultar Senha"
             >
-              <i class="bi bi-eye"></i>
+              <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
             </button>
           </div>
         </div>
@@ -211,71 +223,188 @@
     </div>
   </div>
 
-  <!-- MODAL DE RECUPERAÇÃO DE SENHA (ESQUECI MINHA SENHA) -->
+  <!-- MODAL DE RECUPERAÇÃO DE SENHA VIA TOKEN POR SMS -->
   <div id="modal-recuperar-senha" class="modal-primeiro-acesso-backdrop" style="display: none;">
-    <div class="login-glass-card first-access-card animate-fade-in" style="max-width: 460px;">
-      <div id="forgot-modal-icon" style="display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; background: rgba(98, 0, 234, 0.1); color: var(--tke-purple); margin: 0 auto 1rem auto; font-size: 1.5rem;">
-        <i class="bi bi-envelope-lock-fill"></i>
+    <div class="login-glass-card first-access-card animate-fade-in" style="max-width: 460px; width: 100%;">
+      
+      <!-- ÍCONE DO TOPO -->
+      <div id="forgot-modal-icon-container" style="display: flex; align-items: center; justify-content: center; width: 54px; height: 54px; border-radius: 50%; background: rgba(98, 0, 234, 0.1); color: var(--tke-purple); margin: 0 auto 1rem auto; font-size: 1.5rem;">
+        <i id="forgot-modal-icon" class="bi bi-phone-vibrate-fill"></i>
       </div>
 
+      <!-- TÍTULO E SUBTÍTULO DINÂMICOS -->
       <h2 id="forgot-modal-title" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.35rem; color: #111827; margin-bottom: 0.35rem;">
-        Recuperação de Acesso
+        Redefinição de Senha via SMS
       </h2>
       <p id="forgot-modal-subtitle" style="font-size: 0.85rem; color: #4B5563; margin-bottom: 1.25rem; line-height: 1.4;">
-        Informe seu e-mail corporativo ou matrícula cadastrada para enviarmos as instruções e o link seguro de redefinição de senha para sua caixa de entrada.
+        Informe seu e-mail corporativo, matrícula ou celular cadastrado para receber um código de 6 dígitos via SMS.
       </p>
 
+      <!-- ALERTAS DE ERRO E STATUS -->
       <div id="forgot-error-alert" style="display: none; background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
         <i class="bi bi-exclamation-octagon-fill" style="margin-right: 0.35rem;"></i>
         <span id="forgot-error-msg"></span>
       </div>
 
-      <div id="forgot-success-alert" style="display: none; background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; padding: 1rem; border-radius: 10px; font-size: 0.84rem; margin-bottom: 1.25rem; text-align: left; line-height: 1.5;">
-        <div style="font-weight: 700; margin-bottom: 0.45rem; display: flex; align-items: center; gap: 0.45rem; font-size: 0.95rem;">
-          <i class="bi bi-check-circle-fill" style="color: #10B981; font-size: 1.1rem;"></i>
-          <span>E-mail de Redefinição Enviado!</span>
+      <div id="forgot-info-alert" style="display: none; background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
+        <i class="bi bi-info-circle-fill" style="margin-right: 0.35rem;"></i>
+        <span id="forgot-info-msg"></span>
+      </div>
+
+      <!-- ETAPA 1: SOLICITAÇÃO DE SMS (IDENTIFICADOR) -->
+      <div id="forgot-step-1" class="forgot-step-pane">
+        <form id="forgot-step1-form">
+          <div class="login-input-group">
+            <input 
+              type="text" 
+              id="forgot-identificador" 
+              class="form-control" 
+              placeholder="E-mail, Matrícula ou Celular" 
+              required 
+              autocomplete="username"
+            >
+          </div>
+
+          <p style="font-size: 0.76rem; color: #6B7280; text-align: left; margin: -0.25rem 0 1rem 0; line-height: 1.35;">
+            <i class="bi bi-shield-check" style="color: #6200EA;"></i> O código será enviado exclusivamente para o celular previamente vinculado à conta no banco de dados.
+          </p>
+
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" id="btn-cancel-forgot" class="btn btn-secondary" style="flex: 1; border-radius: 8px; padding: 0.7rem;">
+              Voltar
+            </button>
+            <button type="submit" id="btn-submit-step1" class="btn-tkemobile-purple" style="flex: 2; margin-top: 0;">
+              <span>Enviar Código SMS</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ETAPA 2: DIGITAÇÃO DO TOKEN OTP DE 6 DÍGITOS -->
+      <div id="forgot-step-2" class="forgot-step-pane" style="display: none;">
+        <!-- Card informativo com telefone mascarado -->
+        <div style="background: rgba(98, 0, 234, 0.05); border: 1px solid rgba(98, 0, 234, 0.15); border-radius: 8px; padding: 0.75rem 0.9rem; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
+          <div style="font-size: 0.75rem; color: #6B7280; margin-bottom: 0.2rem;">SMS enviado para:</div>
+          <div id="step2-masked-phone" style="font-weight: 800; font-size: 1rem; color: #6200EA; letter-spacing: 0.05rem;">(11) 9****-****</div>
         </div>
-        <div id="forgot-success-msg" style="margin-bottom: 0.75rem; color: #1F2937;"></div>
-        <div style="background: rgba(255,255,255,0.9); border: 1px solid #A7F3D0; border-radius: 8px; padding: 0.75rem; font-size: 0.8rem; color: #374151;">
-          <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
-            <i class="bi bi-info-circle-fill" style="color: #6200EA; font-size: 1rem; margin-top: 2px;"></i>
-            <div>
-              <strong>Próximo passo:</strong> Abra o seu aplicativo de e-mail corporativo, localize a mensagem com o assunto <em>"Recuperação de Acesso"</em> e clique no botão de redefinição para cadastrar sua nova senha pessoal.
-              <div style="font-size: 0.74rem; color: #6B7280; margin-top: 0.35rem;">⏱️ O link seguro é de uso único e expira em 15 minutos.</div>
+
+        <form id="forgot-step2-form">
+          <div class="login-input-group" style="margin-bottom: 0.75rem;">
+            <input 
+              type="text" 
+              id="forgot-otp-input" 
+              class="form-control" 
+              placeholder="000000" 
+              maxlength="6"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              required 
+              autocomplete="one-time-code"
+              style="font-size: 1.6rem; letter-spacing: 0.6rem; text-align: center; font-weight: 800; color: #111827; padding: 0.6rem;"
+            >
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #6B7280; margin-bottom: 1.15rem;">
+            <span id="step2-attempts-text"><i class="bi bi-shield-exclamation"></i> 3 tentativas restantes</span>
+            <span id="step2-timer-text">Reenviar em: <strong id="step2-timer-count">60s</strong></span>
+            <button type="button" id="btn-resend-otp" class="btn-link" style="display: none; font-size: 0.75rem; color: #6200EA; font-weight: 700; background: none; border: none; padding: 0; cursor: pointer;">
+              Reenviar SMS
+            </button>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" id="btn-back-to-step1" class="btn btn-secondary" style="flex: 1; border-radius: 8px; padding: 0.7rem;">
+              Alterar
+            </button>
+            <button type="submit" id="btn-submit-step2" class="btn-tkemobile-purple" style="flex: 2; margin-top: 0;">
+              <span>Validar Código</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ETAPA 3: CADASTRO DA NOVA SENHA PESSOAL -->
+      <div id="forgot-step-3" class="forgot-step-pane" style="display: none;">
+        <form id="forgot-step3-form">
+          <div class="login-input-group">
+            <div style="position: relative;">
+              <input 
+                type="password" 
+                id="forgot-nova-senha" 
+                class="form-control" 
+                placeholder="Nova Senha" 
+                required 
+                autocomplete="new-password"
+                style="padding-right: 3rem;"
+              >
+              <button 
+                type="button" 
+                id="toggle-forgot-nova-senha" 
+                class="btn-toggle-password"
+                aria-label="Mostrar ou ocultar senha"
+                title="Mostrar / Ocultar Senha"
+              >
+                <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
             </div>
           </div>
-        </div>
-        <div id="forgot-dev-box" style="display: none; margin-top: 0.75rem;"></div>
+
+          <div class="login-input-group">
+            <div style="position: relative;">
+              <input 
+                type="password" 
+                id="forgot-confirmar-nova-senha" 
+                class="form-control" 
+                placeholder="Confirmar Nova Senha" 
+                required 
+                autocomplete="new-password"
+                style="padding-right: 3rem;"
+              >
+              <button 
+                type="button" 
+                id="toggle-forgot-confirmar-senha" 
+                class="btn-toggle-password"
+                aria-label="Mostrar ou ocultar confirmação de senha"
+                title="Mostrar / Ocultar Senha"
+              >
+                <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div style="text-align: left; font-size: 0.75rem; color: #6B7280; margin-bottom: 1.15rem; line-height: 1.4; background: rgba(0,0,0,0.03); padding: 0.6rem 0.8rem; border-radius: 6px;">
+            <div style="font-weight: 700; color: #374151; margin-bottom: 0.25rem;"><i class="bi bi-info-circle"></i> Critérios de Senha:</div>
+            <div>• Mínimo de 6 caracteres</div>
+            <div>• Conter letras e números</div>
+          </div>
+
+          <button type="submit" id="btn-submit-step3" class="btn-tkemobile-purple">
+            <span>Salvar Nova Senha e Concluir</span>
+          </button>
+        </form>
       </div>
 
-      <form id="forgot-password-form">
-        <div class="login-input-group">
-          <input 
-            type="text" 
-            id="forgot-identificador" 
-            class="form-control" 
-            placeholder="E-mail corporativo ou Matrícula" 
-            required 
-            autocomplete="username"
-          >
+      <!-- ETAPA 4: SUCESSO E FINALIZAÇÃO -->
+      <div id="forgot-step-4" class="forgot-step-pane" style="display: none;">
+        <div style="background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; padding: 1rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 1.25rem; text-align: left; line-height: 1.45;">
+          <div style="font-weight: 800; font-size: 0.95rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem; color: #047857;">
+            <i class="bi bi-check-circle-fill" style="color: #10B981; font-size: 1.15rem;"></i>
+            <span>Senha Redefinida com Sucesso!</span>
+          </div>
+          <div>Sua nova senha foi salva e sincronizada com segurança. Você já pode acessar a plataforma normalmente.</div>
         </div>
 
-        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-          <button type="button" id="btn-cancel-forgot" class="btn btn-secondary" style="flex: 1; border-radius: 8px; padding: 0.7rem;">
-            Voltar
-          </button>
-          <button type="submit" id="btn-submit-forgot" class="btn-tkemobile-purple" style="flex: 2; margin-top: 0;">
-            <i class="bi bi-send-fill" style="margin-right: 0.3rem;"></i>
-            <span>Enviar Link por E-mail</span>
-          </button>
-        </div>
-      </form>
-
-      <div id="forgot-back-to-login" style="display: none; margin-top: 0.5rem;">
         <button type="button" id="btn-proceed-to-login" class="btn-tkemobile-purple" style="width: 100%;">
-          <span>Entendido, Voltar ao Login</span>
+          <span>Ir para a Tela de Login</span>
         </button>
       </div>
+
     </div>
   </div>
 

@@ -4,6 +4,47 @@ import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
 import { sendProvisionalPasswordEmail } from '../services/emailService.js';
 
+export function normalizePhoneDDD11(raw) {
+  if (!raw) return null;
+  let digits = String(raw).replace(/\D/g, '');
+  if (!digits) return null;
+
+  // Remove DDI 55 se houver
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
+    digits = digits.slice(2);
+  }
+
+  // Se tiver 8 dígitos (ex: 72238863 ou 97223863): sempre prefixa DDD 11
+  if (digits.length === 8) {
+    if (digits.startsWith('9')) {
+      digits = '11' + digits;
+    } else {
+      digits = '119' + digits;
+    }
+  }
+  // Se tiver 9 dígitos (ex: 972238863 da planilha): sempre prefixa DDD 11
+  else if (digits.length === 9) {
+    digits = '11' + digits;
+  }
+  // Se tiver 10 dígitos (ex: 1172238863 sem o 9 no celular)
+  else if (digits.length === 10 && digits.startsWith('11')) {
+    const local = digits.slice(2);
+    if (!local.startsWith('9')) {
+      digits = '119' + local;
+    }
+  }
+
+  digits = digits.slice(0, 11);
+
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+  } else if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
+  }
+
+  return `(11) ${digits}`;
+}
+
 export const usuarioController = {
   // Listar usuários do sistema (Exclusivo Consultora)
   async list(req, res) {
@@ -16,7 +57,7 @@ export const usuarioController = {
       }
 
       const usuarios = db.prepare(`
-        SELECT id, nome, email, matricula, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at 
+        SELECT id, nome, email, matricula, perfil, grupo, primeiro_acesso, ativo, telefone, created_at, updated_at 
         FROM usuarios 
         ORDER BY nome ASC
       `).all();
@@ -44,7 +85,7 @@ export const usuarioController = {
         });
       }
 
-      const { nome, email, matricula, senha, perfil, grupo } = req.body;
+      const { nome, email, matricula, senha, senha_padrao, perfil, grupo, telefone, celular } = req.body;
 
       if (!nome || !email || !perfil) {
         return res.status(400).json({
@@ -57,7 +98,8 @@ export const usuarioController = {
       const cleanEmail = String(email).trim().toLowerCase();
       const cleanPerfil = String(perfil).trim().toUpperCase();
       const cleanGrupo = String(grupo || 'G11').trim().toUpperCase();
-      const rawSenha = String(senha || 'Tke@1234').trim();
+      const rawSenha = String(senha || senha_padrao || 'Tke@1234').trim();
+      const cleanTelefone = normalizePhoneDDD11(telefone || celular);
 
       if (!['TECNICO', 'SUPERVISOR', 'CONSULTORA'].includes(cleanPerfil)) {
         return res.status(400).json({
@@ -93,19 +135,20 @@ export const usuarioController = {
       const senhaHash = bcrypt.hashSync(rawSenha, 10);
 
       const result = db.prepare(`
-        INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo)
-        VALUES (?, ?, ?, ?, ?, ?, 1, 1)
-      `).run(cleanNome, cleanEmail, cleanMatricula, senhaHash, cleanPerfil, cleanGrupo);
+        INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, grupo, telefone, primeiro_acesso, ativo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
+      `).run(cleanNome, cleanEmail, cleanMatricula, senhaHash, cleanPerfil, cleanGrupo, cleanTelefone);
 
       // Se for perfil Técnico, sincroniza automaticamente na tabela de técnicos de apoio
-      if (cleanPerfil === 'TECNICO') {
+      if (cleanPerfil === 'TECNICO' || cleanPerfil === 'SUPERVISOR') {
         db.prepare(`
-          INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email)
-          VALUES (?, 'Técnico de Manutenção', ?, ?)
+          INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone)
+          VALUES (?, 'Técnico de Manutenção', ?, ?, ?)
           ON CONFLICT(matricula) DO UPDATE SET
             nome_sobrenome = excluded.nome_sobrenome,
-            email = excluded.email
-        `).run(cleanMatricula, cleanNome, cleanEmail);
+            email = excluded.email,
+            telefone = COALESCE(excluded.telefone, tecnicos.telefone)
+        `).run(cleanMatricula, cleanNome, cleanEmail, cleanTelefone);
       }
 
       if (cleanEmail) {
@@ -131,6 +174,7 @@ export const usuarioController = {
           matricula: cleanMatricula,
           perfil: cleanPerfil,
           grupo: cleanGrupo,
+          telefone: cleanTelefone,
           primeiro_acesso: true,
           senha_provisoria: rawSenha
         }
@@ -155,9 +199,9 @@ export const usuarioController = {
       }
 
       const { id } = req.params;
-      const { nome, email, matricula, perfil, grupo, ativo } = req.body;
+      const { nome, email, matricula, perfil, grupo, ativo, telefone, celular } = req.body;
 
-      const existing = db.prepare('SELECT id, nome, email, matricula, perfil, grupo, ativo FROM usuarios WHERE id = ?').get(id);
+      const existing = db.prepare('SELECT id, nome, email, matricula, perfil, grupo, ativo, telefone FROM usuarios WHERE id = ?').get(id);
       if (!existing) {
         return res.status(404).json({
           success: false,
@@ -171,6 +215,9 @@ export const usuarioController = {
       const cleanPerfil = String(perfil || existing.perfil).toUpperCase().trim();
       const cleanGrupo = String(grupo || existing.grupo || 'G11').toUpperCase().trim();
       const cleanAtivo = ativo !== undefined ? (Boolean(ativo) ? 1 : 0) : existing.ativo;
+      const cleanTelefone = (telefone !== undefined || celular !== undefined)
+        ? normalizePhoneDDD11(telefone || celular)
+        : existing.telefone;
 
       if (!cleanNome || !cleanEmail || !cleanMatricula) {
         return res.status(400).json({
@@ -204,16 +251,16 @@ export const usuarioController = {
 
       db.prepare(`
         UPDATE usuarios 
-        SET nome = ?, email = ?, matricula = ?, perfil = ?, grupo = ?, ativo = ?, updated_at = CURRENT_TIMESTAMP
+        SET nome = ?, email = ?, matricula = ?, perfil = ?, grupo = ?, ativo = ?, telefone = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(cleanNome, cleanEmail, cleanMatricula, cleanPerfil, cleanGrupo, cleanAtivo, id);
+      `).run(cleanNome, cleanEmail, cleanMatricula, cleanPerfil, cleanGrupo, cleanAtivo, cleanTelefone, id);
 
       // Sincroniza tabela de tecnicos
       const tecExists = db.prepare('SELECT matricula FROM tecnicos WHERE matricula = ? OR LOWER(email) = ?').get(existing.matricula, cleanEmail);
       if (tecExists) {
-        db.prepare('UPDATE tecnicos SET matricula = ?, nome_sobrenome = ?, email = ? WHERE matricula = ?').run(cleanMatricula, cleanNome, cleanEmail, tecExists.matricula);
+        db.prepare('UPDATE tecnicos SET matricula = ?, nome_sobrenome = ?, email = ?, telefone = ? WHERE matricula = ?').run(cleanMatricula, cleanNome, cleanEmail, cleanTelefone, tecExists.matricula);
       } else if (cleanPerfil === 'TECNICO' || cleanPerfil === 'SUPERVISOR') {
-        db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email) VALUES (?, ?, ?, ?)').run(cleanMatricula, 'Técnico de Manutenção', cleanNome, cleanEmail);
+        db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone) VALUES (?, ?, ?, ?, ?)').run(cleanMatricula, 'Técnico de Manutenção', cleanNome, cleanEmail, cleanTelefone);
       }
 
       // Sincroniza histórico de orçamentos e chamados do colaborador
@@ -236,6 +283,7 @@ export const usuarioController = {
           matricula: cleanMatricula,
           perfil: cleanPerfil,
           grupo: cleanGrupo,
+          telefone: cleanTelefone,
           ativo: cleanAtivo
         }
       });
@@ -550,6 +598,10 @@ export const usuarioController = {
           'Matricula', 'matricula', 'Matrícula', 'ID', 'Codigo', 'Cod'
         ]);
 
+        const telefone = findField(row, [
+          'Telefone', 'telefone', 'Celular', 'celular', 'Numero_Celular', 'numero_celular', 'Fone', 'fone', 'WhatsApp', 'Contato'
+        ]);
+
         const rawFuncaoOrCargo = findField(row, [
           'G_Funcao', 'GFuncao', 'G - Funcao', 'G - Função', 'G-Função', 'G-Funcao', 'G_Função', 'G / Funcao', 'G / Função',
           'Funcao', 'funcao', 'Função', 'função', 'Cargo', 'cargo', 'Perfil', 'perfil', 'Perfil_Acesso', 'Tipo', 'Especialidade', 'Posicao'
@@ -588,19 +640,20 @@ export const usuarioController = {
         const cleanEmail = email.toLowerCase().trim();
         const cleanNome = nome.trim();
         const cleanMatricula = matricula ? matricula.trim() : null;
+        const cleanTelefone = normalizePhoneDDD11(telefone);
 
         // Upsert no banco de usuários
-        const existingByEmail = db.prepare('SELECT id, nome, email, matricula FROM usuarios WHERE LOWER(email) = ?').get(cleanEmail);
-        const existingByMatricula = cleanMatricula ? db.prepare('SELECT id, nome, email, matricula FROM usuarios WHERE matricula = ?').get(cleanMatricula) : null;
+        const existingByEmail = db.prepare('SELECT id, nome, email, matricula, telefone FROM usuarios WHERE LOWER(email) = ?').get(cleanEmail);
+        const existingByMatricula = cleanMatricula ? db.prepare('SELECT id, nome, email, matricula, telefone FROM usuarios WHERE matricula = ?').get(cleanMatricula) : null;
 
         const existing = existingByEmail || existingByMatricula;
 
         if (existing) {
           db.prepare(`
             UPDATE usuarios 
-            SET nome = ?, matricula = COALESCE(?, matricula), perfil = ?, grupo = ?, updated_at = CURRENT_TIMESTAMP 
+            SET nome = ?, matricula = COALESCE(?, matricula), perfil = ?, grupo = ?, telefone = COALESCE(?, telefone), updated_at = CURRENT_TIMESTAMP 
             WHERE id = ?
-          `).run(cleanNome, cleanMatricula, perfil, grupo, existing.id);
+          `).run(cleanNome, cleanMatricula, perfil, grupo, cleanTelefone, existing.id);
 
           updatedCount++;
         } else {
@@ -608,9 +661,9 @@ export const usuarioController = {
           const senhaHash = bcrypt.hashSync(rawSenha, 10);
 
           db.prepare(`
-            INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo) 
-            VALUES (?, ?, ?, ?, ?, ?, 1, 1)
-          `).run(cleanNome, cleanEmail, finalMatricula, senhaHash, perfil, grupo);
+            INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, grupo, telefone, primeiro_acesso, ativo) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
+          `).run(cleanNome, cleanEmail, finalMatricula, senhaHash, perfil, grupo, cleanTelefone);
 
           insertedCount++;
         }
@@ -620,18 +673,20 @@ export const usuarioController = {
           const tecMatricula = cleanMatricula || `TEC-${cleanEmail.split('@')[0]}`;
           const existingTec = db.prepare('SELECT matricula FROM tecnicos WHERE matricula = ?').get(tecMatricula);
           if (existingTec) {
-            db.prepare('UPDATE tecnicos SET nome_sobrenome = ?, email = ?, funcao = ? WHERE matricula = ?').run(
+            db.prepare('UPDATE tecnicos SET nome_sobrenome = ?, email = ?, funcao = ?, telefone = COALESCE(?, telefone) WHERE matricula = ?').run(
               cleanNome, 
               cleanEmail, 
               cleanFuncao, 
+              cleanTelefone,
               tecMatricula
             );
           } else {
-            db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email) VALUES (?, ?, ?, ?)').run(
+            db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone) VALUES (?, ?, ?, ?, ?)').run(
               tecMatricula,
               cleanFuncao,
               cleanNome,
-              cleanEmail
+              cleanEmail,
+              cleanTelefone
             );
           }
         }
@@ -667,6 +722,7 @@ export const usuarioController = {
           'Nome_Completo': 'Mariana Souza Dias',
           'Email': 'mariana.dias@empresa.com',
           'Matricula': '1009',
+          'Celular': '(11) 98765-4321',
           'Perfil': 'TECNICO',
           'Grupo': 'G11',
           'Senha_Provisoria': 'Tke@1234'
@@ -675,6 +731,7 @@ export const usuarioController = {
           'Nome_Completo': 'Carlos Roberto Lima',
           'Email': 'carlos.lima@empresa.com',
           'Matricula': '2005',
+          'Celular': '(11) 97654-3210',
           'Perfil': 'SUPERVISOR',
           'Grupo': 'G06',
           'Senha_Provisoria': 'Tke@1234'
@@ -683,6 +740,7 @@ export const usuarioController = {
           'Nome_Completo': 'Patrícia Albuquerque',
           'Email': 'patricia.albuquerque@empresa.com',
           'Matricula': '3005',
+          'Celular': '(11) 96543-2109',
           'Perfil': 'CONSULTORA',
           'Grupo': 'G05',
           'Senha_Provisoria': 'Tke@1234'

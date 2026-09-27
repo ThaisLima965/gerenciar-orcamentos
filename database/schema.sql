@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     grupo VARCHAR(10) NOT NULL DEFAULT 'G11' CHECK(grupo IN ('G11', 'G06', 'G05')),
     primeiro_acesso INTEGER NOT NULL DEFAULT 1 CHECK(primeiro_acesso IN (0, 1)),
     ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0, 1)),
+    telefone VARCHAR(30),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -72,7 +73,7 @@ CREATE TABLE IF NOT EXISTS chamados_orcamentos (
     FOREIGN KEY (created_by_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
--- 5. TABELA DE REDEFINIÇÃO DE SENHAS (RESET TOKENS EXPIRÁVEIS)
+-- 5. TABELA DE REDEFINIÇÃO DE SENHAS (RESET TOKENS EXPIRÁVEIS - EMAIL / LEGADO)
 CREATE TABLE IF NOT EXISTS password_resets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -81,6 +82,19 @@ CREATE TABLE IF NOT EXISTS password_resets (
     used INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES usuarios(id)
+);
+
+-- 6. TABELA DE TOKENS DE REDEFINIÇÃO VIA SMS (OTP 6 DÍGITOS + ANTI-BRUTE FORCE)
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token_hash TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    attempts INTEGER DEFAULT 0,
+    used_at DATETIME DEFAULT NULL,
+    ip_address VARCHAR(50),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
 -- ÍNDICES DE PERFORMANCE E CONSULTAS FREQUENTES
@@ -92,3 +106,5 @@ CREATE INDEX IF NOT EXISTS idx_chamados_pgo ON chamados_orcamentos(numero_pgo);
 CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_usuarios_matricula ON usuarios(matricula);
 CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_prt_expires ON password_reset_tokens(expires_at);
