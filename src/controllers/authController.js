@@ -372,7 +372,8 @@ export const authController = {
         expiresInMinutes: expiresInMinutes
       });
 
-      const isDevMode = process.env.NODE_ENV !== 'production' || !process.env.SMS_PROVIDER || process.env.SMS_PROVIDER === 'mock';
+      const maskedPhone = maskPhone(user.telefone);
+      const isMockOrDev = !process.env.SMS_PROVIDER || process.env.SMS_PROVIDER === 'mock' || process.env.NODE_ENV !== 'production';
 
       return res.status(200).json({
         success: true,
@@ -380,13 +381,13 @@ export const authController = {
         masked_phone: maskedPhone,
         identificador: cleanIdent,
         expires_in_minutes: expiresInMinutes,
-        ...(isDevMode ? { dev_otp: otp } : {})
+        ...(isMockOrDev ? { dev_otp: otp } : {})
       });
     } catch (error) {
       console.error('❌ [Auth Controller] Erro ao processar solicitação de redefinição SMS:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro interno ao processar redefinição de senha.'
+        error: error.message || 'Erro interno ao processar redefinição de senha.'
       });
     }
   },
@@ -541,7 +542,7 @@ export const authController = {
       console.error('❌ [Auth Controller] Erro ao validar token SMS:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro interno ao validar código de verificação.'
+        error: error.message || 'Erro interno ao validar código de verificação.'
       });
     }
   },
@@ -709,7 +710,7 @@ export const authController = {
       console.error('❌ [Auth Controller] Erro na redefinição de senha:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro interno ao redefinir senha.'
+        error: error.message || 'Erro interno ao redefinir senha.'
       });
     }
   },
