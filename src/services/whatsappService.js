@@ -101,9 +101,9 @@ export async function sendResetOtpWhatsapp({ nome, telefone, otp, expiresInMinut
   const messageText = buildWhatsAppOtpMessage({ nome, otp, expiresInMinutes });
   const waMeUrl = `https://api.whatsapp.com/send?phone=${waNumber}&text=${encodeURIComponent(messageText)}`;
 
-  const apiUrl = process.env.WHATSAPP_API_URL;
-  const apiKey = process.env.WHATSAPP_API_KEY;
-  const instanceName = process.env.WHATSAPP_INSTANCE || 'orcamentos';
+  const apiUrl = process.env.WHATSAPP_API_URL || 'https://gerenciador-de-orcamentos-d0yc.onrender.com';
+  const apiKey = process.env.WHATSAPP_API_KEY || 'TkeOrcamentos2026@SecureKey';
+  const instanceName = process.env.WHATSAPP_INSTANCE || 'tke_orcamentos';
   const webhookUrl = process.env.WHATSAPP_WEBHOOK_URL;
 
   const record = {
