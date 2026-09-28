@@ -816,13 +816,46 @@ export const authController = {
       }
 
       const cleanUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+
+      // 1. Verifica estado de conexão atual com timeout rápido de 4s
+      try {
+        const stateRes = await fetch(`${cleanUrl}/instance/connectionState/${instance}`, {
+          headers: { 'apikey': apiKey },
+          signal: AbortSignal.timeout(4000)
+        });
+        if (stateRes.ok) {
+          const stateData = await stateRes.json();
+          const currentState = stateData?.instance?.state || stateData?.state;
+          if (currentState === 'open' || currentState === 'connected') {
+            return res.status(200).json({
+              success: true,
+              configured: true,
+              state: 'CONNECTED',
+              instance,
+              message: 'WhatsApp conectado e operacional!'
+            });
+          }
+        }
+      } catch (stateErr) {
+        // Prossegue para tentativa de conectar / gerar QR Code
+      }
+
+      // 2. Solicita QR Code / Conexão
       const connectRes = await fetch(`${cleanUrl}/instance/connect/${instance}`, {
-        headers: { 'apikey': apiKey }
+        headers: { 'apikey': apiKey },
+        signal: AbortSignal.timeout(5000)
       });
-      const connectData = await connectRes.json();
+      
+      const connectText = await connectRes.text();
+      let connectData = {};
+      try {
+        connectData = JSON.parse(connectText);
+      } catch (e) {
+        connectData = { raw: connectText };
+      }
 
       let state = connectData?.instance?.state || connectData?.state || 'connecting';
-      let qrcode = connectData?.base64 || null;
+      let qrcode = connectData?.base64 || connectData?.qrcode?.base64 || connectData?.code || null;
 
       if (state === 'open' || state === 'connected') {
         return res.status(200).json({
@@ -837,16 +870,17 @@ export const authController = {
       return res.status(200).json({
         success: true,
         configured: true,
-        state: state.toUpperCase(),
+        state: String(state).toUpperCase(),
         instance,
         qrcode,
-        message: 'Aguardando leitura do QR Code pelo WhatsApp.'
+        message: qrcode ? 'Aguardando leitura do QR Code pelo WhatsApp.' : 'Instância em inicialização no servidor.'
       });
     } catch (err) {
       return res.status(200).json({
         success: false,
         configured: true,
-        state: 'ERROR',
+        state: 'FALLBACK',
+        message: 'Servidor de envio direto em standby. O envio por Link Direto wa.me está ativo.',
         error: err.message
       });
     }

@@ -44,7 +44,18 @@ export const api = {
 
     try {
       const response = await fetch(endpoint, config);
-      const data = await response.json();
+      
+      let data;
+      const text = await response.text();
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        if (!response.ok) {
+          const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          throw new Error(`Erro no servidor (${response.status}): ${cleanText.substring(0, 120) || 'Resposta inválida'}`);
+        }
+        data = { message: text };
+      }
 
       if (!response.ok) {
         // Sessão expirada ou não autenticada
@@ -52,7 +63,7 @@ export const api = {
           localStorage.removeItem('user_data');
           window.location.href = '/login.html';
         }
-        throw new Error(data.error || 'Erro na requisição');
+        throw new Error(data.error || data.message || `Erro na requisição (${response.status})`);
       }
 
       return data;

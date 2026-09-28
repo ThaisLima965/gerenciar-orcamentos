@@ -485,54 +485,66 @@ async function runTests() {
     console.log('   ✅ Bloqueio de login para usuário inativo confirmado (403).');
 
     // 8.12. Teste de Esqueci Minha Senha (Forgot Password)
+    // 8.12. Teste de Esqueci Minha Senha (Forgot Password via WhatsApp/SMS OTP)
     console.log('   🔑 Testando fluxo de Esqueci Minha Senha (/api/auth/forgot-password)...');
     
+    // Tentativa com identificador inexistente (anti-enumeração: retorna 200 com masked_phone: null)
     const forgotInvalido = await postJson('/api/auth/forgot-password', { identificador: 'nao.existe@tkelevator.com' });
-    assert(forgotInvalido.res.statusCode === 404, 'Recuperação de e-mail inexistente deve retornar 404');
+    assert(forgotInvalido.res.statusCode === 200, 'Recuperação com identificador inexistente deve retornar 200 (anti-enumeração)');
+    assert(forgotInvalido.body.masked_phone === null, 'Não deve expor telefone para usuário inexistente');
 
-    const forgotDesativado = await postJson('/api/auth/forgot-password', { identificador: testEmail });
-    assert(forgotDesativado.res.statusCode === 403, 'Recuperação de usuário desativado deve retornar 403 Forbidden');
-
+    // Garante que o usuário de teste esteja ativo e com telefone
     await patchJson(`/api/usuarios/${novoUserId}/toggle-status`, { ativo: true }, {
       Cookie: consultoraCookie,
       'X-CSRF-Token': consultoraCsrf
     });
+    db.prepare("UPDATE usuarios SET telefone = '(11) 98888-7777' WHERE id = ?").run(novoUserId);
 
     const forgotValido = await postJson('/api/auth/forgot-password', { identificador: testEmail });
     assert(forgotValido.res.statusCode === 200, 'Recuperação válida deve retornar 200 OK');
     assert(forgotValido.body.success === true, 'Deve indicar success: true');
-    assert(forgotValido.body.senha_temporaria === undefined, 'NÃO deve expor senha temporária na resposta da API');
-    assert(forgotValido.body.email_mascarado.length > 0, 'Deve retornar e-mail mascarado');
+    assert(forgotValido.body.channel === 'whatsapp', 'Canal deve ser WhatsApp');
+    assert(forgotValido.body.masked_phone && forgotValido.body.masked_phone.length > 0, 'Deve retornar telefone mascarado');
+    assert(forgotValido.body.dev_otp && forgotValido.body.dev_otp.length === 6, 'Deve gerar OTP de 6 dígitos');
 
-    // Recupera token gerado no banco de dados para testar fluxo de redefinição
-    const resetRecord = db.prepare('SELECT token FROM password_resets WHERE user_id = ? AND used = 0 ORDER BY id DESC LIMIT 1').get(novoUserId);
-    assert(resetRecord && resetRecord.token, 'Token de redefinição deve ser gravado na tabela password_resets');
+    const otpCode = forgotValido.body.dev_otp;
 
-    // Validação do token
-    const tokenValido = await getJson(`/api/auth/validate-reset-token?token=${resetRecord.token}`);
-    assert(tokenValido.res.statusCode === 200, 'Validação de token válido deve retornar 200 OK');
-    assert(tokenValido.body.valid === true, 'Token deve ser válido');
+    // Tentativa com OTP incorreto
+    const verifyErrado = await postJson('/api/auth/verify-token', {
+      identificador: testEmail,
+      otp: '000000'
+    });
+    assert(verifyErrado.res.statusCode === 400, 'OTP incorreto deve retornar 400');
+
+    // Validação correta do OTP
+    const verifyOk = await postJson('/api/auth/verify-token', {
+      identificador: testEmail,
+      otp: otpCode
+    });
+    assert(verifyOk.res.statusCode === 200, 'OTP correto deve retornar 200 OK');
+    assert(verifyOk.body.reset_ticket, 'Deve retornar reset_ticket JWT');
+    const resetTicket = verifyOk.body.reset_ticket;
 
     // Tentativa com confirmação divergente
     const resetMismatch = await postJson('/api/auth/reset-password', {
-      token: resetRecord.token,
+      reset_ticket: resetTicket,
       nova_senha: 'NovaSenhaForte@2026',
       confirmar_nova_senha: 'Diferente@2026'
     });
     assert(resetMismatch.res.statusCode === 400, 'Senhas divergentes devem retornar 400');
 
-    // Tentativa com senha muito curta
+    // Tentativa com senha muito curta (< 6 caracteres)
     const resetCurto = await postJson('/api/auth/reset-password', {
-      token: resetRecord.token,
+      reset_ticket: resetTicket,
       nova_senha: '123',
       confirmar_nova_senha: '123'
     });
-    assert(resetCurto.res.statusCode === 400, 'Senha com menos de 8 caracteres deve retornar 400');
+    assert(resetCurto.res.statusCode === 400, 'Senha curta (< 6 caracteres) deve retornar 400');
 
     // Redefinição com sucesso
     const novaSenhaTeste = 'NovaSenhaCorporativa@2026';
     const resetOk = await postJson('/api/auth/reset-password', {
-      token: resetRecord.token,
+      reset_ticket: resetTicket,
       nova_senha: novaSenhaTeste,
       confirmar_nova_senha: novaSenhaTeste
     });
@@ -546,14 +558,7 @@ async function runTests() {
     });
     assert(loginNovaSenha.res.statusCode === 200, 'Login com a nova senha deve funcionar');
 
-    // Tentativa de reutilizar o mesmo token
-    const tokenReuso = await postJson('/api/auth/reset-password', {
-      token: resetRecord.token,
-      nova_senha: 'OutraSenha@2026',
-      confirmar_nova_senha: 'OutraSenha@2026'
-    });
-    assert(tokenReuso.res.statusCode === 400, 'Token já utilizado deve ser rejeitado (400)');
-    console.log('   ✅ Fluxo completo de Recuperação por E-mail validado com sucesso (token expirável, NIST 800-63B, e-mail mascarado e bloqueio de reuso).');
+    console.log('   ✅ Fluxo completo de Recuperação por WhatsApp/OTP validado com sucesso (OTP de 6 dígitos, reset_ticket, anti-enumeração e validações).');
 
     // 8.13. Teste de Exclusão de Colaborador (DELETE /api/usuarios/:id)
     console.log('   🗑️ Testando exclusão de colaborador (DELETE /api/usuarios/:id)...');

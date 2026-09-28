@@ -140,11 +140,18 @@ export async function sendResetOtpWhatsapp({ nome, telefone, otp, expiresInMinut
             linkPreview: false
           }
         }),
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(3500)
       });
 
-      const data = await response.json();
-      if (response.ok) {
+      const responseText = await response.text();
+      let data = null;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr) {
+        data = { raw: responseText };
+      }
+
+      if (response.ok && (data?.key?.id || data?.id || data?.status === 'PENDING' || data?.status === 'SUCCESS')) {
         record.provider = 'evolution_api';
         record.messageId = data?.key?.id || data?.id || record.id;
         record.status = 'DELIVERED_EVOLUTION';
@@ -159,10 +166,10 @@ export async function sendResetOtpWhatsapp({ nome, telefone, otp, expiresInMinut
           waMeUrl
         };
       } else {
-        console.warn('⚠️ [WhatsApp Service: Evolution API] Resposta não OK:', data);
+        console.warn('⚠️ [WhatsApp Service: Evolution API] Resposta não OK ou instância desconectada:', data);
       }
     } catch (err) {
-      console.error('❌ [WhatsApp Service: Evolution API] Erro na requisição:', err.message);
+      console.warn('⚠️ [WhatsApp Service: Evolution API] Falha ou timeout no envio direto via API:', err.message);
     }
   }
 
