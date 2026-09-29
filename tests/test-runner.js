@@ -2,6 +2,7 @@ import http from 'http';
 import * as xlsx from 'xlsx';
 import app from '../src/app.js';
 import { initDatabase, db, saveDatabase } from '../src/config/database.js';
+import { getLastWhatsappForPhone } from '../src/services/whatsappService.js';
 
 let server;
 const PORT = 3099;
@@ -505,9 +506,11 @@ async function runTests() {
     assert(forgotValido.body.success === true, 'Deve indicar success: true');
     assert(forgotValido.body.channel === 'whatsapp', 'Canal deve ser WhatsApp');
     assert(forgotValido.body.masked_phone && forgotValido.body.masked_phone.length > 0, 'Deve retornar telefone mascarado');
-    assert(forgotValido.body.dev_otp && forgotValido.body.dev_otp.length === 6, 'Deve gerar OTP de 6 dígitos');
+    assert(forgotValido.body.dev_otp === undefined, 'NUNCA deve expor o token OTP na resposta da API');
 
-    const otpCode = forgotValido.body.dev_otp;
+    const lastWpp = getLastWhatsappForPhone('(11) 98888-7777');
+    assert(lastWpp && lastWpp.otp, 'Token OTP deve ter sido disparado pelo serviço de WhatsApp');
+    const otpCode = lastWpp.otp;
 
     // Tentativa com OTP incorreto
     const verifyErrado = await postJson('/api/auth/verify-token', {

@@ -390,13 +390,10 @@ export const authController = {
       return res.status(200).json({
         success: true,
         channel: 'whatsapp',
-        provider: wppResult?.provider || 'direct_whatsapp',
-        message: `Código de verificação de 6 dígitos enviado para o seu WhatsApp (${maskedPhone}).`,
+        message: `Código de verificação de 6 dígitos enviado com sucesso para o seu WhatsApp (${maskedPhone}).`,
         masked_phone: maskedPhone,
         identificador: cleanIdent,
-        expires_in_minutes: expiresInMinutes,
-        wa_me_url: wppResult?.waMeUrl,
-        dev_otp: otp
+        expires_in_minutes: expiresInMinutes
       });
     } catch (error) {
       console.error('❌ [Auth Controller] Erro ao processar solicitação de redefinição:', error);

@@ -202,16 +202,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const forgotStep2Form = document.getElementById('forgot-step2-form');
   const forgotOtpInput = document.getElementById('forgot-otp-input');
   const step2MaskedPhone = document.getElementById('step2-masked-phone');
-  const step2OtpHelperCard = document.getElementById('step2-otp-helper-card');
-  const step2OtpHelperCode = document.getElementById('step2-otp-helper-code');
-  const btnAutofillOtp = document.getElementById('btn-autofill-otp');
   const step2AttemptsText = document.getElementById('step2-attempts-text');
   const step2TimerText = document.getElementById('step2-timer-text');
   const step2TimerCount = document.getElementById('step2-timer-count');
   const btnResendOtp = document.getElementById('btn-resend-otp');
   const btnBackToStep1 = document.getElementById('btn-back-to-step1');
   const btnSubmitStep2 = document.getElementById('btn-submit-step2');
-  const btnOpenWaDirect = document.getElementById('btn-open-wa-direct');
 
   // Elementos da Etapa 3 (Definição de Nova Senha)
   const forgotStep3 = document.getElementById('forgot-step-3');
@@ -230,13 +226,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupPasswordToggle(toggleForgotNovaSenha, forgotNovaSenha);
   setupPasswordToggle(toggleForgotConfirmarSenha, forgotConfirmarNovaSenha);
 
-  // Estado da sessão de recuperação
+  // Estado da sessão de recuperação (100% seguro: token não trafega para o front)
   let recoveryState = {
     identificador: '',
     maskedPhone: '',
     resetTicket: '',
-    waMeUrl: '',
-    otp: '',
     timerInterval: null,
     timeLeft: 60
   };
@@ -303,35 +297,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Digite o código de 6 dígitos que enviamos para o seu WhatsApp.';
       if (step2MaskedPhone) step2MaskedPhone.textContent = recoveryState.maskedPhone || 'WhatsApp cadastrado';
       if (step2AttemptsText) step2AttemptsText.innerHTML = '<i class="bi bi-shield-check"></i> 3 tentativas restantes';
-      
-      // Exibe Helper Card com código e botão de inserção rápida
-      if (step2OtpHelperCard && step2OtpHelperCode) {
-        if (recoveryState.otp) {
-          step2OtpHelperCode.textContent = recoveryState.otp;
-          step2OtpHelperCard.style.display = 'block';
-          if (btnAutofillOtp) {
-            btnAutofillOtp.onclick = (ev) => {
-              ev.preventDefault();
-              if (forgotOtpInput) {
-                forgotOtpInput.value = recoveryState.otp;
-                forgotOtpInput.focus();
-              }
-            };
-          }
-        } else {
-          step2OtpHelperCard.style.display = 'none';
-        }
-      }
-
-      // Exibe botão para abrir mensagem no WhatsApp se link estiver disponível
-      if (btnOpenWaDirect) {
-        if (recoveryState.waMeUrl) {
-          btnOpenWaDirect.href = recoveryState.waMeUrl;
-          btnOpenWaDirect.style.display = 'flex';
-        } else {
-          btnOpenWaDirect.style.display = 'none';
-        }
-      }
 
       if (forgotOtpInput) {
         forgotOtpInput.value = '';
@@ -393,8 +358,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           const res = await auth.forgotPassword(ident);
           recoveryState.identificador = ident;
           recoveryState.maskedPhone = res.masked_phone || '(11) 9****-****';
-          recoveryState.waMeUrl = res.wa_me_url || '';
-          recoveryState.otp = res.dev_otp || '';
           goToStep(2);
         } catch (err) {
           showError(err.message || 'Falha ao solicitar código via WhatsApp.');
