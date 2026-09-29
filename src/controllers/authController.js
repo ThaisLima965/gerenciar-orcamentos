@@ -6,8 +6,13 @@ import { SECURITY_CONFIG } from '../config/security.js';
 import { generateCsrfToken } from '../middleware/csrf.js';
 import { sendPasswordResetEmail, sendPasswordChangedConfirmationEmail, maskEmail } from '../services/emailService.js';
 import { sendResetOtpSms, maskPhone, formatE164 } from '../services/smsService.js';
-import { sendResetOtpWhatsapp, formatWhatsAppNumber } from '../services/whatsappService.js';
 import { validatePasswordNIST, generateSecureProvisionalPassword } from '../utils/passwordValidator.js';
+import { 
+  generateTotpSetup, 
+  verifyTotpToken, 
+  generateBackupCodes, 
+  verifyAndConsumeBackupCode 
+} from '../services/totpService.js';
 
 export const authController = {
   // Login corporativo seguro
@@ -274,129 +279,189 @@ export const authController = {
   },
 
   // =========================================================================
-  // FLUXO DE REDEFINIÇÃO DE SENHA VIA TOKEN POR SMS (OTP 6 DÍGITOS)
+  // FLUXO DE SEGURANÇA TOTP (RFC 6238) - APPS AUTENTICADORES (ZERO CUSTO)
   // =========================================================================
 
-  // 1. Solicitação de Redefinição via SMS (POST /api/auth/forgot-password)
+  // 1. Iniciar Pareamento / Setup do Autenticador (POST /api/auth/totp/setup)
+  async setupTotp(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Usuário não autenticado.' });
+      }
+
+      const user = db.prepare('SELECT id, nome, email, matricula FROM usuarios WHERE id = ?').get(userId);
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Usuário não encontrado.' });
+      }
+
+      const setup = await generateTotpSetup(user.email, user.nome);
+
+      db.prepare('UPDATE usuarios SET totp_temp_secret = ? WHERE id = ?').run(setup.secret, user.id);
+
+      return res.status(200).json({
+        success: true,
+        qr_code: setup.qrCodeDataUrl,
+        manual_key: setup.manualKey,
+        otpauth_url: setup.otpauthUrl,
+        account: user.email,
+        issuer: 'TKE Orçamentos'
+      });
+    } catch (error) {
+      console.error('❌ [Auth Controller] Erro ao gerar setup TOTP:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao gerar QR Code de pareamento TOTP.'
+      });
+    }
+  },
+
+  // 2. Confirmação do 1º código TOTP e Entrega de Códigos de Backup (POST /api/auth/totp/confirm)
+  async confirmTotp(req, res) {
+    try {
+      const userId = req.user?.id;
+      const { code } = req.body;
+      const inputCode = String(code || '').trim();
+
+      if (!userId || !inputCode) {
+        return res.status(400).json({
+          success: false,
+          error: 'Código de 6 dígitos é obrigatório para confirmar o pareamento.'
+        });
+      }
+
+      const user = db.prepare('SELECT id, nome, email, totp_temp_secret FROM usuarios WHERE id = ?').get(userId);
+      if (!user || !user.totp_temp_secret) {
+        return res.status(400).json({
+          success: false,
+          error: 'Nenhum pareamento TOTP pendente encontrado. Inicie a configuração novamente.'
+        });
+      }
+
+      const isValid = verifyTotpToken(inputCode, user.totp_temp_secret);
+      if (!isValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'Código incorreto. Certifique-se de digitar o código de 6 dígitos gerado pelo seu app autenticador.'
+        });
+      }
+
+      // Gera 8 códigos de backup de emergência (XXXX-XXXX)
+      const { rawCodes, hashedCodes } = generateBackupCodes(8);
+
+      db.prepare(`
+        UPDATE usuarios 
+        SET totp_secret = totp_temp_secret,
+            totp_enabled = 1,
+            totp_backup_codes = ?,
+            totp_temp_secret = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(JSON.stringify(hashedCodes), user.id);
+
+      console.log(`✅ [TOTP Confirm] Autenticador pareado com sucesso para ${user.email} (ID: ${user.id}).`);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Aplicativo autenticador pareado com sucesso!',
+        backup_codes: rawCodes
+      });
+    } catch (error) {
+      console.error('❌ [Auth Controller] Erro ao confirmar TOTP:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno ao confirmar pareamento TOTP.'
+      });
+    }
+  },
+
+  // 3. Status da ativação TOTP do usuário (GET /api/auth/totp/status)
+  async getTotpStatus(req, res) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Não autenticado.' });
+      }
+
+      const user = db.prepare('SELECT totp_enabled, totp_backup_codes FROM usuarios WHERE id = ?').get(userId);
+      let remainingBackups = 0;
+      if (user?.totp_backup_codes) {
+        try {
+          remainingBackups = JSON.parse(user.totp_backup_codes).length;
+        } catch {}
+      }
+
+      return res.status(200).json({
+        success: true,
+        totp_enabled: Boolean(user?.totp_enabled),
+        backup_codes_remaining: remainingBackups
+      });
+    } catch (error) {
+      return res.status(500).json({ success: false, error: 'Erro ao consultar status TOTP.' });
+    }
+  },
+
+  // 4. Solicitação de Redefinição de Senha via TOTP (POST /api/auth/forgot-password)
+  // 100% Zero Disparos Externos: utiliza unicamente o App Autenticador
   async forgotPassword(req, res) {
     try {
       const { identificador } = req.body;
       if (!identificador) {
         return res.status(400).json({
           success: false,
-          error: 'Por favor, informe seu identificador (E-mail corporativo, Matrícula ou Celular cadastrado).'
+          error: 'Por favor, informe seu identificador (E-mail corporativo ou Matrícula).'
         });
       }
 
       const cleanIdent = String(identificador).trim().toLowerCase();
-      const onlyDigits = cleanIdent.replace(/\D/g, '');
 
-      // Localiza o usuário por e-mail, matrícula ou telefone cadastrado
-      let user = db.prepare(`
-        SELECT id, nome, email, matricula, telefone, ativo 
+      // Localiza o usuário por e-mail ou matrícula
+      const user = db.prepare(`
+        SELECT id, nome, email, matricula, totp_enabled, ativo 
         FROM usuarios 
         WHERE LOWER(email) = ? OR LOWER(matricula) = ?
       `).get(cleanIdent, cleanIdent);
 
-      // Se não encontrou por e-mail/matrícula mas o identificador possui dígitos, busca pelo telefone
-      if (!user && onlyDigits.length >= 8) {
-        const usersWithPhone = db.prepare(`
-          SELECT id, nome, email, matricula, telefone, ativo 
-          FROM usuarios 
-          WHERE telefone IS NOT NULL AND telefone != ''
-        `).all();
-
-        user = usersWithPhone.find(u => {
-          const userDigits = String(u.telefone).replace(/\D/g, '');
-          return userDigits === onlyDigits || 
-                 userDigits.endsWith(onlyDigits) || 
-                 onlyDigits.endsWith(userDigits);
-        });
-      }
-
-      // Prevenção de enumeração de contas: se o usuário não existir, estiver desativado ou não tiver celular
-      if (!user || user.ativo !== 1 || !user.telefone || !user.telefone.trim()) {
-        console.warn(`⚠️ [Auth Reset SMS] Solicitação para identificador "${cleanIdent}" não processada (inexistente, inativo ou sem telefone).`);
+      // Prevenção de enumeração de contas
+      if (!user || user.ativo !== 1) {
         return res.status(200).json({
           success: true,
-          message: 'Se os dados informados existirem em nosso sistema com celular cadastrado, você receberá um código de verificação de 6 dígitos via SMS em instantes.',
-          masked_phone: null
+          channel: 'totp',
+          totp_enabled: true,
+          identificador: cleanIdent,
+          message: 'Abra seu aplicativo autenticador (Google Authenticator, Apple Passwords ou Authy) e digite o código de 6 dígitos.'
         });
       }
 
-      // Rate Limit por Usuário no Banco de Dados: máximo de 3 solicitações por hora
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const recentCountRow = db.prepare(`
-        SELECT COUNT(*) as count 
-        FROM password_reset_tokens 
-        WHERE user_id = ? AND created_at >= ?
-      `).get(user.id, oneHourAgo);
+      // Se o usuário ainda não tiver TOTP pareado, gera o QR Code no primeiro acesso
+      if (!user.totp_enabled) {
+        const setup = await generateTotpSetup(user.email, user.nome);
+        db.prepare('UPDATE usuarios SET totp_temp_secret = ? WHERE id = ?').run(setup.secret, user.id);
 
-      const recentCount = recentCountRow ? recentCountRow.count : 0;
-      if (recentCount >= 3) {
-        return res.status(429).json({
-          success: false,
-          error: 'Limite de solicitações de código SMS excedido para este usuário (máximo de 3 solicitações por hora). Aguarde antes de solicitar novamente.'
+        return res.status(200).json({
+          success: true,
+          channel: 'totp',
+          totp_enabled: false,
+          needs_setup: true,
+          qr_code: setup.qrCodeDataUrl,
+          manual_key: setup.manualKey,
+          identificador: cleanIdent,
+          user_name: user.nome,
+          account: user.email,
+          message: 'Como este é seu primeiro acesso, escaneie o QR Code abaixo no seu app autenticador.'
         });
       }
-
-      // Invalida tokens anteriores não utilizados do usuário
-      db.prepare(`
-        UPDATE password_reset_tokens 
-        SET used_at = CURRENT_TIMESTAMP 
-        WHERE user_id = ? AND used_at IS NULL
-      `).run(user.id);
-
-      // Geração de token OTP numérico de 6 dígitos criptograficamente seguro
-      const otpNumber = crypto.randomInt(100000, 1000000); // Gera número entre 100000 e 999999
-      const otp = otpNumber.toString();
-
-      // Hash do token com SHA-256 para persistência segura
-      const tokenHash = crypto.createHash('sha256').update(otp).digest('hex');
-
-      // Validade de 10 minutos
-      const expiresInMinutes = 10;
-      const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
-      const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
-
-      // Salva o registro do token no banco de dados
-      db.prepare(`
-        INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, attempts, ip_address)
-        VALUES (?, ?, ?, 0, ?)
-      `).run(user.id, tokenHash, expiresAt, ipAddress);
-
-      // Dispara o WhatsApp corporativo para o número gravado no perfil do usuário
-      const wppResult = await sendResetOtpWhatsapp({
-        nome: user.nome,
-        telefone: user.telefone,
-        otp: otp,
-        expiresInMinutes: expiresInMinutes
-      });
-
-      // Dispara também via SMS / logger
-      try {
-        await sendResetOtpSms({
-          nome: user.nome,
-          telefone: user.telefone,
-          otp: otp,
-          expiresInMinutes: expiresInMinutes
-        });
-      } catch (e) {
-        // Silencia fallback SMS
-      }
-
-      const maskedPhone = maskPhone(user.telefone);
 
       return res.status(200).json({
         success: true,
-        channel: 'whatsapp',
-        message: `Código de verificação de 6 dígitos enviado com sucesso para o seu WhatsApp (${maskedPhone}).`,
-        masked_phone: maskedPhone,
+        channel: 'totp',
+        totp_enabled: true,
         identificador: cleanIdent,
-        expires_in_minutes: expiresInMinutes
+        user_name: user.nome,
+        message: 'Abra seu aplicativo autenticador e digite o código de 6 dígitos para redefinir sua senha.'
       });
     } catch (error) {
-      console.error('❌ [Auth Controller] Erro ao processar solicitação de redefinição:', error);
+      console.error('❌ [Auth Controller] Erro ao processar solicitação de redefinição TOTP:', error);
       return res.status(500).json({
         success: false,
         error: error.message || 'Erro interno ao processar redefinição de senha.'
@@ -404,43 +469,27 @@ export const authController = {
     }
   },
 
-  // 2. Validação do Token OTP de 6 Dígitos (POST /api/auth/verify-token)
+  // 5. Validação do Código TOTP (6 dígitos) ou Código de Backup (8 chars) (POST /api/auth/verify-token)
   async verifyToken(req, res) {
     try {
-      const { identificador, token, otp } = req.body;
-      const inputOtp = String(token || otp || '').trim();
+      const { identificador, token, otp, code } = req.body;
+      const inputCode = String(token || otp || code || '').trim();
 
-      if (!identificador || !inputOtp) {
+      if (!identificador || !inputCode) {
         return res.status(400).json({
           success: false,
-          error: 'Identificador e o código de verificação de 6 dígitos são obrigatórios.'
+          error: 'Identificador e o código do aplicativo autenticador são obrigatórios.'
         });
       }
 
       const cleanIdent = String(identificador).trim().toLowerCase();
-      const onlyDigits = cleanIdent.replace(/\D/g, '');
 
       // Localiza o usuário
-      let user = db.prepare(`
-        SELECT id, nome, email, matricula, telefone, ativo 
+      const user = db.prepare(`
+        SELECT id, nome, email, matricula, totp_secret, totp_enabled, totp_backup_codes, totp_temp_secret, ativo 
         FROM usuarios 
         WHERE LOWER(email) = ? OR LOWER(matricula) = ?
       `).get(cleanIdent, cleanIdent);
-
-      if (!user && onlyDigits.length >= 8) {
-        const usersWithPhone = db.prepare(`
-          SELECT id, nome, email, matricula, telefone, ativo 
-          FROM usuarios 
-          WHERE telefone IS NOT NULL AND telefone != ''
-        `).all();
-
-        user = usersWithPhone.find(u => {
-          const userDigits = String(u.telefone).replace(/\D/g, '');
-          return userDigits === onlyDigits || 
-                 userDigits.endsWith(onlyDigits) || 
-                 onlyDigits.endsWith(userDigits);
-        });
-      }
 
       if (!user || user.ativo !== 1) {
         return res.status(400).json({
@@ -449,89 +498,64 @@ export const authController = {
         });
       }
 
-      // Busca o último token ativo deste usuário
-      const tokenRecord = db.prepare(`
-        SELECT id, token_hash, expires_at, attempts, used_at, created_at 
-        FROM password_reset_tokens 
-        WHERE user_id = ? AND used_at IS NULL 
-        ORDER BY id DESC LIMIT 1
-      `).get(user.id);
+      let isValid = false;
+      let isBackupCode = false;
+      let remainingBackupCount = 0;
 
-      if (!tokenRecord) {
-        return res.status(400).json({
-          success: false,
-          error: 'Nenhum código de verificação ativo encontrado. Solicite um novo código via SMS.'
-        });
-      }
+      // Caso A: Usuário com TOTP ativo
+      if (user.totp_enabled && user.totp_secret) {
+        const cleanDigits = inputCode.replace(/\D/g, '');
+        
+        // 1. Tenta código TOTP de 6 dígitos
+        if (cleanDigits.length === 6) {
+          isValid = verifyTotpToken(cleanDigits, user.totp_secret);
+        }
 
-      // Verifica se o token já expirou
-      const now = new Date();
-      const expiresAt = new Date(tokenRecord.expires_at);
-      if (now > expiresAt) {
-        db.prepare(`UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`).run(tokenRecord.id);
-        return res.status(410).json({
-          success: false,
-          error: 'Este código de verificação expirou (validade de 10 minutos). Solicite um novo código via SMS.'
-        });
-      }
-
-      // Bloqueio contra força bruta: se já houver 3 ou mais tentativas incorretas
-      if (tokenRecord.attempts >= 3) {
-        db.prepare(`UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`).run(tokenRecord.id);
-        return res.status(429).json({
-          success: false,
-          error: 'Número máximo de 3 tentativas incorretas excedido. Este código foi bloqueado por segurança. Solicite um novo código via SMS.',
-          attempts_remaining: 0
-        });
-      }
-
-      // Compara o hash do OTP recebido com o token_hash armazenado
-      const inputHash = crypto.createHash('sha256').update(inputOtp).digest('hex');
-
-      if (inputHash !== tokenRecord.token_hash) {
-        const newAttempts = tokenRecord.attempts + 1;
-        const attemptsRemaining = Math.max(0, 3 - newAttempts);
-
-        if (newAttempts >= 3) {
-          db.prepare(`
-            UPDATE password_reset_tokens 
-            SET attempts = ?, used_at = CURRENT_TIMESTAMP 
-            WHERE id = ?
-          `).run(newAttempts, tokenRecord.id);
-
-          return res.status(400).json({
-            success: false,
-            error: 'Código de verificação incorreto. Limite de 3 tentativas atingido. O código foi invalidado.',
-            attempts_remaining: 0
-          });
-        } else {
-          db.prepare(`
-            UPDATE password_reset_tokens 
-            SET attempts = ? 
-            WHERE id = ?
-          `).run(newAttempts, tokenRecord.id);
-
-          return res.status(400).json({
-            success: false,
-            error: `Código de verificação incorreto. Você possui mais ${attemptsRemaining} tentativa(s).`,
-            attempts_remaining: attemptsRemaining
-          });
+        // 2. Se falhou e tem códigos de backup cadastrados, tenta validar como código de backup
+        if (!isValid && user.totp_backup_codes) {
+          const backupCheck = verifyAndConsumeBackupCode(inputCode, user.totp_backup_codes);
+          if (backupCheck.valid) {
+            isValid = true;
+            isBackupCode = true;
+            remainingBackupCount = backupCheck.remainingHashes.length;
+            db.prepare('UPDATE usuarios SET totp_backup_codes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+              .run(JSON.stringify(backupCheck.remainingHashes), user.id);
+            console.log(`🔐 [TOTP Backup] Código de backup utilizado para ${user.email}. Restam ${remainingBackupCount}.`);
+          }
+        }
+      } 
+      // Caso B: Primeiro Pareamento Pendente (totp_enabled === 0 com totp_temp_secret)
+      else if (user.totp_temp_secret) {
+        const cleanDigits = inputCode.replace(/\D/g, '');
+        if (cleanDigits.length === 6) {
+          isValid = verifyTotpToken(cleanDigits, user.totp_temp_secret);
+          if (isValid) {
+            const { hashedCodes } = generateBackupCodes(8);
+            db.prepare(`
+              UPDATE usuarios 
+              SET totp_secret = totp_temp_secret, 
+                  totp_enabled = 1, 
+                  totp_backup_codes = ?, 
+                  totp_temp_secret = NULL, 
+                  updated_at = CURRENT_TIMESTAMP 
+              WHERE id = ?
+            `).run(JSON.stringify(hashedCodes), user.id);
+          }
         }
       }
 
-      // Token válido! Marca o OTP como consumido/verificado
-      db.prepare(`
-        UPDATE password_reset_tokens 
-        SET used_at = CURRENT_TIMESTAMP 
-        WHERE id = ?
-      `).run(tokenRecord.id);
+      if (!isValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'Código incorreto ou expirado. Verifique o código de 6 dígitos no seu app autenticador ou utilize um Código de Backup.'
+        });
+      }
 
-      // Gera o ticket temporário de uso único (Reset Ticket JWT válido por 10 minutos)
+      // Emite Reset Ticket JWT seguro com validade de 10 minutos
       const resetTicket = jwt.sign(
         {
           userId: user.id,
           purpose: 'password_reset_ticket',
-          tokenId: tokenRecord.id,
           jti: crypto.randomBytes(16).toString('hex')
         },
         SECURITY_CONFIG.jwtSecret,
@@ -540,21 +564,23 @@ export const authController = {
 
       return res.status(200).json({
         success: true,
-        message: 'Código de verificação validado com sucesso!',
+        message: isBackupCode 
+          ? `Código de backup aceito com sucesso! (Restam ${remainingBackupCount} códigos de emergência).`
+          : 'Autenticação em 2 etapas confirmada com sucesso!',
         reset_ticket: resetTicket,
+        is_backup_code: isBackupCode,
         user: {
           id: user.id,
           nome: user.nome,
           email: user.email,
-          matricula: user.matricula,
-          telefone_mascarado: maskPhone(user.telefone)
+          matricula: user.matricula
         }
       });
     } catch (error) {
-      console.error('❌ [Auth Controller] Erro ao validar token SMS:', error);
+      console.error('❌ [Auth Controller] Erro ao validar token TOTP:', error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno ao validar código de verificação.'
+        error: error.message || 'Erro interno ao validar código de segurança.'
       });
     }
   },

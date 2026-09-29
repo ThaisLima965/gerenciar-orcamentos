@@ -86,6 +86,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
     primeiro_acesso INTEGER NOT NULL DEFAULT 1 CHECK(primeiro_acesso IN (0, 1)),
     ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0, 1)),
     telefone VARCHAR(30),
+    totp_secret VARCHAR(255) DEFAULT NULL,
+    totp_enabled INTEGER NOT NULL DEFAULT 0 CHECK(totp_enabled IN (0, 1)),
+    totp_backup_codes TEXT DEFAULT NULL,
+    totp_temp_secret VARCHAR(255) DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -309,6 +313,10 @@ export async function initDatabase() {
       "ALTER TABLE usuarios ADD COLUMN primeiro_acesso INTEGER DEFAULT 0;",
       "ALTER TABLE usuarios ADD COLUMN grupo VARCHAR(10) DEFAULT 'G11';",
       "ALTER TABLE usuarios ADD COLUMN telefone VARCHAR(30);",
+      "ALTER TABLE usuarios ADD COLUMN totp_secret VARCHAR(255);",
+      "ALTER TABLE usuarios ADD COLUMN totp_enabled INTEGER DEFAULT 0;",
+      "ALTER TABLE usuarios ADD COLUMN totp_backup_codes TEXT;",
+      "ALTER TABLE usuarios ADD COLUMN totp_temp_secret VARCHAR(255);",
       `CREATE TABLE IF NOT EXISTS password_resets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,

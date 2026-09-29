@@ -11,14 +11,19 @@ router.post('/login', loginRateLimiter, authController.login);
 // Rota de redefinição de senha no Primeiro Acesso
 router.post('/primeiro-acesso', authController.primeiroAcesso);
 
-// 1. Rota de solicitação de código SMS de redefinição (máx 3/hora)
+// 1. Rota de solicitação de redefinição de senha TOTP (App Autenticador / Zero Disparos)
 router.post('/forgot-password', forgotPasswordRateLimiter, authController.forgotPassword);
 
-// 2. Rota de validação do código OTP de 6 dígitos recebido por SMS
+// 2. Rota de validação do código TOTP (6 dígitos) ou Código de Backup (8 chars)
 router.post('/verify-token', verifyOtpRateLimiter, authController.verifyToken);
 
 // 3. Rota de execução da redefinição com a nova senha
 router.post('/reset-password', authController.resetPassword);
+
+// 4. Rotas de Configuração e Pareamento do App Autenticador (TOTP RFC 6238)
+router.post('/totp/setup', authenticate, authController.setupTotp);
+router.post('/totp/confirm', authenticate, authController.confirmTotp);
+router.get('/totp/status', authenticate, authController.getTotpStatus);
 
 // Rota legada de validação de link de e-mail
 router.get('/validate-reset-token', authController.validateResetToken);

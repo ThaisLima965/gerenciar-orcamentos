@@ -22,6 +22,7 @@ router.post('/import', uploadSpreadsheet.single('file'), usuarioController.impor
 router.put('/:id', usuarioController.update);
 router.patch('/:id/grupo', usuarioController.updateGrupo);
 router.patch('/:id/reset-password', usuarioController.resetPassword);
+router.patch('/:id/reset-totp', usuarioController.resetTotp);
 router.patch('/:id/toggle-status', usuarioController.toggleStatus);
 router.delete('/:id', usuarioController.delete);
 

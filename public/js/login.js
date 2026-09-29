@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // =========================================================================
-  // CONTROLADOR DO MODAL DE RECUPERAÇÃO DE SENHA VIA SMS (OTP EM 4 ETAPAS)
+  // CONTROLADOR DO MODAL DE RECUPERAÇÃO DE SENHA VIA TOTP / 2FA (RFC 6238)
   // =========================================================================
   const linkForgotPassword = document.getElementById('link-forgot-password');
   const modalRecuperarSenha = document.getElementById('modal-recuperar-senha');
@@ -190,24 +190,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   const forgotInfoAlert = document.getElementById('forgot-info-alert');
   const forgotInfoMsg = document.getElementById('forgot-info-msg');
 
-  // Elementos da Etapa 1 (Solicitação de WhatsApp)
+  // Elementos da Etapa 1 (Identificação)
   const forgotStep1 = document.getElementById('forgot-step-1');
   const forgotStep1Form = document.getElementById('forgot-step1-form');
   const forgotIdentificadorInput = document.getElementById('forgot-identificador');
   const btnSubmitStep1 = document.getElementById('btn-submit-step1');
   const btnCancelForgot = document.getElementById('btn-cancel-forgot');
 
-  // Elementos da Etapa 2 (Validação de Token OTP)
+  // Elementos da Etapa 2-A (Token TOTP 6 Dígitos)
   const forgotStep2 = document.getElementById('forgot-step-2');
   const forgotStep2Form = document.getElementById('forgot-step2-form');
   const forgotOtpInput = document.getElementById('forgot-otp-input');
-  const step2MaskedPhone = document.getElementById('step2-masked-phone');
-  const step2AttemptsText = document.getElementById('step2-attempts-text');
-  const step2TimerText = document.getElementById('step2-timer-text');
-  const step2TimerCount = document.getElementById('step2-timer-count');
-  const btnResendOtp = document.getElementById('btn-resend-otp');
+  const step2UserName = document.getElementById('step2-user-name');
+  const btnToggleBackup = document.getElementById('btn-toggle-backup');
   const btnBackToStep1 = document.getElementById('btn-back-to-step1');
   const btnSubmitStep2 = document.getElementById('btn-submit-step2');
+
+  // Elementos da Etapa 2-B (Setup Inicial de Pareamento QR Code)
+  const forgotStepSetup = document.getElementById('forgot-step-setup');
+  const forgotSetupForm = document.getElementById('forgot-setup-form');
+  const totpSetupQrcodeImg = document.getElementById('totp-setup-qrcode-img');
+  const totpSetupManualKey = document.getElementById('totp-setup-manual-key');
+  const btnCopyManualKey = document.getElementById('btn-copy-manual-key');
+  const totpSetupOtpInput = document.getElementById('totp-setup-otp-input');
+  const btnSetupBackToStep1 = document.getElementById('btn-setup-back-to-step1');
+  const btnSubmitSetup = document.getElementById('btn-submit-setup');
+
+  // Elementos da Etapa 2-C (Código de Backup de Emergência)
+  const forgotStepBackup = document.getElementById('forgot-step-backup');
+  const forgotBackupForm = document.getElementById('forgot-backup-form');
+  const forgotBackupInput = document.getElementById('forgot-backup-input');
+  const btnBackToTotp = document.getElementById('btn-back-to-totp');
+  const btnBackupBackToStep1 = document.getElementById('btn-backup-back-to-step1');
+  const btnSubmitBackup = document.getElementById('btn-submit-backup');
 
   // Elementos da Etapa 3 (Definição de Nova Senha)
   const forgotStep3 = document.getElementById('forgot-step-3');
@@ -218,21 +233,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toggleForgotConfirmarSenha = document.getElementById('toggle-forgot-confirmar-senha');
   const btnSubmitStep3 = document.getElementById('btn-submit-step3');
 
-  // Elementos da Etapa 4 (Sucesso)
+  // Elementos da Etapa 4 (Sucesso e Códigos de Backup)
   const forgotStep4 = document.getElementById('forgot-step-4');
+  const forgotBackupCodesContainer = document.getElementById('forgot-backup-codes-display-container');
+  const forgotBackupCodesGrid = document.getElementById('forgot-backup-codes-grid');
+  const btnCopyAllBackupCodes = document.getElementById('btn-copy-all-backup-codes');
+  const btnDownloadBackupCodes = document.getElementById('btn-download-backup-codes');
   const btnProceedToLogin = document.getElementById('btn-proceed-to-login');
 
   // Configura botões de visualização de senha no formulário de reset
   setupPasswordToggle(toggleForgotNovaSenha, forgotNovaSenha);
   setupPasswordToggle(toggleForgotConfirmarSenha, forgotConfirmarNovaSenha);
 
-  // Estado da sessão de recuperação (100% seguro: token não trafega para o front)
+  // Estado da sessão de recuperação
   let recoveryState = {
     identificador: '',
-    maskedPhone: '',
+    userName: '',
     resetTicket: '',
-    timerInterval: null,
-    timeLeft: 60
+    manualKey: '',
+    backupCodes: []
   };
 
   function hideAlerts() {
@@ -254,59 +273,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function startResendTimer() {
-    if (recoveryState.timerInterval) {
-      clearInterval(recoveryState.timerInterval);
-    }
-    recoveryState.timeLeft = 60;
-    if (step2TimerText) step2TimerText.style.display = 'inline';
-    if (btnResendOtp) btnResendOtp.style.display = 'none';
-    if (step2TimerCount) step2TimerCount.textContent = `${recoveryState.timeLeft}s`;
-
-    recoveryState.timerInterval = setInterval(() => {
-      recoveryState.timeLeft -= 1;
-      if (step2TimerCount) step2TimerCount.textContent = `${recoveryState.timeLeft}s`;
-
-      if (recoveryState.timeLeft <= 0) {
-        clearInterval(recoveryState.timerInterval);
-        recoveryState.timerInterval = null;
-        if (step2TimerText) step2TimerText.style.display = 'none';
-        if (btnResendOtp) btnResendOtp.style.display = 'inline';
-      }
-    }, 1000);
-  }
-
   function goToStep(step) {
     hideAlerts();
     if (forgotStep1) forgotStep1.style.display = step === 1 ? 'block' : 'none';
     if (forgotStep2) forgotStep2.style.display = step === 2 ? 'block' : 'none';
+    if (forgotStepSetup) forgotStepSetup.style.display = step === 'setup' ? 'block' : 'none';
+    if (forgotStepBackup) forgotStepBackup.style.display = step === 'backup' ? 'block' : 'none';
     if (forgotStep3) forgotStep3.style.display = step === 3 ? 'block' : 'none';
     if (forgotStep4) forgotStep4.style.display = step === 4 ? 'block' : 'none';
 
     if (step === 1) {
-      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-whatsapp';
-      if (forgotModalTitle) forgotModalTitle.textContent = 'Recuperação via WhatsApp';
-      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Informe seu e-mail corporativo, matrícula ou celular para receber o código no seu WhatsApp.';
+      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-shield-lock-fill';
+      if (forgotModalTitle) forgotModalTitle.textContent = 'Recuperação com Autenticador';
+      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Informe seu e-mail corporativo ou matrícula para validar sua conta.';
       if (forgotIdentificadorInput) {
         forgotIdentificadorInput.value = identificadorInput.value.trim() || '';
         setTimeout(() => forgotIdentificadorInput.focus(), 150);
       }
     } else if (step === 2) {
-      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-whatsapp';
-      if (forgotModalTitle) forgotModalTitle.textContent = 'Código de Verificação WhatsApp';
-      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Digite o código de 6 dígitos que enviamos para o seu WhatsApp.';
-      if (step2MaskedPhone) step2MaskedPhone.textContent = recoveryState.maskedPhone || 'WhatsApp cadastrado';
-      if (step2AttemptsText) step2AttemptsText.innerHTML = '<i class="bi bi-shield-check"></i> 3 tentativas restantes';
-
+      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-phone-fill';
+      if (forgotModalTitle) forgotModalTitle.textContent = 'Código do Autenticador (2FA)';
+      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Abra seu app autenticador (Google Authenticator, Apple Passwords ou Authy) e digite o código de 6 dígitos.';
+      if (step2UserName) step2UserName.textContent = recoveryState.userName || 'Usuário Identificado';
       if (forgotOtpInput) {
         forgotOtpInput.value = '';
         setTimeout(() => forgotOtpInput.focus(), 150);
       }
-      startResendTimer();
+    } else if (step === 'setup') {
+      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-qr-code-scan';
+      if (forgotModalTitle) forgotModalTitle.textContent = 'Configurar App Autenticador';
+      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Como é seu primeiro acesso, configure a segurança em 2 etapas no seu celular.';
+      if (totpSetupOtpInput) {
+        totpSetupOtpInput.value = '';
+        setTimeout(() => totpSetupOtpInput.focus(), 150);
+      }
+    } else if (step === 'backup') {
+      if (forgotModalIcon) forgotModalIcon.className = 'bi bi-key-fill';
+      if (forgotModalTitle) forgotModalTitle.textContent = 'Código de Backup de Emergência';
+      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Digite um dos seus códigos de emergência de 8 dígitos cadastrados anteriormente.';
+      if (forgotBackupInput) {
+        forgotBackupInput.value = '';
+        setTimeout(() => forgotBackupInput.focus(), 150);
+      }
     } else if (step === 3) {
       if (forgotModalIcon) forgotModalIcon.className = 'bi bi-key-fill';
       if (forgotModalTitle) forgotModalTitle.textContent = 'Cadastrar Nova Senha';
-      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Código WhatsApp validado! Cadastre agora sua nova senha pessoal.';
+      if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Identidade validada com sucesso! Cadastre agora sua nova senha pessoal.';
       if (forgotNovaSenha) forgotNovaSenha.value = '';
       if (forgotConfirmarNovaSenha) forgotConfirmarNovaSenha.value = '';
       setTimeout(() => forgotNovaSenha && forgotNovaSenha.focus(), 150);
@@ -314,6 +326,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (forgotModalIcon) forgotModalIcon.className = 'bi bi-check-circle-fill';
       if (forgotModalTitle) forgotModalTitle.textContent = 'Senha Alterada com Sucesso!';
       if (forgotModalSubtitle) forgotModalSubtitle.textContent = 'Tudo pronto! Sua nova senha foi sincronizada com segurança.';
+
+      // Se gerou códigos de backup no primeiro pareamento, exibe na tela final
+      if (recoveryState.backupCodes && recoveryState.backupCodes.length > 0) {
+        if (forgotBackupCodesGrid) {
+          forgotBackupCodesGrid.innerHTML = recoveryState.backupCodes.map(code => `
+            <div style="padding: 0.35rem 0.5rem; background: #F1F5F9; border-radius: 4px; letter-spacing: 0.1rem;">
+              ${code}
+            </div>
+          `).join('');
+        }
+        if (forgotBackupCodesContainer) {
+          forgotBackupCodesContainer.style.display = 'block';
+        }
+      } else {
+        if (forgotBackupCodesContainer) {
+          forgotBackupCodesContainer.style.display = 'none';
+        }
+      }
     }
   }
 
@@ -327,19 +357,92 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (btnCancelForgot) {
       btnCancelForgot.addEventListener('click', () => {
-        if (recoveryState.timerInterval) clearInterval(recoveryState.timerInterval);
         modalRecuperarSenha.style.display = 'none';
       });
     }
 
     if (btnBackToStep1) {
-      btnBackToStep1.addEventListener('click', () => {
-        if (recoveryState.timerInterval) clearInterval(recoveryState.timerInterval);
-        goToStep(1);
+      btnBackToStep1.addEventListener('click', () => goToStep(1));
+    }
+    if (btnSetupBackToStep1) {
+      btnSetupBackToStep1.addEventListener('click', () => goToStep(1));
+    }
+    if (btnBackupBackToStep1) {
+      btnBackupBackToStep1.addEventListener('click', () => goToStep(1));
+    }
+
+    // Toggle para código de backup
+    if (btnToggleBackup) {
+      btnToggleBackup.addEventListener('click', () => goToStep('backup'));
+    }
+    if (btnBackToTotp) {
+      btnBackToTotp.addEventListener('click', () => goToStep(2));
+    }
+
+    // Copiar Chave Manual Base32
+    if (btnCopyManualKey && totpSetupManualKey) {
+      btnCopyManualKey.addEventListener('click', async () => {
+        const key = recoveryState.manualKey || totpSetupManualKey.textContent;
+        if (!key) return;
+        try {
+          await navigator.clipboard.writeText(key);
+          const originalText = btnCopyManualKey.innerHTML;
+          btnCopyManualKey.innerHTML = '<i class="bi bi-check2"></i> Copiado!';
+          btnCopyManualKey.classList.add('btn-success');
+          setTimeout(() => {
+            btnCopyManualKey.innerHTML = originalText;
+            btnCopyManualKey.classList.remove('btn-success');
+          }, 2000);
+        } catch {
+          showInfo(`Chave copiada: ${key}`);
+        }
       });
     }
 
-    // ETAPA 1: Envio do WhatsApp
+    // Copiar Todos os Códigos de Backup
+    if (btnCopyAllBackupCodes) {
+      btnCopyAllBackupCodes.addEventListener('click', async () => {
+        if (!recoveryState.backupCodes || !recoveryState.backupCodes.length) return;
+        const text = `CÓDIGOS DE BACKUP DE EMERGÊNCIA (TKE ORÇAMENTOS):\n\n` + 
+          recoveryState.backupCodes.join('\n') + 
+          `\n\nGuarde em local seguro. Cada código é de uso único.`;
+        try {
+          await navigator.clipboard.writeText(text);
+          btnCopyAllBackupCodes.innerHTML = '<i class="bi bi-check2"></i> Copiados!';
+          setTimeout(() => {
+            btnCopyAllBackupCodes.innerHTML = '<i class="bi bi-clipboard"></i> Copiar Todos';
+          }, 2000);
+        } catch {
+          alert(text);
+        }
+      });
+    }
+
+    // Baixar Códigos de Backup em arquivo .txt
+    if (btnDownloadBackupCodes) {
+      btnDownloadBackupCodes.addEventListener('click', () => {
+        if (!recoveryState.backupCodes || !recoveryState.backupCodes.length) return;
+        const text = `CÓDIGOS DE BACKUP DE EMERGÊNCIA (TKE ORÇAMENTOS)\n` +
+          `Usuário: ${recoveryState.identificador}\n` +
+          `Data: ${new Date().toLocaleString('pt-BR')}\n\n` +
+          recoveryState.backupCodes.map((c, i) => `${i + 1}. ${c}`).join('\n') +
+          `\n\nATENÇÃO: Guarde em local seguro. Cada código é de uso único caso você perca o acesso ao app autenticador.`;
+        
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `codigos-backup-tke-${recoveryState.identificador.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    // =========================================================================
+    // ETAPA 1: Identificação do Usuário
+    // =========================================================================
     if (forgotStep1Form) {
       forgotStep1Form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -347,30 +450,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const ident = forgotIdentificadorInput.value.trim();
         if (!ident) {
-          showError('Por favor, informe seu e-mail, matrícula ou celular.');
+          showError('Por favor, informe seu e-mail corporativo ou matrícula.');
           return;
         }
 
         btnSubmitStep1.disabled = true;
-        btnSubmitStep1.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Enviando no WhatsApp...</span>';
+        btnSubmitStep1.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Verificando...</span>';
 
         try {
           const res = await auth.forgotPassword(ident);
           recoveryState.identificador = ident;
-          recoveryState.maskedPhone = res.masked_phone || '(11) 9****-****';
-          goToStep(2);
+          recoveryState.userName = res.user_name || '';
+
+          if (res.needs_setup) {
+            // Usuário ainda não tem TOTP configurado -> Exibe QR Code
+            recoveryState.manualKey = res.manual_key || '';
+            if (totpSetupQrcodeImg && res.qr_code) {
+              totpSetupQrcodeImg.src = res.qr_code;
+            }
+            if (totpSetupManualKey && res.manual_key) {
+              totpSetupManualKey.textContent = res.manual_key;
+            }
+            goToStep('setup');
+          } else {
+            // Usuário já possui TOTP ativo -> Pede o código de 6 dígitos
+            goToStep(2);
+          }
         } catch (err) {
-          showError(err.message || 'Falha ao solicitar código via WhatsApp.');
+          showError(err.message || 'Falha ao solicitar verificação.');
         } finally {
           btnSubmitStep1.disabled = false;
-          btnSubmitStep1.innerHTML = '<i class="bi bi-whatsapp" style="margin-right: 0.35rem;"></i> <span>Enviar no WhatsApp</span>';
+          btnSubmitStep1.innerHTML = '<span>Avançar</span>';
         }
       });
     }
 
-    // ETAPA 2: Validação do Código OTP de 6 Dígitos
+    // =========================================================================
+    // ETAPA 2-A: Validação do Código TOTP de 6 Dígitos
+    // =========================================================================
     if (forgotStep2Form) {
-      // Formatação amigável: permite apenas números
       if (forgotOtpInput) {
         forgotOtpInput.addEventListener('input', (e) => {
           e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
@@ -383,7 +501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const otp = forgotOtpInput.value.trim();
         if (!otp || otp.length !== 6) {
-          showError('Por favor, digite o código completo de 6 dígitos.');
+          showError('Por favor, digite o código completo de 6 dígitos do app autenticador.');
           return;
         }
 
@@ -395,52 +513,96 @@ document.addEventListener('DOMContentLoaded', async () => {
           recoveryState.resetTicket = res.reset_ticket;
           goToStep(3);
         } catch (err) {
-          showError(err.message || 'Código de verificação inválido.');
-          if (typeof err.attempts_remaining === 'number') {
-            if (err.attempts_remaining === 0) {
-              step2AttemptsText.innerHTML = '<span style="color: #DC2626; font-weight: 700;"><i class="bi bi-x-circle-fill"></i> Código bloqueado</span>';
-            } else {
-              step2AttemptsText.innerHTML = `<span style="color: #D97706;"><i class="bi bi-exclamation-circle-fill"></i> ${err.attempts_remaining} tentativa(s) restante(s)</span>`;
-            }
-          }
+          showError(err.message || 'Código incorreto ou expirado. Verifique no app autenticador.');
         } finally {
           btnSubmitStep2.disabled = false;
           btnSubmitStep2.innerHTML = '<span>Validar Código</span>';
         }
       });
-
-      // Reenvio de WhatsApp
-      if (btnResendOtp) {
-        btnResendOtp.addEventListener('click', async () => {
-          hideAlerts();
-          btnResendOtp.disabled = true;
-          btnResendOtp.textContent = 'Enviando...';
-
-          try {
-            const res = await auth.forgotPassword(recoveryState.identificador);
-            recoveryState.maskedPhone = res.masked_phone || recoveryState.maskedPhone;
-            recoveryState.waMeUrl = res.wa_me_url || recoveryState.waMeUrl;
-            recoveryState.otp = res.dev_otp || '';
-            if (step2OtpHelperCard && step2OtpHelperCode && recoveryState.otp) {
-              step2OtpHelperCode.textContent = recoveryState.otp;
-              step2OtpHelperCard.style.display = 'block';
-            }
-            showInfo(`Novo código enviado para o WhatsApp ${recoveryState.maskedPhone}.`);
-            if (btnOpenWaDirect && recoveryState.waMeUrl) {
-              btnOpenWaDirect.href = recoveryState.waMeUrl;
-              btnOpenWaDirect.style.display = 'flex';
-            }
-            startResendTimer();
-          } catch (err) {
-            showError(err.message || 'Erro ao reenviar no WhatsApp.');
-            btnResendOtp.disabled = false;
-            btnResendOtp.innerHTML = '<i class="bi bi-whatsapp"></i> Reenviar no WhatsApp';
-          }
-        });
-      }
     }
 
+    // =========================================================================
+    // ETAPA 2-B: Confirmação do Setup Inicial (QR Code)
+    // =========================================================================
+    if (forgotSetupForm) {
+      if (totpSetupOtpInput) {
+        totpSetupOtpInput.addEventListener('input', (e) => {
+          e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+        });
+      }
+
+      forgotSetupForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideAlerts();
+
+        const otp = totpSetupOtpInput.value.trim();
+        if (!otp || otp.length !== 6) {
+          showError('Por favor, digite o código de 6 dígitos gerado pelo app autenticador.');
+          return;
+        }
+
+        btnSubmitSetup.disabled = true;
+        btnSubmitSetup.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Confirmando Pareamento...</span>';
+
+        try {
+          const res = await auth.verifyToken(recoveryState.identificador, otp);
+          recoveryState.resetTicket = res.reset_ticket;
+          if (res.backup_codes) {
+            recoveryState.backupCodes = res.backup_codes;
+          }
+          goToStep(3);
+        } catch (err) {
+          showError(err.message || 'Código de pareamento incorreto. Verifique o código no seu app.');
+        } finally {
+          btnSubmitSetup.disabled = false;
+          btnSubmitSetup.innerHTML = '<span>Confirmar Pareamento</span>';
+        }
+      });
+    }
+
+    // =========================================================================
+    // ETAPA 2-C: Validação via Código de Backup (8 dígitos)
+    // =========================================================================
+    if (forgotBackupForm) {
+      if (forgotBackupInput) {
+        forgotBackupInput.addEventListener('input', (e) => {
+          let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          if (val.length > 4) {
+            val = val.slice(0, 4) + '-' + val.slice(4, 8);
+          }
+          e.target.value = val.slice(0, 9);
+        });
+      }
+
+      forgotBackupForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideAlerts();
+
+        const backupCode = forgotBackupInput.value.trim();
+        if (!backupCode || backupCode.replace(/[^A-Z0-9]/g, '').length < 8) {
+          showError('Por favor, digite o código de backup completo de 8 dígitos (ex: ABCD-1234).');
+          return;
+        }
+
+        btnSubmitBackup.disabled = true;
+        btnSubmitBackup.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Validando Código...</span>';
+
+        try {
+          const res = await auth.verifyToken(recoveryState.identificador, backupCode);
+          recoveryState.resetTicket = res.reset_ticket;
+          goToStep(3);
+        } catch (err) {
+          showError(err.message || 'Código de backup inválido ou já utilizado.');
+        } finally {
+          btnSubmitBackup.disabled = false;
+          btnSubmitBackup.innerHTML = '<span>Validar Código</span>';
+        }
+      });
+    }
+
+    // =========================================================================
     // ETAPA 3: Persistência da Nova Senha
+    // =========================================================================
     if (forgotStep3Form) {
       forgotStep3Form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -491,10 +653,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
+    // =========================================================================
     // ETAPA 4: Conclusão e Redirecionamento para Login
+    // =========================================================================
     if (btnProceedToLogin) {
       btnProceedToLogin.addEventListener('click', () => {
-        if (recoveryState.timerInterval) clearInterval(recoveryState.timerInterval);
         modalRecuperarSenha.style.display = 'none';
         identificadorInput.value = recoveryState.identificador;
         senhaInput.value = '';

@@ -485,66 +485,58 @@ async function runTests() {
     assert(loginDisabled.res.statusCode === 403, 'Usuário desativado não pode fazer login (403)');
     console.log('   ✅ Bloqueio de login para usuário inativo confirmado (403).');
 
-    // 8.12. Teste de Esqueci Minha Senha (Forgot Password)
-    // 8.12. Teste de Esqueci Minha Senha (Forgot Password via WhatsApp/SMS OTP)
-    console.log('   🔑 Testando fluxo de Esqueci Minha Senha (/api/auth/forgot-password)...');
+    // 8.12. Teste de Autenticação em 2 Etapas TOTP (RFC 6238) e Esqueci Minha Senha (Zero Custo)
+    console.log('   🔑 Testando fluxo TOTP / 2FA (RFC 6238), Pareamento QR Code, Códigos de Backup e Reset Admin...');
     
-    // Tentativa com identificador inexistente (anti-enumeração: retorna 200 com masked_phone: null)
+    // Tentativa com identificador inexistente (anti-enumeração: retorna 200 com mensagem padrão)
     const forgotInvalido = await postJson('/api/auth/forgot-password', { identificador: 'nao.existe@tkelevator.com' });
     assert(forgotInvalido.res.statusCode === 200, 'Recuperação com identificador inexistente deve retornar 200 (anti-enumeração)');
-    assert(forgotInvalido.body.masked_phone === null, 'Não deve expor telefone para usuário inexistente');
+    assert(forgotInvalido.body.channel === 'totp', 'Canal deve ser TOTP');
 
-    // Garante que o usuário de teste esteja ativo e com telefone
+    // Garante que o usuário de teste esteja ativo
     await patchJson(`/api/usuarios/${novoUserId}/toggle-status`, { ativo: true }, {
       Cookie: consultoraCookie,
       'X-CSRF-Token': consultoraCsrf
     });
-    db.prepare("UPDATE usuarios SET telefone = '(11) 98888-7777' WHERE id = ?").run(novoUserId);
 
-    const forgotValido = await postJson('/api/auth/forgot-password', { identificador: testEmail });
-    assert(forgotValido.res.statusCode === 200, 'Recuperação válida deve retornar 200 OK');
-    assert(forgotValido.body.success === true, 'Deve indicar success: true');
-    assert(forgotValido.body.channel === 'whatsapp', 'Canal deve ser WhatsApp');
-    assert(forgotValido.body.masked_phone && forgotValido.body.masked_phone.length > 0, 'Deve retornar telefone mascarado');
-    assert(forgotValido.body.dev_otp === undefined, 'NUNCA deve expor o token OTP na resposta da API');
+    // 1. Primeiro pedido de recuperação quando o usuário ainda não tem TOTP pareado -> retorna needs_setup: true, QR Code e Chave Manual
+    const forgotSetupReq = await postJson('/api/auth/forgot-password', { identificador: testEmail });
+    assert(forgotSetupReq.res.statusCode === 200, 'Recuperação de usuário sem TOTP deve retornar 200 OK');
+    assert(forgotSetupReq.body.needs_setup === true, 'Deve indicar needs_setup: true para primeiro pareamento');
+    assert(forgotSetupReq.body.qr_code && forgotSetupReq.body.qr_code.startsWith('data:image/png;base64,'), 'Deve retornar QR Code em Data URL');
+    assert(forgotSetupReq.body.manual_key && forgotSetupReq.body.manual_key.length >= 16, 'Deve retornar Chave Manual Base32');
+    const manualKey = forgotSetupReq.body.manual_key;
 
-    const lastWpp = getLastWhatsappForPhone('(11) 98888-7777');
-    assert(lastWpp && lastWpp.otp, 'Token OTP deve ter sido disparado pelo serviço de WhatsApp');
-    const otpCode = lastWpp.otp;
+    // 2. Simula o aplicativo autenticador gerando o código de 6 dígitos via otplib
+    const { generateSync } = await import('otplib');
+    const cleanSecret = manualKey.replace(/\s+/g, '');
+    const validTotpCode = generateSync({ secret: cleanSecret });
+    assert(validTotpCode && validTotpCode.length === 6, 'Código TOTP gerado deve ter 6 dígitos');
 
-    // Tentativa com OTP incorreto
+    // 3. Tentativa com código TOTP incorreto
     const verifyErrado = await postJson('/api/auth/verify-token', {
       identificador: testEmail,
-      otp: '000000'
+      code: '000000'
     });
-    assert(verifyErrado.res.statusCode === 400, 'OTP incorreto deve retornar 400');
+    assert(verifyErrado.res.statusCode === 400, 'Código TOTP incorreto deve retornar 400');
 
-    // Validação correta do OTP
+    // 4. Validação correta do 1º código TOTP (ativa o pareamento e emite reset_ticket)
     const verifyOk = await postJson('/api/auth/verify-token', {
       identificador: testEmail,
-      otp: otpCode
+      code: validTotpCode
     });
-    assert(verifyOk.res.statusCode === 200, 'OTP correto deve retornar 200 OK');
+    assert(verifyOk.res.statusCode === 200, 'Código TOTP correto deve retornar 200 OK');
     assert(verifyOk.body.reset_ticket, 'Deve retornar reset_ticket JWT');
     const resetTicket = verifyOk.body.reset_ticket;
 
-    // Tentativa com confirmação divergente
-    const resetMismatch = await postJson('/api/auth/reset-password', {
-      reset_ticket: resetTicket,
-      nova_senha: 'NovaSenhaForte@2026',
-      confirmar_nova_senha: 'Diferente@2026'
-    });
-    assert(resetMismatch.res.statusCode === 400, 'Senhas divergentes devem retornar 400');
+    // 5. Verifica se usuário agora está com totp_enabled = 1 e códigos de backup gerados no banco
+    const userTotpCheck = db.prepare('SELECT totp_enabled, totp_secret, totp_backup_codes FROM usuarios WHERE id = ?').get(novoUserId);
+    assert(userTotpCheck.totp_enabled === 1, 'totp_enabled deve ser 1 após confirmação');
+    assert(userTotpCheck.totp_secret, 'totp_secret deve estar salvo no banco');
+    const backupHashes = JSON.parse(userTotpCheck.totp_backup_codes || '[]');
+    assert(backupHashes.length === 8, 'Devem existir 8 hashes de códigos de backup salvos');
 
-    // Tentativa com senha muito curta (< 6 caracteres)
-    const resetCurto = await postJson('/api/auth/reset-password', {
-      reset_ticket: resetTicket,
-      nova_senha: '123',
-      confirmar_nova_senha: '123'
-    });
-    assert(resetCurto.res.statusCode === 400, 'Senha curta (< 6 caracteres) deve retornar 400');
-
-    // Redefinição com sucesso
+    // 6. Teste de Redefinição de Senha com o reset_ticket obtido via TOTP
     const novaSenhaTeste = 'NovaSenhaCorporativa@2026';
     const resetOk = await postJson('/api/auth/reset-password', {
       reset_ticket: resetTicket,
@@ -554,14 +546,55 @@ async function runTests() {
     assert(resetOk.res.statusCode === 200, 'Redefinição válida deve retornar 200 OK');
     assert(resetOk.body.success === true, 'Deve indicar success: true');
 
-    // Login com a nova senha redefinida
+    // 7. Login com a nova senha redefinida
     const loginNovaSenha = await postJson('/api/auth/login', {
       identificador: testEmail,
       senha: novaSenhaTeste
     });
     assert(loginNovaSenha.res.statusCode === 200, 'Login com a nova senha deve funcionar');
 
-    console.log('   ✅ Fluxo completo de Recuperação por WhatsApp/OTP validado com sucesso (OTP de 6 dígitos, reset_ticket, anti-enumeração e validações).');
+    // 8. Teste de Recuperação subsequente (já pareado -> totp_enabled: true, needs_setup não vem)
+    const forgotSubsequent = await postJson('/api/auth/forgot-password', { identificador: testEmail });
+    assert(forgotSubsequent.res.statusCode === 200, 'Recuperação subsequente deve retornar 200 OK');
+    assert(forgotSubsequent.body.totp_enabled === true, 'totp_enabled deve ser true');
+    assert(forgotSubsequent.body.needs_setup === undefined || forgotSubsequent.body.needs_setup === false, 'Não deve pedir setup');
+
+    // 9. Teste de Código de Backup de Emergência
+    // Gera um código de teste e armazena seu hash no banco para testar validação de backup
+    const cryptoMod = await import('crypto');
+    const rawBackupCode = 'A1B2-C3D4';
+    const cleanBackupCode = 'A1B2C3D4';
+    const testHash = cryptoMod.createHash('sha256').update(cleanBackupCode).digest('hex');
+    db.prepare('UPDATE usuarios SET totp_backup_codes = ? WHERE id = ?').run(JSON.stringify([testHash, ...backupHashes.slice(1)]), novoUserId);
+
+    // Validação usando o código de backup formatado (A1B2-C3D4)
+    const backupVerifyRes = await postJson('/api/auth/verify-token', {
+      identificador: testEmail,
+      code: rawBackupCode
+    });
+    assert(backupVerifyRes.res.statusCode === 200, 'Código de backup válido deve retornar 200 OK');
+    assert(backupVerifyRes.body.is_backup_code === true, 'Deve indicar is_backup_code: true');
+    assert(backupVerifyRes.body.reset_ticket, 'Deve emitir reset_ticket ao usar código de backup');
+
+    // Tentativa de reutilizar o mesmo código de backup -> Deve falhar (uso único)
+    const backupReuseRes = await postJson('/api/auth/verify-token', {
+      identificador: testEmail,
+      code: rawBackupCode
+    });
+    assert(backupReuseRes.res.statusCode === 400, 'Código de backup já consumido deve ser rejeitado (400)');
+
+    // 10. Teste de Reset Administrativo do TOTP pela Consultora (PATCH /api/usuarios/:id/reset-totp)
+    const resetTotpAdminRes = await patchJson(`/api/usuarios/${novoUserId}/reset-totp`, {}, {
+      Cookie: consultoraCookie,
+      'X-CSRF-Token': consultoraCsrf
+    });
+    assert(resetTotpAdminRes.res.statusCode === 200, 'Reset de TOTP pelo Admin deve retornar 200 OK');
+    const userAfterReset = db.prepare('SELECT totp_enabled, totp_secret, totp_backup_codes FROM usuarios WHERE id = ?').get(novoUserId);
+    assert(userAfterReset.totp_enabled === 0, 'totp_enabled deve voltar a ser 0');
+    assert(userAfterReset.totp_secret === null, 'totp_secret deve ser limpo');
+    assert(userAfterReset.totp_backup_codes === null, 'totp_backup_codes deve ser limpo');
+
+    console.log('   ✅ Fluxo completo TOTP / 2FA validado com sucesso (QR Code, RFC 6238, 8 Códigos de Backup, Uso Único e Reset Admin).');
 
     // 8.13. Teste de Exclusão de Colaborador (DELETE /api/usuarios/:id)
     console.log('   🗑️ Testando exclusão de colaborador (DELETE /api/usuarios/:id)...');

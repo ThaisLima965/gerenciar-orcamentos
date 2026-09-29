@@ -57,7 +57,7 @@ export const usuarioController = {
       }
 
       const usuarios = db.prepare(`
-        SELECT id, nome, email, matricula, perfil, grupo, primeiro_acesso, ativo, telefone, created_at, updated_at 
+        SELECT id, nome, email, matricula, perfil, grupo, primeiro_acesso, ativo, telefone, totp_enabled, created_at, updated_at 
         FROM usuarios 
         ORDER BY nome ASC
       `).all();
@@ -813,6 +813,55 @@ export const usuarioController = {
       return res.status(500).json({
         success: false,
         error: 'Erro interno ao excluir colaborador.'
+      });
+    }
+  },
+
+  // Desvincular / Resetar Autenticador TOTP (Exclusivo Consultora / Admin)
+  async resetTotp(req, res) {
+    try {
+      if (!PERMISSIONS.canManageCadastros(req.user)) {
+        return res.status(403).json({
+          success: false,
+          error: 'Apenas a Consultora pode desvincular autenticadores de usuários.'
+        });
+      }
+
+      const { id } = req.params;
+      const user = db.prepare('SELECT id, nome, email, matricula, totp_enabled FROM usuarios WHERE id = ?').get(id);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: 'Colaborador não encontrado.'
+        });
+      }
+
+      db.prepare(`
+        UPDATE usuarios 
+        SET totp_secret = NULL, 
+            totp_enabled = 0, 
+            totp_backup_codes = NULL, 
+            totp_temp_secret = NULL, 
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `).run(id);
+
+      console.log(`🔐 [TOTP Reset] Autenticador TOTP de ${user.nome} (ID: ${user.id}) desvinculado pela Consultora ${req.user.nome}.`);
+
+      return res.status(200).json({
+        success: true,
+        message: `Autenticador TOTP de ${user.nome} foi desvinculado com sucesso. O colaborador deverá escanear um novo QR Code no próximo acesso.`,
+        data: {
+          id: user.id,
+          nome: user.nome,
+          totp_enabled: 0
+        }
+      });
+    } catch (error) {
+      console.error('❌ Erro ao desvincular TOTP do usuário:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno ao desvincular autenticador TOTP.'
       });
     }
   }

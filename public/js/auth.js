@@ -78,13 +78,18 @@ export const auth = {
   },
 
   // Redefinição efetiva da senha (com reset_ticket JWT ou token)
-  async resetPassword({ reset_ticket, token, nova_senha, confirmar_nova_senha }) {
-    const res = await api.post('/api/auth/reset-password', {
-      reset_ticket,
-      token,
-      nova_senha,
-      confirmar_nova_senha
-    });
+  async resetPassword(args, maybeNovaSenha, maybeConfirmar) {
+    let payload = {};
+    if (typeof args === 'object' && args !== null) {
+      payload = args;
+    } else {
+      payload = {
+        token: args,
+        nova_senha: maybeNovaSenha,
+        confirmar_nova_senha: maybeConfirmar
+      };
+    }
+    const res = await api.post('/api/auth/reset-password', payload);
     if (res.success) {
       return res;
     }
@@ -98,6 +103,33 @@ export const auth = {
       return res;
     }
     throw new Error(res.error || 'Token de redefinição inválido ou expirado.');
+  },
+
+  // Iniciar pareamento de autenticador TOTP (QR Code + Manual Key)
+  async setupTotp() {
+    const res = await api.post('/api/auth/totp/setup', {});
+    if (res.success) {
+      return res;
+    }
+    throw new Error(res.error || 'Falha ao gerar QR Code de configuração TOTP.');
+  },
+
+  // Confirmar pareamento de autenticador com 1º código de 6 dígitos
+  async confirmTotp(code) {
+    const res = await api.post('/api/auth/totp/confirm', { code });
+    if (res.success) {
+      return res;
+    }
+    throw new Error(res.error || 'Código incorreto ou inválido.');
+  },
+
+  // Obter status de ativação TOTP e códigos de backup restantes
+  async getTotpStatus() {
+    const res = await api.get('/api/auth/totp/status');
+    if (res.success) {
+      return res;
+    }
+    throw new Error(res.error || 'Falha ao consultar status TOTP.');
   },
 
   // Efetua logout seguro

@@ -2474,10 +2474,15 @@ function renderUsuariosTable() {
 
     const isPrimeiroAcesso = Boolean(u.primeiro_acesso);
     const isAtivo = Boolean(u.ativo);
+    const isTotpEnabled = Boolean(u.totp_enabled);
 
     const firstAccessBadge = isPrimeiroAcesso 
       ? '<span class="badge-tag" style="background: rgba(239, 68, 68, 0.1); color: #DC2626; border: 1px solid rgba(239, 68, 68, 0.2); font-weight: 700;"><i class="bi bi-clock-history"></i> Pendente</span>'
       : '<span class="badge-tag badge-pill-yes" style="font-weight: 700;"><i class="bi bi-check-circle-fill"></i> Concluído</span>';
+
+    const totpBadge = isTotpEnabled
+      ? '<span class="badge-tag" style="background: rgba(16, 185, 129, 0.1); color: #059669; border: 1px solid rgba(16, 185, 129, 0.2); font-weight: 700;"><i class="bi bi-shield-lock-fill"></i> Ativo</span>'
+      : '<span class="badge-tag" style="background: rgba(107, 114, 128, 0.1); color: #4B5563; border: 1px solid rgba(107, 114, 128, 0.2); font-weight: 600;"><i class="bi bi-shield"></i> Pendente</span>';
 
     const statusBadge = isAtivo
       ? '<span class="badge-tag badge-pill-yes">Ativo</span>'
@@ -2523,6 +2528,9 @@ function renderUsuariosTable() {
           ${firstAccessBadge}
         </td>
         <td style="text-align: center;">
+          ${totpBadge}
+        </td>
+        <td style="text-align: center;">
           ${statusBadge}
         </td>
         <td style="text-align: center; white-space: nowrap;">
@@ -2547,6 +2555,17 @@ function renderUsuariosTable() {
             >
               <i class="bi bi-key-fill" style="color: var(--tke-purple);"></i>
               <span>Resetar Senha</span>
+            </button>
+            <button 
+              type="button" 
+              class="btn btn-secondary btn-sm btn-reset-user-totp" 
+              data-id="${u.id}" 
+              data-name="${escapeHtml(u.nome)}"
+              title="Desvincular Autenticador 2FA e exigir novo pareamento"
+              style="padding: 0.25rem 0.55rem; font-size: 0.75rem;"
+            >
+              <i class="bi bi-shield-x" style="color: #6366F1;"></i>
+              <span>Resetar 2FA</span>
             </button>
             ${!isCurrentLoggedInUser ? `
               <button 
@@ -2631,6 +2650,32 @@ function renderUsuariosTable() {
           await loadUsuarios();
         } catch (err) {
           showToast(`Erro ao resetar senha: ${err.message}`, 'error');
+        }
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-reset-user-totp').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-id');
+      const name = btn.getAttribute('data-name');
+      const confirmed = await showConfirmDialog({
+        title: 'Desvincular App Autenticador (2FA)',
+        message: `Deseja realmente desvincular o autenticador 2FA de <strong>${name}</strong>?`,
+        details: 'A chave TOTP atual e os códigos de backup anteriores serão excluídos. Na próxima recuperação de senha, o colaborador precisará escanear um novo QR Code.',
+        confirmText: 'Desvincular 2FA',
+        cancelText: 'Cancelar',
+        variant: 'warning',
+        icon: 'bi-shield-x'
+      });
+
+      if (confirmed) {
+        try {
+          const res = await api.patch(`/api/usuarios/${id}/reset-totp`);
+          showToast(res.message || 'Autenticador 2FA desvinculado com sucesso!', 'success');
+          await loadUsuarios();
+        } catch (err) {
+          showToast(`Erro ao desvincular 2FA: ${err.message}`, 'error');
         }
       }
     });

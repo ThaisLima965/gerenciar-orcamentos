@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
     primeiro_acesso INTEGER NOT NULL DEFAULT 1 CHECK(primeiro_acesso IN (0, 1)),
     ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0, 1)),
     telefone VARCHAR(30),
+    totp_secret VARCHAR(255) DEFAULT NULL,
+    totp_enabled INTEGER NOT NULL DEFAULT 0 CHECK(totp_enabled IN (0, 1)),
+    totp_backup_codes TEXT DEFAULT NULL,
+    totp_temp_secret VARCHAR(255) DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
