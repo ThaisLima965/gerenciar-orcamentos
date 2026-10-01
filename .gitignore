@@ -1,0 +1,27 @@
+# Dependências
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Variáveis de ambiente sensíveis
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Bancos de teste temporários
+database/test-database.sqlite
+
+# Builds e caches
+.vercel
+.cache
+dist/
+build/
+
+# Logs e IDEs
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

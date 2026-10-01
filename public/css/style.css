@@ -1,0 +1,1810 @@
+/* =====================================================================
+   TKE DESIGN SYSTEM & ESTILOS - TKE ELEVATORS (REPLICAÇÃO FIEL)
+   Portal Corporativo: Gestão de Orçamentos & Mobilidade Vertical
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Paleta Oficial TKE (TK Elevator) */
+  --tke-orange: #FF5500;
+  --tke-orange-light: #FF772E;
+  --tke-orange-dark: #D94400;
+  --tke-purple: #6200EA;
+  --tke-purple-light: #7928CA;
+  --tke-purple-dark: #4500A0;
+  --tke-magenta: #C50074;
+  --tke-dark-bg: #0C0D14;
+  --tke-dark-surface: #141622;
+  --tke-dark-elevated: #1C1E2E;
+
+  /* Gradientes Assinatura TKE */
+  --tke-gradient-primary: linear-gradient(135deg, #FF5500 0%, #D80064 50%, #6200EA 100%);
+  --tke-gradient-purple: linear-gradient(135deg, #7928CA 0%, #4500A0 100%);
+  --tke-gradient-orange: linear-gradient(135deg, #FF6A00 0%, #FF3D00 100%);
+  
+  /* Cores de Interface (Tema Light / Padrão TKE Elevators) */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8F9FB;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #FFFFFF;
+  --bg-sidebar: #0C0D14;
+  
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-muted: #8E9BAE;
+  --text-inverse: #FFFFFF;
+  
+  --brand-primary: var(--tke-purple);
+  --brand-primary-hover: var(--tke-purple-dark);
+  --brand-gradient: var(--tke-gradient-primary);
+  --brand-accent: var(--tke-orange);
+  
+  /* Status Colors */
+  --status-open-bg: #EFF6FF;
+  --status-open-text: #1D4ED8;
+  --status-open-border: #BFDBFE;
+  
+  --status-progress-bg: #FEFCE8;
+  --status-progress-text: #A16207;
+  --status-progress-border: #FEF08A;
+  
+  --status-geor-wait-bg: #FFF7ED;
+  --status-geor-wait-text: #C2410C;
+  --status-geor-wait-border: #FED7AA;
+  
+  --status-geor-ok-bg: #F0FDF4;
+  --status-geor-ok-text: #15803D;
+  --status-geor-ok-border: #BBF7D0;
+  
+  --status-sent-bg: #FAF5FF;
+  --status-sent-text: #7E22CE;
+  --status-sent-border: #E9D5FF;
+
+  --status-danger-bg: #FEF2F2;
+  --status-danger-text: #B91C1C;
+  --status-danger-border: #FECACA;
+  
+  /* Bordas e Sombras TKE */
+  --border-subtle: #E5E7EB;
+  --border-strong: #D1D5DB;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  
+  /* Raio e Transições */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 9999px;
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* =====================================================================
+   TEMA DARK TKE
+   ===================================================================== */
+[data-theme="dark"] {
+  --bg-primary: #0A0B10;
+  --bg-secondary: #0F1118;
+  --bg-surface: #141622;
+  --bg-surface-elevated: #1C1E2E;
+  --bg-sidebar: #07070B;
+  
+  --text-primary: #F8FAFC;
+  --text-secondary: #9DA8BE;
+  --text-muted: #627088;
+  --text-inverse: #FFFFFF;
+  
+  --brand-primary: #8B3DFF;
+  --brand-primary-hover: #A05EFF;
+  --brand-gradient: linear-gradient(135deg, #FF5500 0%, #D80064 50%, #7928CA 100%);
+  
+  --border-subtle: #1E2235;
+  --border-strong: #2E354F;
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 8px -1px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 10px 20px -3px rgba(0, 0, 0, 0.7);
+  --shadow-xl: 0 20px 30px -5px rgba(0, 0, 0, 0.85);
+
+  --status-open-bg: rgba(30, 58, 138, 0.25);
+  --status-open-text: #93C5FD;
+  --status-open-border: rgba(59, 130, 246, 0.35);
+
+  --status-geor-wait-bg: rgba(124, 45, 18, 0.25);
+  --status-geor-wait-text: #FDBA74;
+  --status-geor-wait-border: rgba(234, 88, 12, 0.35);
+
+  --status-geor-ok-bg: rgba(20, 83, 45, 0.25);
+  --status-geor-ok-text: #86EFAC;
+  --status-geor-ok-border: rgba(34, 197, 94, 0.35);
+
+  --status-sent-bg: rgba(88, 28, 135, 0.25);
+  --status-sent-text: #D8B4FE;
+  --status-sent-border: rgba(168, 85, 247, 0.35);
+
+  --status-danger-bg: rgba(127, 29, 29, 0.25);
+  --status-danger-text: #FCA5A5;
+  --status-danger-border: rgba(239, 68, 68, 0.35);
+}
+
+/* Reset Global */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* =====================================================================
+   HEADER & NAVBAR OFICIAL TKE ELEVATORS
+   ===================================================================== */
+.header-navbar {
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.9rem 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.brand-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  text-decoration: none;
+}
+
+/* Links do Menu TKE Oficial */
+.tke-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  list-style: none;
+}
+
+.tke-nav-links a {
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #111827;
+  transition: color var(--transition-fast);
+}
+
+[data-theme="dark"] .tke-nav-links a {
+  color: #F3F4F6;
+}
+
+.tke-nav-links a:hover {
+  color: var(--tke-purple);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.15rem;
+}
+
+.user-profile-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--tke-purple), var(--tke-magenta));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 8px rgba(98, 0, 234, 0.25);
+  cursor: default;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.user-avatar:hover {
+  transform: scale(1.06);
+  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.35);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.user-role-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: inline-block;
+}
+
+.role-consultora {
+  background: rgba(216, 0, 100, 0.1);
+  color: #D80064;
+  border: 1px solid rgba(216, 0, 100, 0.3);
+}
+
+.role-supervisor {
+  background: rgba(98, 0, 234, 0.1);
+  color: #6200EA;
+  border: 1px solid rgba(98, 0, 234, 0.3);
+}
+
+.role-tecnico {
+  background: rgba(255, 85, 0, 0.1);
+  color: #FF5500;
+  border: 1px solid rgba(255, 85, 0, 0.3);
+}
+
+/* =====================================================================
+   BANNER PANORÂMICO DE ELEVADORES TKE
+   ===================================================================== */
+.tke-panoramic-hero {
+  width: 100%;
+  height: 200px;
+  background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.5) 100%), url('/images/tke_elevadores_banner.jpg');
+  background-size: cover;
+  background-position: center 40%;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 3.5rem;
+  position: relative;
+}
+
+.tke-elevadores-title {
+  color: #FFFFFF;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 3.2rem;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 0 3px 15px rgba(0, 0, 0, 0.6);
+  line-height: 1.1;
+}
+
+@media (max-width: 768px) {
+  .tke-panoramic-hero {
+    height: 140px;
+    padding: 0 1.5rem;
+  }
+  .tke-elevadores-title {
+    font-size: 1.9rem;
+  }
+}
+
+/* =====================================================================
+   BREADCRUMBS & HEADLINE EDITORIAL
+   ===================================================================== */
+.main-container {
+  flex: 1;
+  max-width: 1440px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem 3.5rem 4rem;
+}
+
+@media (max-width: 768px) {
+  .main-container {
+    padding: 1rem 1.25rem 3rem;
+  }
+}
+
+.tke-breadcrumbs {
+  font-size: 0.82rem;
+  color: #6B7280;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.tke-breadcrumbs a {
+  color: #6B7280;
+  text-decoration: none;
+}
+
+.tke-breadcrumbs a:hover {
+  text-decoration: underline;
+}
+
+.tke-breadcrumbs span.active {
+  color: var(--tke-purple);
+  font-weight: 600;
+}
+
+/* Headline Editorial em Destaque */
+.tke-editorial-section {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 2.5rem;
+  flex-wrap: wrap;
+}
+
+.tke-editorial-headline {
+  font-family: 'Space Grotesk', 'Inter', monospace, sans-serif;
+  font-size: 2.75rem;
+  font-weight: 400;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  color: #111827;
+  text-transform: uppercase;
+  max-width: 820px;
+}
+
+[data-theme="dark"] .tke-editorial-headline {
+  color: #F9FAFB;
+}
+
+@media (max-width: 768px) {
+  .tke-editorial-headline {
+    font-size: 1.85rem;
+  }
+}
+
+.tke-editorial-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+/* Botões Estilo TKE Website */
+.btn-tke-cta {
+  background: var(--tke-purple);
+  color: white;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.92rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-pill);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(98, 0, 234, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.btn-tke-cta:hover {
+  background: var(--tke-purple-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(98, 0, 234, 0.45);
+}
+
+.btn-tke-pill-outline {
+  background: var(--bg-surface);
+  color: #111827;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 0.75rem 1.35rem;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--border-strong);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+[data-theme="dark"] .btn-tke-pill-outline {
+  color: #F9FAFB;
+}
+
+.btn-tke-pill-outline:hover {
+  border-color: var(--tke-purple);
+  color: var(--tke-purple);
+  transform: translateY(-1px);
+}
+
+/* Floating Accessibility Badge (Ícone Roxo no Canto) */
+.tke-floating-accessibility {
+  position: fixed;
+  bottom: 1.75rem;
+  left: 1.75rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--tke-purple);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 15px rgba(98, 0, 234, 0.4);
+  cursor: pointer;
+  z-index: 40;
+  transition: transform var(--transition-fast);
+}
+
+.tke-floating-accessibility:hover {
+  transform: scale(1.1);
+}
+
+/* =====================================================================
+   KPI STATS CARDS TKE
+   ===================================================================== */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.kpi-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.35rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.kpi-total::before { background: var(--tke-purple); }
+.kpi-geor-wait::before { background: var(--tke-orange); }
+.kpi-geor-ok::before { background: #10B981; }
+.kpi-sent::before { background: #7928CA; }
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+
+.kpi-content h4 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 700;
+  margin-bottom: 0.45rem;
+}
+
+.kpi-value {
+  font-size: 2rem;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.kpi-card .kpi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+}
+
+.kpi-total .kpi-icon { background: rgba(98, 0, 234, 0.08); color: var(--tke-purple); }
+.kpi-geor-wait .kpi-icon { background: rgba(255, 85, 0, 0.08); color: var(--tke-orange); }
+.kpi-geor-ok .kpi-icon { background: rgba(16, 185, 129, 0.08); color: #10B981; }
+.kpi-sent .kpi-icon { background: rgba(121, 40, 202, 0.08); color: #7928CA; }
+
+/* =====================================================================
+   PAINEL DE FILTROS & BUSCA
+   ===================================================================== */
+.filter-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+@media (max-width: 992px) {
+  .filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.form-group label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.65rem 0.95rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.form-control:focus {
+  border-color: var(--tke-purple);
+  box-shadow: 0 0 0 3px rgba(98, 0, 234, 0.15);
+}
+
+.form-control:disabled, .form-control[readonly] {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  border-color: var(--border-subtle);
+}
+
+/* =====================================================================
+   TABELA CORPORATIVA DE ORÇAMENTOS
+   ===================================================================== */
+.table-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.corporate-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.86rem;
+}
+
+.corporate-table th {
+  background: var(--bg-secondary);
+  color: #374151;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  padding: 0.95rem 1.15rem;
+  border-bottom: 1.5px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .corporate-table th {
+  color: #D1D5DB;
+}
+
+.corporate-table td {
+  padding: 0.95rem 1.15rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.corporate-table tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+.corporate-table tbody tr:hover {
+  background-color: rgba(98, 0, 234, 0.025);
+}
+
+[data-theme="dark"] .corporate-table tbody tr:hover {
+  background-color: rgba(98, 0, 234, 0.08);
+}
+
+.badge-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge-pill-yes {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-pill-no {
+  background: rgba(255, 85, 0, 0.1);
+  color: var(--tke-orange);
+  border: 1px solid rgba(255, 85, 0, 0.3);
+}
+
+.badge-type-preventivo {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-type-corretivo {
+  background: rgba(255, 85, 0, 0.1);
+  color: var(--tke-orange);
+  border: 1px solid rgba(255, 85, 0, 0.3);
+}
+
+/* =====================================================================
+   BOTÕES & AÇÕES GERAIS
+   ===================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-family: inherit;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--tke-purple);
+  color: white;
+  border: none;
+  box-shadow: 0 2px 6px rgba(98, 0, 234, 0.25);
+}
+
+.btn-primary:hover {
+  background: var(--tke-purple-dark);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-secondary);
+  border-color: var(--tke-purple);
+  color: var(--tke-purple);
+}
+
+.btn-sm {
+  padding: 0.36rem 0.72rem;
+  font-size: 0.78rem;
+  border-radius: var(--radius-sm);
+}
+
+.btn-icon-only {
+  padding: 0.45rem;
+  border-radius: var(--radius-sm);
+}
+
+/* =====================================================================
+   MODAIS CORPORATIVOS
+   ===================================================================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 13, 20, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 100;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-normal);
+}
+
+.modal-backdrop.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-dialog {
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-xl);
+  transform: scale(0.95);
+  transition: transform var(--transition-normal);
+}
+
+.modal-backdrop.active .modal-dialog {
+  transform: scale(1);
+}
+
+.modal-header {
+  padding: 1.25rem 1.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.35rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.modal-body {
+  padding: 1.75rem;
+}
+
+.modal-footer {
+  padding: 1.1rem 1.75rem;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  background: var(--bg-secondary);
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .form-grid-2,
+  .form-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rbac-notice-banner {
+  background: rgba(98, 0, 234, 0.05);
+  border: 1px dashed var(--tke-purple);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+/* =====================================================================
+   SEÇÕES DO FORMULÁRIO UNIFICADO (TÉCNICO, SUPERVISÃO, CONSULTORIA)
+   ===================================================================== */
+.form-section-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.2rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all var(--transition-fast);
+}
+
+.form-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.form-section-title i {
+  font-size: 1.1rem;
+}
+
+.section-locked {
+  background: rgba(15, 14, 23, 0.3) !important;
+  border-style: dashed !important;
+  border-color: var(--border-strong) !important;
+}
+
+[data-theme="dark"] .section-locked {
+  background: rgba(0, 0, 0, 0.25) !important;
+}
+
+.auto-filled-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+/* =====================================================================
+   TELA DE LOGIN tkEMobile
+   ===================================================================== */
+.login-tkemobile-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #0E1017;
+  background-image: linear-gradient(180deg, rgba(14, 16, 23, 0.45) 0%, rgba(14, 16, 23, 0.75) 100%), url('/images/tke_bg.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+.login-tkemobile-topbar {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  text-align: center;
+  padding: 0.65rem 1.5rem;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.01em;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+[data-theme="dark"] .login-tkemobile-topbar {
+  background: rgba(18, 20, 30, 0.95);
+  color: #F8FAFC;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.login-tkemobile-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  z-index: 5;
+}
+
+.login-glass-card {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 20px;
+  padding: 2.5rem 2.25rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.3);
+  text-align: center;
+}
+
+[data-theme="dark"] .login-glass-card {
+  background: rgba(18, 20, 30, 0.85);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.login-tke-brand-icon {
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-tke-subtitle {
+  font-size: 0.88rem;
+  color: #374151;
+  line-height: 1.45;
+  margin-bottom: 1.75rem;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .login-tke-subtitle {
+  color: #9CA3AF;
+}
+
+.login-input-group {
+  margin-bottom: 1.15rem;
+  text-align: left;
+}
+
+.login-input-group .form-control {
+  background: #FFFFFF;
+  border: 1.5px solid #D1D5DB;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.92rem;
+  color: #111827;
+}
+
+[data-theme="dark"] .login-input-group .form-control {
+  background: rgba(30, 34, 48, 0.9);
+  border-color: #374151;
+  color: #F9FAFB;
+}
+
+.login-input-group .form-control:focus {
+  border-color: #6200EA;
+  box-shadow: 0 0 0 3px rgba(98, 0, 234, 0.2);
+}
+
+.login-forgot-link {
+  display: inline-block;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0066CC;
+  text-decoration: underline;
+  margin: 0.5rem 0 1.35rem;
+  cursor: pointer;
+}
+
+.btn-tkemobile-purple {
+  background: #6200EA;
+  color: #FFFFFF;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  border: none;
+  border-radius: 8px;
+  padding: 0.85rem 1.5rem;
+  width: 100%;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(98, 0, 234, 0.4);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-tkemobile-purple:hover {
+  background: #5000C7;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(98, 0, 234, 0.55);
+}
+
+.login-tkemobile-footer {
+  background: #111216;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.9rem 1.5rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #9CA3AF;
+  z-index: 10;
+}
+
+.login-tkemobile-footer strong {
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+/* =====================================================================
+   TOASTS NOTIFICAÇÕES TKE
+   ===================================================================== */
+#toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  z-index: 200;
+}
+
+.toast {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid #6200EA;
+  padding: 0.9rem 1.35rem;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.86rem;
+  min-width: 290px;
+  max-width: 420px;
+  animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-success { border-left-color: #10B981; }
+.toast-error { border-left-color: #EF4444; }
+.toast-info { border-left-color: #6200EA; }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* =====================================================================
+   MÓDULO DE IMPORTAÇÃO & UPLOAD DE PLANILHAS (TKE CORPORATE)
+   ===================================================================== */
+.import-dropzone {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 2.2rem 1.5rem;
+  text-align: center;
+  background: var(--bg-secondary);
+  transition: all var(--transition-normal);
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.import-dropzone:hover,
+.import-dropzone.dragover {
+  border-color: var(--tke-purple);
+  background: rgba(98, 0, 234, 0.05);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.12);
+}
+
+.import-dropzone-icon {
+  font-size: 2.5rem;
+  color: var(--tke-purple);
+  margin-bottom: 0.2rem;
+  transition: transform var(--transition-fast);
+}
+
+.import-dropzone:hover .import-dropzone-icon {
+  transform: scale(1.1);
+}
+
+.import-dropzone-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.import-dropzone-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.import-file-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--tke-purple);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  gap: 0.8rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.import-file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  overflow: hidden;
+}
+
+.import-file-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.import-file-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Barra de Progresso Visual */
+.import-progress-wrapper {
+  margin: 1rem 0 1.25rem;
+}
+
+.import-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.import-progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.import-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #6200EA 0%, #D80064 50%, #FF5500 100%);
+  border-radius: var(--radius-pill);
+  transition: width 0.35s ease;
+}
+
+/* Grid de Estatísticas de Importação */
+.import-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.import-stat-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  text-align: center;
+}
+
+.import-stat-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.import-stat-num {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.import-stat-num.stat-inserted { color: #10B981; }
+.import-stat-num.stat-updated { color: #3B82F6; }
+.import-stat-num.stat-errors { color: #EF4444; }
+
+.import-errors-box {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 0.78rem;
+  color: #991B1B;
+  margin-bottom: 1.25rem;
+}
+
+[data-theme="dark"] .import-errors-box {
+  background: rgba(127, 29, 29, 0.25);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #FCA5A5;
+}
+
+.template-download-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+/* =====================================================================
+   MÓDULO DE DASHBOARD & APURAÇÃO PARA PREMIAÇÃO (UI/UX TKE)
+   ===================================================================== */
+/* Abas de Navegação Principal do Sistema */
+.main-nav-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.75rem;
+  border-bottom: 2px solid var(--border-subtle);
+  padding-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.main-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-pill);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.main-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.main-tab-btn.active {
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #6200EA 0%, #D80064 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(98, 0, 234, 0.3);
+}
+
+/* Barra de Filtros Temporais do Ciclo */
+.prem-controls-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.prem-controls-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.prem-controls-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.prem-controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.periodo-active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  background: rgba(98, 0, 234, 0.08);
+  border: 1px solid rgba(98, 0, 234, 0.25);
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--tke-purple);
+}
+
+[data-theme="dark"] .periodo-active-badge {
+  background: rgba(98, 0, 234, 0.2);
+  border-color: rgba(98, 0, 234, 0.4);
+  color: #B388FF;
+}
+
+/* Botão de Exportar para Excel (.xlsx) */
+.btn-export-excel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.2rem;
+  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  white-space: nowrap;
+}
+
+.btn-export-excel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+  color: #FFFFFF;
+}
+
+/* Layout Vertical em Lista Única (Rankings Preventivo & Corretivo) */
+.ranking-split-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.ranking-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ranking-card-header {
+  padding: 1.15rem 1.35rem;
+  border-bottom: 1.5px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ranking-card-preventivo .ranking-card-header {
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.08) 0%, transparent 100%);
+  border-top: 3px solid #10B981;
+}
+
+.ranking-card-corretivo .ranking-card-header {
+  background: linear-gradient(90deg, rgba(255, 85, 0, 0.08) 0%, transparent 100%);
+  border-top: 3px solid var(--tke-orange);
+}
+
+.ranking-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.ranking-card-preventivo .ranking-card-title { color: #059669; }
+[data-theme="dark"] .ranking-card-preventivo .ranking-card-title { color: #34D399; }
+
+.ranking-card-corretivo .ranking-card-title { color: #EA580C; }
+[data-theme="dark"] .ranking-card-corretivo .ranking-card-title { color: #FB923C; }
+
+/* Badges de Pódio (1º, 2º, 3º e demais) */
+.podium-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.podium-1 {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFFFFF;
+  border: 2px solid #FCD34D;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
+}
+
+.podium-2 {
+  background: linear-gradient(135deg, #94A3B8 0%, #64748B 100%);
+  color: #FFFFFF;
+  border: 2px solid #CBD5E1;
+}
+
+.podium-3 {
+  background: linear-gradient(135deg, #B45309 0%, #78350F 100%);
+  color: #FFFFFF;
+  border: 2px solid #FDBA74;
+}
+
+.podium-rest {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+  width: 28px;
+  height: 28px;
+}
+
+/* Linhas de Técnicos */
+.tecnico-row-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(98, 0, 234, 0.1);
+  color: var(--tke-purple);
+  font-size: 0.75rem;
+  font-weight: 800;
+  margin-right: 0.5rem;
+}
+
+.row-zero-vendas {
+  opacity: 0.65;
+}
+
+.row-zero-vendas:hover {
+  opacity: 1;
+}
+
+/* Destaque Condicional: Meta Atingida (>= 7 PGOs) */
+.row-meta-atingida {
+  background-color: rgba(16, 185, 129, 0.05);
+}
+
+[data-theme="dark"] .row-meta-atingida {
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.badge-meta-atingida {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-weight: 800;
+}
+
+[data-theme="dark"] .badge-meta-atingida {
+  background: rgba(16, 185, 129, 0.22);
+  color: #34D399;
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.badge-abaixo-meta {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  font-weight: 600;
+}
+
+.badge-grupo {
+  background: rgba(98, 0, 234, 0.08);
+  color: var(--tke-purple);
+  border: 1px solid rgba(98, 0, 234, 0.25);
+  font-weight: 800;
+  font-family: monospace;
+}
+
+[data-theme="dark"] .badge-grupo {
+  background: rgba(98, 0, 234, 0.2);
+  color: #B388FF;
+  border-color: rgba(98, 0, 234, 0.4);
+}
+
+.ranking-table-footer {
+  background: var(--bg-secondary);
+  font-weight: 800;
+  border-top: 2px solid var(--border-subtle);
+}
+
+.ranking-table-footer td {
+  padding: 0.85rem 1.15rem;
+  font-size: 0.85rem;
+}
+
+/* =====================================================================
+   RESPONSIVIDADE & ADAPTAÇÃO PARA DISPOSITIVOS MÓVEIS / TABLETS
+   ===================================================================== */
+@media (max-width: 992px) {
+  .header-navbar {
+    padding: 0.75rem 1.25rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .brand-wrapper {
+    gap: 1rem;
+  }
+
+  .tke-nav-links {
+    gap: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .main-content {
+    padding: 1.25rem;
+  }
+
+  .filter-bar-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-inputs-group {
+    flex-wrap: wrap;
+  }
+
+  .kpi-metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  .premiacao-header-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .premiacao-filters-row {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .premiacao-filter-group {
+    flex: 1 1 200px;
+  }
+
+  .btn-export-excel {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-navbar {
+    padding: 0.6rem 1rem;
+  }
+
+  .user-profile-badge {
+    padding: 0.25rem 0.5rem;
+  }
+
+  .user-name {
+    display: none;
+  }
+
+  .tab-nav-container {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.5rem;
+  }
+
+  .tab-button {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.82rem;
+  }
+
+  .table-responsive-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-dialog-unified {
+    margin: 0.5rem;
+    max-width: 100%;
+  }
+
+  .modal-unified-body {
+    padding: 1rem;
+  }
+
+  .form-section-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .toast-container {
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+  }
+}
+
+/* =====================================================================
+   SEGURANÇA & PROTEÇÃO ANTI-PRINT / ANTI-EXPORT PARA PERFIL TÉCNICO
+   ===================================================================== */
+body.role-tecnico-active .btn-export-excel,
+body.role-tecnico-active #btn-export-csv,
+body.role-tecnico-active #btn-open-cadastros,
+body.role-tecnico-active .btn-export-trigger {
+  display: none !important;
+}
+
+@media print {
+  body.role-tecnico-active * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  
+  body.role-tecnico-active {
+    background: #FFFFFF !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  body.role-tecnico-active::before {
+    content: "⚠️ AVISO DE SEGURANÇA DA INFORMAÇÃO TKE:\A Impressão, cópia e exportação de dados não são permitidas para o perfil Técnico.";
+    white-space: pre-wrap !important;
+    display: block !important;
+    visibility: visible !important;
+    font-family: 'Inter', -apple-system, sans-serif !important;
+    font-size: 22px !important;
+    font-weight: 800 !important;
+    color: #B91C1C !important;
+    text-align: center !important;
+    padding: 120px 40px !important;
+    line-height: 1.6 !important;
+    border: 3px dashed #B91C1C !important;
+    margin: 40px auto !important;
+    max-width: 600px !important;
+  }
+}
+
+/* =====================================================================
+   BARRAS DE ROLAGEM HORIZONTAL & VERTICAL CORPORATIVAS (SCROLLBARS)
+   ===================================================================== */
+.table-responsive-wrapper,
+.table-responsive,
+.table-container {
+  width: 100%;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 0.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tke-purple) rgba(0, 0, 0, 0.06);
+}
+
+.table-responsive-wrapper::-webkit-scrollbar,
+.table-responsive::-webkit-scrollbar,
+.table-container::-webkit-scrollbar {
+  height: 9px;
+  width: 9px;
+}
+
+.table-responsive-wrapper::-webkit-scrollbar-track,
+.table-responsive::-webkit-scrollbar-track,
+.table-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 999px;
+  margin: 0 4px;
+}
+
+[data-theme="dark"] .table-responsive-wrapper::-webkit-scrollbar-track,
+[data-theme="dark"] .table-responsive::-webkit-scrollbar-track,
+[data-theme="dark"] .table-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.table-responsive-wrapper::-webkit-scrollbar-thumb,
+.table-responsive::-webkit-scrollbar-thumb,
+.table-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, var(--tke-purple) 0%, var(--tke-magenta) 100%);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.table-responsive-wrapper::-webkit-scrollbar-thumb:hover,
+.table-responsive::-webkit-scrollbar-thumb:hover,
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: var(--tke-purple);
+}
+
+.corporate-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
