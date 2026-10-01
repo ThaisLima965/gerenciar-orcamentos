@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Redefinir Senha | Gerenciamento Corporativo</title>
+  <meta name="description" content="Redefinição segura de senha de acesso corporativo.">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body class="login-tkemobile-page">
+
+  <main class="login-tkemobile-main">
+    <div class="login-glass-card" style="max-width: 460px;">
+      
+      <!-- ÍCONE DO SISTEMA -->
+      <div style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, #7C3AED, #6200EA 50%, #D80064); color: #ffffff; margin: 0 auto 1.15rem auto; box-shadow: 0 8px 24px rgba(98, 0, 234, 0.35); font-size: 1.8rem;">
+        <i class="bi bi-shield-lock-fill"></i>
+      </div>
+
+      <h1 class="login-tkemobile-title" style="font-size: 1.45rem; margin-bottom: 0.35rem;">
+        Redefinição de Senha
+      </h1>
+      <p class="login-tkemobile-subtitle" id="page-subtitle" style="font-size: 0.85rem; margin-bottom: 1.25rem;">
+        Validação segura de token corporativo
+      </p>
+
+      <!-- SPINNER DE CARREGAMENTO INICIAL -->
+      <div id="loading-state" style="padding: 2.5rem 1rem; text-align: center;">
+        <div style="display: inline-block; width: 36px; height: 36px; border: 3px solid rgba(98,0,234,0.2); border-top-color: #6200EA; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+        <div style="margin-top: 1rem; color: #4B5563; font-size: 0.88rem; font-weight: 500;">Validando link de segurança...</div>
+      </div>
+
+      <!-- ALERTA DE TOKEN INVÁLIDO OU EXPIRADO -->
+      <div id="invalid-token-state" style="display: none; text-align: center; padding: 1rem 0.5rem;">
+        <div style="width: 52px; height: 52px; border-radius: 50%; background: #FEE2E2; color: #DC2626; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto; font-size: 1.5rem;">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <h3 style="font-size: 1.1rem; color: #991B1B; font-weight: 700; margin-bottom: 0.5rem;">Link Expirado ou Inválido</h3>
+        <p id="invalid-token-msg" style="font-size: 0.84rem; color: #4B5563; line-height: 1.45; margin-bottom: 1.5rem;">
+          O link de redefinição utilizado não é mais válido, já foi utilizado ou expirou o prazo limite de 15 minutos.
+        </p>
+        <a href="/login.html" class="btn-tkemobile-purple" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.85rem;">
+          <i class="bi bi-arrow-left"></i>
+          <span>Solicitar Novo Link de Acesso</span>
+        </a>
+      </div>
+
+      <!-- SUCESSO DE SENHA ALTERADA -->
+      <div id="success-state" style="display: none; text-align: center; padding: 1rem 0.5rem;">
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: #ECFDF5; color: #10B981; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto; font-size: 1.7rem;">
+          <i class="bi bi-check-circle-fill"></i>
+        </div>
+        <h3 style="font-size: 1.15rem; color: #065F46; font-weight: 700; margin-bottom: 0.5rem;">Senha Alterada com Sucesso!</h3>
+        <p style="font-size: 0.85rem; color: #374151; line-height: 1.45; margin-bottom: 1.5rem;">
+          Sua nova senha corporativa foi salva com sucesso. Você já pode fazer login na plataforma.
+        </p>
+        <a href="/login.html" class="btn-tkemobile-purple" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.85rem;">
+          <i class="bi bi-box-arrow-in-right"></i>
+          <span>Ir para a Tela de Login</span>
+        </a>
+      </div>
+
+      <!-- FORMULÁRIO DE NOVA SENHA -->
+      <form id="reset-password-form" style="display: none;">
+        
+        <!-- CARD DE IDENTIFICAÇÃO DO USUÁRIO -->
+        <div style="background: rgba(98, 0, 234, 0.05); border: 1px solid rgba(98, 0, 234, 0.15); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; text-align: left; display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 38px; height: 38px; border-radius: 50%; background: #6200EA; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.95rem;">
+            <span id="user-initial">U</span>
+          </div>
+          <div>
+            <div id="user-name" style="font-weight: 700; color: #111827; font-size: 0.9rem;">Carregando...</div>
+            <div id="user-email" style="font-size: 0.78rem; color: #6B7280;">email@empresa.com</div>
+          </div>
+        </div>
+
+        <div id="error-alert" style="display: none; background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1.15rem; text-align: left;">
+          <i class="bi bi-exclamation-octagon-fill" style="margin-right: 0.35rem;"></i>
+          <span id="error-msg"></span>
+        </div>
+
+        <!-- CAMPO: NOVA SENHA -->
+        <div class="login-input-group" style="margin-bottom: 0.75rem; text-align: left;">
+          <label style="display: block; font-size: 0.78rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">
+            Nova Senha Corporativa
+          </label>
+          <div style="position: relative;">
+            <input 
+              type="password" 
+              id="nova-senha" 
+              class="form-control" 
+              placeholder="Digite sua nova senha" 
+              required 
+              autocomplete="new-password"
+              style="padding-right: 2.75rem;"
+            >
+            <button type="button" id="btn-toggle-senha" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6B7280; cursor: pointer; padding: 4px; font-size: 1.05rem;">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- CAMPO: CONFIRMAR NOVA SENHA -->
+        <div class="login-input-group" style="margin-bottom: 1rem; text-align: left;">
+          <label style="display: block; font-size: 0.78rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">
+            Confirmar Nova Senha
+          </label>
+          <div style="position: relative;">
+            <input 
+              type="password" 
+              id="confirmar-nova-senha" 
+              class="form-control" 
+              placeholder="Repita sua nova senha" 
+              required 
+              autocomplete="new-password"
+              style="padding-right: 2.75rem;"
+            >
+            <button type="button" id="btn-toggle-confirmar" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6B7280; cursor: pointer; padding: 4px; font-size: 1.05rem;">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- REGRAS DE SEGURANÇA (NIST SP 800-63B) -->
+        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.85rem; margin-bottom: 1.25rem; text-align: left; font-size: 0.76rem; color: #4B5563;">
+          <div style="font-weight: 700; color: #111827; margin-bottom: 0.4rem; font-size: 0.78rem;">
+            <i class="bi bi-shield-lock-fill" style="color: #6200EA;"></i> Requisitos de Segurança (NIST SP 800-63B):
+          </div>
+          <div id="rule-length" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; color: #9CA3AF;">
+            <i class="bi bi-circle"></i> Mínimo de 9 caracteres (ideal 12+)
+          </div>
+          <div id="rule-context" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; color: #9CA3AF;">
+            <i class="bi bi-circle"></i> Não conter dados pessoais (nome, e-mail ou matrícula)
+          </div>
+          <div id="rule-patterns" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; color: #9CA3AF;">
+            <i class="bi bi-circle"></i> Sem repetições ou sequências óbvias (ex: 1234, qwerty)
+          </div>
+          <div id="rule-common" style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; color: #9CA3AF;">
+            <i class="bi bi-circle"></i> Sem palavras comuns ou termos de dicionário
+          </div>
+          <div id="rule-match" style="display: flex; align-items: center; gap: 0.35rem; color: #9CA3AF;">
+            <i class="bi bi-circle"></i> As duas senhas coincidem exatamente
+          </div>
+        </div>
+
+        <button type="submit" id="btn-submit-reset" class="btn-tkemobile-purple" style="width: 100%;">
+          <i class="bi bi-shield-check" style="margin-right: 0.35rem;"></i>
+          <span>Salvar Nova Senha</span>
+        </button>
+
+        <div style="margin-top: 1rem; text-align: center;">
+          <a href="/login.html" style="font-size: 0.82rem; color: #6B7280; text-decoration: none; font-weight: 500;">
+            <i class="bi bi-arrow-left"></i> Cancelar e voltar ao login
+          </a>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer class="login-tkemobile-footer">
+    Copyright 2026 © <strong>Gerenciamento Corporativo de Orçamentos</strong> - Todos os direitos reservados
+  </footer>
+
+  <script type="module" src="/js/redefinir-senha.js"></script>
+</body>
+</html>

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conectar WhatsApp Corporativo - TKE Orçamentos</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  
+  <style>
+    :root {
+      --bg-dark: #0B0F19;
+      --card-bg: #111827;
+      --primary: #6200EA;
+      --whatsapp-green: #25D366;
+      --whatsapp-dark: #128C7E;
+      --text-main: #F9FAFB;
+      --text-muted: #9CA3AF;
+      --border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 10%, #1E1B4B 0%, var(--bg-dark) 70%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .container {
+      max-width: 540px;
+      width: 100%;
+      background: rgba(17, 24, 39, 0.85);
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(16px);
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(37, 211, 102, 0.12);
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .header-icon {
+      width: 68px;
+      height: 68px;
+      background: rgba(37, 211, 102, 0.12);
+      border: 1px solid rgba(37, 211, 102, 0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.25rem auto;
+      color: var(--whatsapp-green);
+      font-size: 2.2rem;
+      box-shadow: 0 0 25px rgba(37, 211, 102, 0.2);
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 1.6rem;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02rem;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      margin-bottom: 1.75rem;
+    }
+
+    .qr-container {
+      background: #FFFFFF;
+      padding: 1.25rem;
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      position: relative;
+      min-width: 260px;
+      min-height: 260px;
+    }
+
+    .qr-container img {
+      width: 230px;
+      height: 230px;
+      display: block;
+      border-radius: 8px;
+    }
+
+    .qr-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      color: #374151;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+    }
+
+    .status-badge.waiting {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #FBBF24;
+    }
+
+    .status-badge.connected {
+      background: rgba(34, 197, 94, 0.15);
+      border-color: rgba(34, 197, 94, 0.35);
+      color: #4ADE80;
+    }
+
+    .instructions {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      text-align: left;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: #D1D5DB;
+      margin-bottom: 1.5rem;
+    }
+
+    .instructions ol {
+      padding-left: 1.25rem;
+    }
+
+    .instructions li {
+      margin-bottom: 0.35rem;
+    }
+
+    .instructions strong {
+      color: #FFFFFF;
+    }
+
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      background: linear-gradient(135deg, var(--whatsapp-green), var(--whatsapp-dark));
+      color: #FFFFFF;
+      font-weight: 700;
+      font-size: 0.92rem;
+      padding: 0.85rem 1.25rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+    }
+
+    .btn-action:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(37, 211, 102, 0.45);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      box-shadow: none;
+      margin-top: 0.75rem;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      transform: none;
+    }
+
+    .spin {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header-icon">
+      <i class="bi bi-whatsapp"></i>
+    </div>
+
+    <h1>Conectar WhatsApp do Sistema</h1>
+    <p class="subtitle">
+      Conecte o número de WhatsApp corporativo da TKE para envio automático de códigos OTP a todos os colaboradores.
+    </p>
+
+    <!-- BADGE DE STATUS -->
+    <div>
+      <div id="status-badge" class="status-badge waiting">
+        <i class="bi bi-arrow-repeat spin"></i>
+        <span id="status-text">Carregando QR Code...</span>
+      </div>
+    </div>
+
+    <!-- ÁREA DO QR CODE -->
+    <div class="qr-container" id="qr-container">
+      <div class="qr-loading" id="qr-loading">
+        <i class="bi bi-arrow-repeat spin" style="font-size: 2rem; color: #10B981;"></i>
+        <span>Gerando QR Code oficial...</span>
+      </div>
+      <img id="qr-image" src="" alt="QR Code WhatsApp" style="display: none;">
+    </div>
+
+    <!-- INSTRUÇÕES DE LEITURA -->
+    <div class="instructions" id="instructions-box">
+      <div style="font-weight: 700; color: var(--whatsapp-green); margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.35rem;">
+        <i class="bi bi-phone"></i> Como escanear no seu celular:
+      </div>
+      <ol>
+        <li>Abra o <strong>WhatsApp</strong> no celular do sistema.</li>
+        <li>Toque no menu <strong>Configurações (iPhone)</strong> ou nos <strong>3 pontinhos (Android)</strong>.</li>
+        <li>Toque em <strong>Aparelhos Conectados</strong>.</li>
+        <li>Toque no botão <strong>Conectar um aparelho</strong> e aponte a câmera para este QR Code.</li>
+      </ol>
+    </div>
+
+    <!-- SUCESSO DE CONEXÃO -->
+    <div id="success-box" style="display: none; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; text-align: center;">
+      <div style="font-size: 2.5rem; color: #4ADE80; margin-bottom: 0.5rem;">
+        <i class="bi bi-check-circle-fill"></i>
+      </div>
+      <h3 style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #FFFFFF; margin-bottom: 0.35rem;">WhatsApp Conectado com Sucesso!</h3>
+      <p style="font-size: 0.85rem; color: #D1D5DB; line-height: 1.4;">
+        O sistema já está pronto para disparar mensagens e códigos de recuperação 100% automáticos para todos os usuários cadastrados.
+      </p>
+    </div>
+
+    <button type="button" id="btn-refresh-qr" class="btn-action">
+      <i class="bi bi-arrow-clockwise"></i>
+      <span>Atualizar QR Code</span>
+    </button>
+
+    <a href="/login.html" class="btn-action btn-secondary">
+      <i class="bi bi-arrow-left"></i>
+      <span>Ir para a Tela de Login</span>
+    </a>
+  </div>
+
+  <script>
+    const qrImage = document.getElementById('qr-image');
+    const qrLoading = document.getElementById('qr-loading');
+    const statusBadge = document.getElementById('status-badge');
+    const statusText = document.getElementById('status-text');
+    const instructionsBox = document.getElementById('instructions-box');
+    const successBox = document.getElementById('success-box');
+    const btnRefreshQr = document.getElementById('btn-refresh-qr');
+    const qrContainer = document.getElementById('qr-container');
+
+    let pollInterval = null;
+
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/auth/whatsapp-status');
+        const data = await res.json();
+
+        if (data.state === 'CONNECTED' || data.state === 'OPEN') {
+          statusBadge.className = 'status-badge connected';
+          statusText.innerHTML = '<i class="bi bi-check-circle-fill"></i> Conectado e Operacional';
+          qrContainer.style.display = 'none';
+          instructionsBox.style.display = 'none';
+          successBox.style.display = 'block';
+          btnRefreshQr.style.display = 'none';
+          if (pollInterval) clearInterval(pollInterval);
+          return;
+        }
+
+        if (data.qrcode) {
+          const src = data.qrcode.startsWith('data:') ? data.qrcode : `data:image/png;base64,${data.qrcode}`;
+          qrImage.src = src;
+          qrImage.style.display = 'block';
+          qrLoading.style.display = 'none';
+          statusBadge.className = 'status-badge waiting';
+          statusText.innerHTML = '<i class="bi bi-qr-code-scan"></i> Aguardando Leitura do QR Code';
+        } else {
+          statusText.textContent = 'Gerando nova chave de conexão...';
+        }
+      } catch (err) {
+        statusText.textContent = 'Tentando conectar ao servidor WhatsApp...';
+      }
+    }
+
+    btnRefreshQr.addEventListener('click', () => {
+      qrImage.style.display = 'none';
+      qrLoading.style.display = 'flex';
+      checkStatus();
+    });
+
+    // Inicia e faz polling a cada 5 segundos
+    checkStatus();
+    pollInterval = setInterval(checkStatus, 5000);
+  </script>
+</body>
+</html>
