@@ -25,17 +25,18 @@ function resolveDbPath() {
   if (isServerless && fs.existsSync('/tmp/database.sqlite')) {
     return '/tmp/database.sqlite';
   }
-  if (process.env.DB_PATH) {
-    const custom = path.resolve(process.cwd(), process.env.DB_PATH);
-    if (fs.existsSync(custom)) return custom;
+  const candidates = [
+    process.env.DB_PATH ? path.resolve(process.cwd(), process.env.DB_PATH) : null,
+    path.join(process.cwd(), 'database/database.sqlite'),
+    path.join(dbDirectory, 'database.sqlite'),
+    path.resolve(__dirname, '../../database/database.sqlite')
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
   }
-  const defaultPath = path.join(dbDirectory, 'database.sqlite');
-  if (fs.existsSync(defaultPath)) return defaultPath;
 
-  const cwdPath = path.resolve(process.cwd(), 'database/database.sqlite');
-  if (fs.existsSync(cwdPath)) return cwdPath;
-
-  return defaultPath;
+  return path.join(dbDirectory, 'database.sqlite');
 }
 
 let dbPath = resolveDbPath();
@@ -56,6 +57,52 @@ export function saveDatabase() {
     } catch (err) {
       console.warn('⚠️ [Database] Aviso ao salvar banco de dados em disco:', err.message);
     }
+  }
+}
+
+// Carrega o motor SQLite: tenta carregar WebAssembly e, se falhar, usa fallback 100% JavaScript (sql-asm.js)
+async function getSqlInstance() {
+  // 1. Tenta carregar sql-wasm com binário direto
+  try {
+    const wasmPaths = [
+      path.join(process.cwd(), 'database/sql-wasm.wasm'),
+      path.join(dbDirectory, 'sql-wasm.wasm'),
+      path.join(process.cwd(), 'node_modules/sql.js/dist/sql-wasm.wasm'),
+      path.join(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm')
+    ];
+    let wasmBinary = null;
+    for (const wp of wasmPaths) {
+      if (fs.existsSync(wp)) {
+        try {
+          wasmBinary = fs.readFileSync(wp);
+          break;
+        } catch {}
+      }
+    }
+
+    if (wasmBinary) {
+      return await initSqlJs({ wasmBinary });
+    }
+
+    return await initSqlJs({
+      locateFile: file => {
+        for (const wp of wasmPaths) {
+          if (fs.existsSync(wp)) return wp;
+        }
+        return file;
+      }
+    });
+  } catch (wasmErr) {
+    console.warn('⚠️ [Database] WebAssembly falhou, acionando fallback puro JavaScript (sql-asm):', wasmErr.message);
+  }
+
+  // 2. Fallback garantido: sql-asm (100% puro JavaScript, nunca falha por falta de .wasm)
+  try {
+    const { default: initSqlAsm } = await import('sql.js/dist/sql-asm.js');
+    return await initSqlAsm();
+  } catch (asmErr) {
+    console.error('❌ [Database] Falha no fallback sql-asm:', asmErr.message);
+    throw asmErr;
   }
 }
 
@@ -131,20 +178,25 @@ CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_usuarios_matricula ON usuarios(matricula);
 `;
 
-// Inicializador assíncrono idempotente do sql.js
+// Inicializador assíncrono idempotente do SQLite
 export async function initDatabase() {
   if (sqlDb) return db;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
     try {
-      const SQL = await initSqlJs();
+      const SQL = await getSqlInstance();
       dbPath = resolveDbPath();
 
       if (fs.existsSync(dbPath)) {
-        const fileBuffer = fs.readFileSync(dbPath);
-        sqlDb = new SQL.Database(fileBuffer);
-        console.log(`📦 [Database] Banco de dados SQLite carregado com sucesso (${dbPath}).`);
+        try {
+          const fileBuffer = fs.readFileSync(dbPath);
+          sqlDb = new SQL.Database(fileBuffer);
+          console.log(`📦 [Database] Banco de dados SQLite carregado com sucesso (${dbPath}).`);
+        } catch (loadErr) {
+          console.warn('⚠️ [Database] Falha ao ler arquivo de banco existente, criando novo na memória:', loadErr.message);
+          sqlDb = new SQL.Database();
+        }
       } else {
         sqlDb = new SQL.Database();
         console.log('🆕 [Database] Novo banco de dados SQLite inicializado na memória.');
@@ -198,7 +250,7 @@ export async function initDatabase() {
         `);
         console.log('👑 [Database] Usuários corporativos padrão inicializados com sucesso.');
       } else {
-        // Garante que Thaís Lima exista mesmo em bases antigas
+        // Garante que Thaís Lima exista mesmo em bases já existentes
         try {
           const thaisCheck = sqlDb.exec("SELECT id FROM usuarios WHERE LOWER(email) = 'thais.lima@tkelevator.com'");
           if (!thaisCheck.length || !thaisCheck[0].values.length) {
@@ -213,7 +265,7 @@ export async function initDatabase() {
       saveDatabase();
       return db;
     } catch (error) {
-      console.error('❌ [Database] Erro na inicialização do banco de dados:', error);
+      console.error('❌ [Database] Erro crítico na inicialização do banco de dados:', error);
       throw error;
     }
   })();
