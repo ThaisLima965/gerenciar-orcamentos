@@ -221,28 +221,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  const tokenHelperCard = document.getElementById('token-helper-card');
-  const badgeDevCode = document.getElementById('badge-dev-code');
-
   const showStep1 = () => {
     forgotErrorAlert.style.display = 'none';
     forgotSuccessAlert.style.display = 'none';
     forgotStep1Form.style.display = 'block';
     forgotStep2Form.style.display = 'none';
     forgotBackToLogin.style.display = 'none';
-    if (tokenHelperCard) tokenHelperCard.style.display = 'none';
-    forgotSubtitle.textContent = 'Gere um token de confirmação e receba via Neon para redefinir sua senha com total segurança.';
+    forgotSubtitle.textContent = 'Solicite o código de confirmação por e-mail para redefinir sua senha com total segurança.';
     forgotIdentificadorInput.value = identificadorInput.value.trim() || currentResetUser.email || '';
     forgotIdentificadorInput.focus();
   };
 
-  const showStep2 = (userData = null, tokenVal = '') => {
+  const showStep2 = (userData = null) => {
     forgotErrorAlert.style.display = 'none';
     forgotSuccessAlert.style.display = 'none';
     forgotStep1Form.style.display = 'none';
     forgotStep2Form.style.display = 'block';
     forgotBackToLogin.style.display = 'none';
-    forgotSubtitle.textContent = 'Insira o token/código recebido por e-mail e defina sua nova senha pessoal.';
+    forgotSubtitle.textContent = 'Insira o código de confirmação recebido por e-mail e defina sua nova senha pessoal.';
 
     if (userData) {
       currentResetUser = userData;
@@ -250,17 +246,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       badgeUserEmail.textContent = userData.email || '';
     }
 
-    if (tokenVal) {
-      resetTokenInput.value = tokenVal;
-      if (tokenHelperCard && badgeDevCode) {
-        badgeDevCode.textContent = tokenVal;
-        tokenHelperCard.style.display = 'block';
-      }
-      resetNovaSenhaInput.focus();
-    } else {
-      if (tokenHelperCard) tokenHelperCard.style.display = 'none';
-      resetTokenInput.focus();
-    }
+    // O campo SEMPRE inicia vazio, exigindo digitação manual pelo usuário
+    resetTokenInput.value = '';
+    resetNovaSenhaInput.value = '';
+    resetConfirmarSenhaInput.value = '';
+    resetTokenInput.focus();
   };
 
 
@@ -297,7 +287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         btnSubmitForgot.disabled = true;
-        btnSubmitForgot.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Gerando Token Neon...</span>';
+        btnSubmitForgot.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Enviando Código...</span>';
 
         try {
           const res = await auth.forgotPassword(ident);
@@ -307,30 +297,27 @@ document.addEventListener('DOMContentLoaded', async () => {
           };
 
           forgotSuccessMsg.innerHTML = `
-            Token de confirmação gerado com sucesso pelo <strong>Neon Auth</strong> e enviado para o e-mail: <br>
+            Código de confirmação enviado para o e-mail: <br>
             <strong style="color: #065F46;">${currentResetUser.email}</strong>
           `;
           forgotSuccessAlert.style.display = 'block';
 
-          // Avança para o Passo 2 com o e-mail preenchido
+          // Avança para o Passo 2 com o campo de token/código vazio
           setTimeout(() => {
-            showStep2(currentResetUser, res.dev_otp || res.dev_token || '');
-            if (res.dev_otp || res.dev_token) {
-              forgotSuccessAlert.style.display = 'block';
-            }
-          }, 1000);
+            showStep2(currentResetUser);
+          }, 800);
 
         } catch (err) {
-          forgotErrorMsg.textContent = err.message || 'Erro ao gerar token de confirmação via Neon.';
+          forgotErrorMsg.textContent = err.message || 'Erro ao enviar código de confirmação via Neon.';
           forgotErrorAlert.style.display = 'block';
         } finally {
           btnSubmitForgot.disabled = false;
-          btnSubmitForgot.innerHTML = '<i class="bi bi-send-fill" style="margin-right: 0.3rem;"></i> <span>Gerar Token Neon</span>';
+          btnSubmitForgot.innerHTML = '<i class="bi bi-send-fill" style="margin-right: 0.3rem;"></i> <span>Enviar Código por E-mail</span>';
         }
       });
     }
 
-    // PASSO 2: Validação do Token e Salvamento da Nova Senha
+    // PASSO 2: Validação do Código e Salvamento da Nova Senha
     if (forgotStep2Form) {
       forgotStep2Form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -342,7 +329,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const confirmarSenha = resetConfirmarSenhaInput.value;
 
         if (!token) {
-          forgotErrorMsg.textContent = 'Por favor, informe o token ou código OTP recebido.';
+          forgotErrorMsg.textContent = 'Por favor, digite o código de confirmação recebido por e-mail.';
           forgotErrorAlert.style.display = 'block';
           return;
         }
@@ -368,12 +355,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         btnSubmitReset.disabled = true;
-        btnSubmitReset.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Validando Token Neon...</span>';
+        btnSubmitReset.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Validando Código...</span>';
 
         try {
           const res = await auth.resetPassword({
-            token: token.length > 10 ? token : null,
-            otp: token.length <= 10 ? token : null,
+            token: token,
+            otp: token,
             email: currentResetUser.email,
             identificador: currentResetUser.email,
             novaSenha,
@@ -389,11 +376,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           forgotBackToLogin.style.display = 'block';
 
         } catch (err) {
-          forgotErrorMsg.textContent = err.message || 'Falha ao validar token e redefinir senha.';
+          forgotErrorMsg.textContent = err.message || 'Falha ao validar código e redefinir senha.';
           forgotErrorAlert.style.display = 'block';
         } finally {
           btnSubmitReset.disabled = false;
-          btnSubmitReset.innerHTML = '<i class="bi bi-check2-circle" style="margin-right: 0.3rem;"></i> <span>Redefinir com Token</span>';
+          btnSubmitReset.innerHTML = '<i class="bi bi-check2-circle" style="margin-right: 0.3rem;"></i> <span>Redefinir Senha</span>';
         }
       });
     }
@@ -412,10 +399,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const urlToken = urlParams.get('token') || urlParams.get('reset_token');
     if (urlToken) {
       modalRecuperarSenha.style.display = 'flex';
-      showStep2(null, urlToken);
+      showStep2(null);
       auth.verifyResetToken(urlToken).then((res) => {
         if (res.valid) {
-          showStep2(res, urlToken);
+          showStep2(res);
         }
       }).catch(() => {});
     }

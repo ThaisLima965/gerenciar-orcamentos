@@ -348,13 +348,10 @@ export const authController = {
 
       return res.status(200).json({
         success: true,
-        message: 'Token de confirmação e redefinição de senha gerado com sucesso pelo Neon e enviado para o seu e-mail cadastrado.',
+        message: 'Código de confirmação para redefinição de senha enviado com sucesso para o seu e-mail corporativo cadastrado.',
         email: user.email,
         nome: user.nome,
-        neon_dispatched: neonEnviado,
-        // Retorna o token para facilitar homologação/testes em ambiente de desenvolvimento
-        dev_token: secureToken,
-        dev_otp: otpCode
+        neon_dispatched: neonEnviado
       });
     } catch (error) {
       console.error('❌ Erro na recuperação de senha via Neon:', error);
@@ -394,6 +391,32 @@ export const authController = {
           JOIN usuarios u ON u.id = t.user_id
           WHERE LOWER(t.email) = ? AND t.otp_code = ? AND t.used = 0
         `).get(String(email).trim().toLowerCase(), String(otp).trim());
+      }
+
+      // Consulta no Neon PostgreSQL em ambientes distribuídos/serverless
+      if (!tokenRecord && process.env.DATABASE_URL) {
+        try {
+          const { default: pg } = await import('pg');
+          const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+          if (token) {
+            const pgRes = await pool.query(`
+              SELECT t.*, u.nome, u.matricula
+              FROM tokens_redefinicao_senha t
+              JOIN usuarios u ON u.id = t.user_id
+              WHERE t.token = $1 AND t.used = 0
+            `, [String(token).trim()]);
+            if (pgRes.rows && pgRes.rows.length > 0) tokenRecord = pgRes.rows[0];
+          } else if (otp && email) {
+            const pgRes = await pool.query(`
+              SELECT t.*, u.nome, u.matricula
+              FROM tokens_redefinicao_senha t
+              JOIN usuarios u ON u.id = t.user_id
+              WHERE LOWER(t.email) = $1 AND t.otp_code = $2 AND t.used = 0
+            `, [String(email).trim().toLowerCase(), String(otp).trim()]);
+            if (pgRes.rows && pgRes.rows.length > 0) tokenRecord = pgRes.rows[0];
+          }
+          await pool.end();
+        } catch {}
       }
 
       if (!tokenRecord && token) {
@@ -486,13 +509,18 @@ export const authController = {
         });
       }
 
-      // Localiza o token válido no banco de dados local
-      let tokenRecord = null;
-      const cleanToken = token ? String(token).trim() : null;
-      const cleanOtp = otp ? String(otp).trim() : null;
+      // Identifica o código / token informado
+      const rawInput = (otp || token) ? String(otp || token).trim() : '';
       const searchEmail = email || identificador;
       const cleanEmail = searchEmail ? String(searchEmail).trim().toLowerCase() : null;
 
+      // Se o input for de tamanho <= 8, consideramos OTP primariamente; caso contrário, token
+      const cleanOtp = (otp && String(otp).trim().length <= 8) ? String(otp).trim() : (rawInput.length <= 8 ? rawInput : null);
+      const cleanToken = (token && String(token).trim().length > 8) ? String(token).trim() : (rawInput.length > 8 ? rawInput : null);
+
+      let tokenRecord = null;
+
+      // 1. Busca no SQLite local por token longo
       if (cleanToken) {
         tokenRecord = db.prepare(`
           SELECT t.*, u.id as user_id, u.email as user_email, u.nome as user_nome, u.senha_hash
@@ -502,6 +530,7 @@ export const authController = {
         `).get(cleanToken);
       }
 
+      // 2. Busca no SQLite local por OTP de 6 dígitos
       if (!tokenRecord && cleanOtp && cleanEmail) {
         tokenRecord = db.prepare(`
           SELECT t.*, u.id as user_id, u.email as user_email, u.nome as user_nome, u.senha_hash
@@ -511,26 +540,107 @@ export const authController = {
         `).get(cleanEmail, cleanEmail, cleanOtp);
       }
 
-      // Caso não encontre pelo token local, tenta validar diretamente no Neon Auth
-      if (!tokenRecord && cleanToken) {
-        const neonRes = await neonAuthService.resetPasswordWithToken(cleanToken, newPass);
-        if (neonRes.success) {
-          // Se o Neon validou o token, atualiza o usuário no banco local
-          if (cleanEmail) {
-            const user = db.prepare('SELECT id FROM usuarios WHERE LOWER(email) = ? OR LOWER(matricula) = ?').get(cleanEmail, cleanEmail);
-            if (user) {
-              const novoHash = bcrypt.hashSync(newPass, 10);
-              db.prepare('UPDATE usuarios SET senha_hash = ?, primeiro_acesso = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(novoHash, user.id);
+      // 3. Busca no Neon PostgreSQL (crucial em ambientes serverless / multi-instâncias como Vercel)
+      if (!tokenRecord && process.env.DATABASE_URL) {
+        try {
+          const { default: pg } = await import('pg');
+          const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+          if (cleanToken) {
+            const pgRes = await pool.query(`
+              SELECT t.*, u.id as user_id, u.email as user_email, u.nome as user_nome, u.senha_hash
+              FROM tokens_redefinicao_senha t
+              JOIN usuarios u ON u.id = t.user_id
+              WHERE t.token = $1 AND t.used = 0
+            `, [cleanToken]);
+            if (pgRes.rows && pgRes.rows.length > 0) {
+              tokenRecord = pgRes.rows[0];
+            }
+          } else if (cleanOtp && cleanEmail) {
+            const pgRes = await pool.query(`
+              SELECT t.*, u.id as user_id, u.email as user_email, u.nome as user_nome, u.senha_hash
+              FROM tokens_redefinicao_senha t
+              JOIN usuarios u ON u.id = t.user_id
+              WHERE (LOWER(t.email) = $1 OR LOWER(u.matricula) = $1) AND t.otp_code = $2 AND t.used = 0
+            `, [cleanEmail, cleanOtp]);
+            if (pgRes.rows && pgRes.rows.length > 0) {
+              tokenRecord = pgRes.rows[0];
             }
           }
-          return res.status(200).json({
-            success: true,
-            message: 'Senha redefinida com sucesso via confirmação de token Neon! Você já pode fazer login com sua nova senha.'
-          });
+          await pool.end();
+        } catch (pgSearchErr) {
+          console.warn('⚠️ [Auth Controller] Aviso ao consultar token no Neon PostgreSQL:', pgSearchErr.message);
         }
       }
 
-      // Fallback: se não encontrou no banco local, valida assinatura do token JWT
+      const origin = req.headers.origin || `${req.protocol}://${req.get('host')}` || process.env.APP_BASE_URL || 'http://localhost:3000';
+
+      // 4. Validação direta via Neon Auth por OTP de 6 dígitos (/email-otp/reset-password)
+      if (!tokenRecord && cleanOtp && cleanEmail) {
+        try {
+          const neonOtpRes = await neonAuthService.resetPasswordWithOTP(cleanEmail, cleanOtp, newPass, origin);
+          if (neonOtpRes.success) {
+            const novoHash = bcrypt.hashSync(newPass, 10);
+            const user = db.prepare('SELECT id FROM usuarios WHERE LOWER(email) = ? OR LOWER(matricula) = ?').get(cleanEmail, cleanEmail);
+            if (user) {
+              db.prepare('UPDATE usuarios SET senha_hash = ?, primeiro_acesso = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(novoHash, user.id);
+            }
+            if (process.env.DATABASE_URL) {
+              try {
+                const { default: pg } = await import('pg');
+                const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+                await pool.query(
+                  'UPDATE usuarios SET senha_hash = $1, primeiro_acesso = 0, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2',
+                  [novoHash, cleanEmail]
+                );
+                await pool.end();
+              } catch (pgSyncErr) {
+                console.warn('Aviso ao sincronizar senha no PostgreSQL:', pgSyncErr.message);
+              }
+            }
+            return res.status(200).json({
+              success: true,
+              message: 'Senha redefinida com sucesso via confirmação de código do Neon! Você já pode fazer login com sua nova senha.'
+            });
+          }
+        } catch (neonOtpErr) {
+          console.warn('⚠️ [Auth Controller] Falha ao validar OTP no Neon Auth:', neonOtpErr.message);
+        }
+      }
+
+      // 5. Validação direta via Neon Auth por Token (/reset-password)
+      if (!tokenRecord && cleanToken) {
+        try {
+          const neonRes = await neonAuthService.resetPasswordWithToken(cleanToken, newPass, origin);
+          if (neonRes.success) {
+            const novoHash = bcrypt.hashSync(newPass, 10);
+            if (cleanEmail) {
+              const user = db.prepare('SELECT id FROM usuarios WHERE LOWER(email) = ? OR LOWER(matricula) = ?').get(cleanEmail, cleanEmail);
+              if (user) {
+                db.prepare('UPDATE usuarios SET senha_hash = ?, primeiro_acesso = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(novoHash, user.id);
+              }
+              if (process.env.DATABASE_URL) {
+                try {
+                  const { default: pg } = await import('pg');
+                  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+                  await pool.query(
+                    'UPDATE usuarios SET senha_hash = $1, primeiro_acesso = 0, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2',
+                    [novoHash, cleanEmail]
+                  );
+                  await pool.end();
+                } catch (pgSyncErr) {}
+              }
+            }
+            return res.status(200).json({
+              success: true,
+              message: 'Senha redefinida com sucesso via confirmação de token Neon! Você já pode fazer login com sua nova senha.'
+            });
+          }
+        } catch (neonTokenErr) {
+          console.warn('⚠️ [Auth Controller] Falha ao validar token no Neon Auth:', neonTokenErr.message);
+        }
+      }
+
+      // 6. Fallback JWT se não encontrou no banco
       if (!tokenRecord && cleanToken) {
         try {
           const secret = SECURITY_CONFIG.jwtSecret || process.env.JWT_SECRET || 'super_secret_corporate_budget_jwt_key_987654321_!@#';
@@ -570,7 +680,7 @@ export const authController = {
       }
 
       // Evita reutilização da mesma senha anterior
-      if (bcrypt.compareSync(newPass, tokenRecord.senha_hash)) {
+      if (tokenRecord.senha_hash && bcrypt.compareSync(newPass, tokenRecord.senha_hash)) {
         return res.status(400).json({
           success: false,
           error: 'A nova senha não pode ser idêntica à senha anterior.'
@@ -594,21 +704,30 @@ export const authController = {
 
       // 4. Sincroniza a nova senha com o Neon PostgreSQL
       if (process.env.DATABASE_URL) {
-        import('pg').then(({ default: pg }) => {
+        try {
+          const { default: pg } = await import('pg');
           const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-          pool.query(
+          await pool.query(
             'UPDATE usuarios SET senha_hash = $1, primeiro_acesso = 0, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
             [novoHash, tokenRecord.user_id]
-          ).catch(() => {}).finally(() => pool.end());
-        }).catch(() => {});
+          );
+          if (tokenRecord.id) {
+            await pool.query('UPDATE tokens_redefinicao_senha SET used = 1 WHERE id = $1', [tokenRecord.id]).catch(() => {});
+          }
+          await pool.end();
+        } catch (pgUpdateErr) {
+          console.warn('⚠️ [Auth Controller] Aviso ao sincronizar senha no PostgreSQL:', pgUpdateErr.message);
+        }
       }
 
       // 5. Sincroniza a nova senha com o Neon Auth em background
-      neonAuthService.resetPasswordWithToken(tokenRecord.token, newPass).catch(() => {});
+      if (tokenRecord.token) {
+        neonAuthService.resetPasswordWithToken(tokenRecord.token, newPass, origin).catch(() => {});
+      }
 
       return res.status(200).json({
         success: true,
-        message: 'Senha redefinida com sucesso via token Neon! Você já pode acessar sua conta.'
+        message: 'Senha redefinida com sucesso! Você já pode acessar sua conta.'
       });
     } catch (error) {
       console.error('❌ [Auth Controller] Erro ao redefinir senha com token:', error);

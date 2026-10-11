@@ -633,20 +633,31 @@ async function runTests() {
     const forgotValido = await postJson('/api/auth/forgot-password', { identificador: testEmail });
     assert(forgotValido.res.statusCode === 200, 'Recuperação válida deve retornar 200 OK');
     assert(forgotValido.body.success === true, 'Deve indicar success: true');
-    assert(forgotValido.body.dev_token, 'Deve retornar token gerado para validação');
-    const generatedToken = forgotValido.body.dev_token;
+    assert(!forgotValido.body.dev_token, 'Não deve expor dev_token no payload de resposta');
+    assert(!forgotValido.body.dev_otp, 'Não deve expor dev_otp no payload de resposta');
+
+    // Obtém o token e código gerados diretamente do banco de dados (como enviado por e-mail)
+    const tokenDbRecord = db.prepare('SELECT token, otp_code FROM tokens_redefinicao_senha WHERE LOWER(email) = ? AND used = 0 ORDER BY id DESC').get(testEmail.toLowerCase());
+    assert(tokenDbRecord && tokenDbRecord.token, 'Token deve ter sido registrado no banco de dados');
+    const generatedToken = tokenDbRecord.token;
+    const generatedOtp = tokenDbRecord.otp_code;
 
     // Validação de verificação de token (/api/auth/verify-token)
     const verifyRes = await getRaw(`/api/auth/verify-token?token=${generatedToken}`, {});
     assert(verifyRes.res.statusCode === 200, 'Verificação de token deve retornar 200');
 
-    // Conclusão de redefinição de senha com token (/api/auth/reset-password)
+    // Validação de verificação de OTP (/api/auth/verify-token com otp e email)
+    const verifyOtpRes = await getRaw(`/api/auth/verify-token?otp=${generatedOtp}&email=${encodeURIComponent(testEmail)}`, {});
+    assert(verifyOtpRes.res.statusCode === 200, 'Verificação de OTP deve retornar 200');
+
+    // Conclusão de redefinição de senha com OTP digitado manualmente (/api/auth/reset-password)
     const tokenResetPassRes = await postJson('/api/auth/reset-password', {
-      token: generatedToken,
+      otp: generatedOtp,
+      email: testEmail,
       novaSenha: 'NovaSenha@999',
       confirmarNovaSenha: 'NovaSenha@999'
     });
-    assert(tokenResetPassRes.res.statusCode === 200, 'Redefinição de senha com token deve retornar 200');
+    assert(tokenResetPassRes.res.statusCode === 200, 'Redefinição de senha com código OTP deve retornar 200');
 
     // Testa login com a nova senha redefinida pelo token
     const loginComNovaSenha = await postJson('/api/auth/login', {
@@ -654,7 +665,7 @@ async function runTests() {
       senha: 'NovaSenha@999'
     });
     assert(loginComNovaSenha.res.statusCode === 200, 'Login com senha redefinida por token Neon deve retornar 200');
-    console.log('   ✅ Fluxo completo de Token Neon (Geração, Verificação, Redefinição e Novo Login) validado com sucesso.');
+    console.log('   ✅ Fluxo completo de Token/OTP Neon (Geração sem exposição no payload, Envio Seguro, Verificação, Redefinição Manual e Novo Login) validado com sucesso.');
 
     // 8.13. Teste de Exclusão de Colaborador (DELETE /api/usuarios/:id)
     console.log('   🗑️ Testando exclusão de colaborador (DELETE /api/usuarios/:id)...');

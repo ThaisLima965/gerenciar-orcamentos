@@ -20,7 +20,6 @@ try {
   // Ignora se o diretório não puder ser criado em ambiente de somente leitura
 }
 
-// Procura caminhos possíveis para o banco de dados SQLite
 function resolveDbPath() {
   if (isServerless && fs.existsSync('/tmp/database.sqlite')) {
     return '/tmp/database.sqlite';
