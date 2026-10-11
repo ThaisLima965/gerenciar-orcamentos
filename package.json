@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "node --watch-path=src --watch-path=server.js --watch-path=public server.js",
     "seed": "node database/seed.js",
     "migrate:neon": "node scripts/migrate-to-neon.js",
     "test": "node tests/test-runner.js"
