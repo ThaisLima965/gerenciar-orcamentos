@@ -1,4 +1,5 @@
 {
+  "id": "/?source=pwa",
   "name": "Gerenciador de Orçamentos",
   "short_name": "Orçamentos",
   "description": "Plataforma Corporativa de Gestão de Orçamentos e Liberação GEOR",
@@ -13,6 +14,12 @@
   "dir": "ltr",
   "categories": ["business", "productivity", "finance"],
   "icons": [
+    {
+      "src": "/images/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/images/icons/icon-192.png",
       "sizes": "192x192",

@@ -277,6 +277,7 @@ export const tecnicoController = {
       let insertedCount = 0;
       let updatedCount = 0;
       const errors = [];
+      const processedTecnicos = [];
 
       // Helper para normalizar e buscar chaves independentemente de maiúsculas/minúsculas ou acentos
       const findField = (row, candidates) => {
@@ -445,12 +446,21 @@ export const tecnicoController = {
             );
           }
         }
+
+        processedTecnicos.push({
+          matricula: cleanMatricula,
+          funcao: finalFuncao,
+          nome_sobrenome: cleanNome,
+          email: cleanEmail || null,
+          telefone: cleanTelefone || null
+        });
       });
 
-      // Sincroniza em lote todos os técnicos com o Neon PostgreSQL
+      // Sincroniza em lote os técnicos importados com o Neon PostgreSQL
       try {
-        const allTecs = db.prepare('SELECT * FROM tecnicos').all();
-        neonSyncService.syncTecnicosBatchToNeon(allTecs).catch(() => {});
+        if (processedTecnicos.length > 0) {
+          neonSyncService.syncTecnicosBatchToNeon(processedTecnicos).catch(() => {});
+        }
       } catch {}
 
       return res.status(200).json({

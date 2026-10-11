@@ -1,4 +1,5 @@
 import { auth } from './auth.js';
+import { pwaManager } from './pwaManager.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Se já estiver logado e não tiver primeiro_acesso pendente, redireciona para o painel

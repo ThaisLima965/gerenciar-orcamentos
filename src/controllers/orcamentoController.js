@@ -677,6 +677,7 @@ export const orcamentoController = {
       let insertedCount = 0;
       let updatedCount = 0;
       const errors = [];
+      const processedOrcamentos = [];
 
       // Helper para normalizar e buscar chaves independentemente de maiúsculas/minúsculas ou acentos
       const findField = (row, candidates) => {
@@ -951,12 +952,31 @@ export const orcamentoController = {
           );
           insertedCount++;
         }
+
+        processedOrcamentos.push({
+          matricula_tecnico: finalMatricula,
+          nome_tecnico: nomeTecnico || 'Técnico de Manutenção',
+          tipo_servico: tipoServico,
+          numero_pgo: pgo,
+          g_origem: gOrigem,
+          numero_contrato: finalContrato,
+          nome_cliente: nomeCliente || 'Cliente TKE',
+          numero_orcamento: finalNumOrcamento,
+          descricao_servico: finalDescricao,
+          data_liberacao: dataLiberacao,
+          geor_liberou: georLiberou,
+          data_envio_cliente: dataEnvioCliente,
+          status: status,
+          valor_total: valorTotal,
+          created_by_id: req.user.id
+        });
       });
 
-      // Sincroniza em lote todos os orçamentos com o Neon PostgreSQL
+      // Sincroniza em lote os orçamentos importados com o Neon PostgreSQL
       try {
-        const allOrcs = db.prepare('SELECT * FROM chamados_orcamentos').all();
-        neonSyncService.syncOrcamentosBatchToNeon(allOrcs).catch(() => {});
+        if (processedOrcamentos.length > 0) {
+          neonSyncService.syncOrcamentosBatchToNeon(processedOrcamentos).catch(() => {});
+        }
       } catch {}
 
       return res.status(200).json({

@@ -1,4 +1,5 @@
 import { auth } from './auth.js';
+import { pwaManager } from './pwaManager.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);

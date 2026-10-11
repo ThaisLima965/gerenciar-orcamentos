@@ -244,6 +244,7 @@ export const clienteController = {
       let insertedCount = 0;
       let updatedCount = 0;
       const errors = [];
+      const processedClients = [];
 
       // Helper para normalizar e buscar chaves independentemente de maiúsculas/minúsculas ou acentos
       const findField = (row, candidates) => {
@@ -301,12 +302,14 @@ export const clienteController = {
           db.prepare('INSERT INTO clientes (numero_contrato, nome_cliente) VALUES (?, ?)').run(contrato, cliente);
           insertedCount++;
         }
+        processedClients.push({ numero_contrato: contrato, nome_cliente: cliente });
       });
 
-      // Sincroniza em lote todos os clientes com o Neon PostgreSQL
+      // Sincroniza em lote os clientes importados com o Neon PostgreSQL
       try {
-        const allClis = db.prepare('SELECT * FROM clientes').all();
-        neonSyncService.syncClientesBatchToNeon(allClis).catch(() => {});
+        if (processedClients.length > 0) {
+          neonSyncService.syncClientesBatchToNeon(processedClients).catch(() => {});
+        }
       } catch {}
 
       return res.status(200).json({

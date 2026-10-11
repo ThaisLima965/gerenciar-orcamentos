@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { auth } from './auth.js';
+import { pwaManager } from './pwaManager.js';
 
 // Estado global da aplicação no frontend
 const state = {
