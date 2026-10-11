@@ -1,6 +1,7 @@
 import * as xlsx from 'xlsx';
 import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
+import { neonSyncService } from '../services/neonSyncService.js';
 
 export const orcamentoController = {
   // Listagem de Chamados e Orçamentos com filtros e métricas
@@ -307,6 +308,9 @@ export const orcamentoController = {
 
       const novoOrcamento = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(result.lastInsertRowid);
 
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      neonSyncService.syncOrcamentoToNeon(novoOrcamento).catch(() => {});
+
       return res.status(201).json({
         success: true,
         message: 'Chamado / Orçamento cadastrado com sucesso.',
@@ -457,6 +461,10 @@ export const orcamentoController = {
         );
 
         const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
+
+        // Sincroniza imediatamente com o Neon PostgreSQL
+        neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
+
         return res.status(200).json({
           success: true,
           message: 'Liberação da supervisão salva com sucesso.',
@@ -564,6 +572,9 @@ export const orcamentoController = {
 
       const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
 
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
+
       return res.status(200).json({
         success: true,
         message: 'Orçamento atualizado com sucesso pela Consultora.',
@@ -590,6 +601,7 @@ export const orcamentoController = {
         });
       }
 
+      const existing = db.prepare('SELECT id, numero_pgo FROM chamados_orcamentos WHERE id = ?').get(id);
       const result = db.prepare('DELETE FROM chamados_orcamentos WHERE id = ?').run(id);
 
       if (result.changes === 0) {
@@ -597,6 +609,11 @@ export const orcamentoController = {
           success: false,
           error: 'Chamado não encontrado para exclusão.'
         });
+      }
+
+      // Sincroniza exclusão no Neon PostgreSQL
+      if (existing) {
+        neonSyncService.deleteOrcamentoFromNeon(existing.id, existing.numero_pgo).catch(() => {});
       }
 
       return res.status(200).json({
@@ -935,6 +952,12 @@ export const orcamentoController = {
           insertedCount++;
         }
       });
+
+      // Sincroniza em lote todos os orçamentos com o Neon PostgreSQL
+      try {
+        const allOrcs = db.prepare('SELECT * FROM chamados_orcamentos').all();
+        neonSyncService.syncOrcamentosBatchToNeon(allOrcs).catch(() => {});
+      } catch {}
 
       return res.status(200).json({
         success: true,

@@ -1,6 +1,7 @@
 import * as xlsx from 'xlsx';
 import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
+import { neonSyncService } from '../services/neonSyncService.js';
 
 export const clienteController = {
   // Listar todos os clientes
@@ -51,6 +52,9 @@ export const clienteController = {
       }
 
       db.prepare('INSERT INTO clientes (numero_contrato, nome_cliente) VALUES (?, ?)').run(cleanContrato, cleanNome);
+
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      neonSyncService.syncClienteToNeon({ numero_contrato: cleanContrato, nome_cliente: cleanNome }).catch(() => {});
 
       return res.status(201).json({
         success: true,
@@ -123,6 +127,9 @@ export const clienteController = {
         cleanContrato
       );
 
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      neonSyncService.syncClienteToNeon({ numero_contrato: targetContrato, nome_cliente: finalNome }).catch(() => {});
+
       return res.status(200).json({
         success: true,
         message: 'Cadastro de cliente alterado com sucesso!',
@@ -171,6 +178,9 @@ export const clienteController = {
       }
 
       db.prepare('DELETE FROM clientes WHERE numero_contrato = ?').run(cleanContrato);
+
+      // Sincroniza exclusão no Neon PostgreSQL
+      neonSyncService.deleteClienteFromNeon(cleanContrato).catch(() => {});
 
       return res.status(200).json({
         success: true,
@@ -292,6 +302,12 @@ export const clienteController = {
           insertedCount++;
         }
       });
+
+      // Sincroniza em lote todos os clientes com o Neon PostgreSQL
+      try {
+        const allClis = db.prepare('SELECT * FROM clientes').all();
+        neonSyncService.syncClientesBatchToNeon(allClis).catch(() => {});
+      } catch {}
 
       return res.status(200).json({
         success: true,

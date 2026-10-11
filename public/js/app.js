@@ -1920,15 +1920,14 @@ function setupMainTabs() {
 }
 
 // =====================================================================
-// SINCRONIZAÇÃO EM TEMPO REAL ENTRE PERFIS (LIVE SYNC & AUTO-REFRESH)
+// SINCRONIZAÇÃO EM SEGUNDO PLANO COM NEON POSTGRESQL (LIVE SYNC & SWR)
 // =====================================================================
 let syncInProgress = false;
-async function syncAllData(isSilent = false) {
+let lastKnownVersion = null;
+
+async function syncAllData(isSilent = true) {
   if (syncInProgress) return;
   syncInProgress = true;
-
-  const syncIcon = document.getElementById('icon-sync-data');
-  if (syncIcon) syncIcon.classList.add('spin');
 
   try {
     if (state.activeTab === 'premiacao') {
@@ -1955,32 +1954,58 @@ async function syncAllData(isSilent = false) {
       showToast(`Erro na sincronização: ${err.message}`, 'error');
     }
   } finally {
-    if (syncIcon) syncIcon.classList.remove('spin');
     syncInProgress = false;
   }
 }
 
-function setupAutoSync() {
-  // 1. Botão manual de sincronização
-  const btnSync = document.getElementById('btn-sync-data');
-  if (btnSync) {
-    btnSync.addEventListener('click', () => syncAllData(false));
-  }
+// Checagem em tempo real e revalidação SWR de mudanças ocorridas no Neon PostgreSQL
+async function checkBackgroundNeonSync() {
+  if (document.hidden) return;
+  // Não revalida enquanto o usuário estiver editando formulários em modais
+  if (document.querySelector('.modal-backdrop.active, .modal.active')) return;
 
-  // 2. Sincronização ao focar a aba/janela do navegador
-  window.addEventListener('focus', () => syncAllData(true));
+  try {
+    const res = await api.get('/api/sync/status');
+    if (res && res.success && res.version) {
+      if (lastKnownVersion && res.version !== lastKnownVersion) {
+        lastKnownVersion = res.version;
+        // Mudança detectada no Neon (feita por outro usuário ou via console Neon)! Revalida tela automaticamente
+        await syncAllData(true);
+      } else {
+        lastKnownVersion = res.version;
+      }
+    }
+  } catch (e) {
+    // Modo offline resiliente: sem erros visuais para o usuário
+  }
+}
+
+function setupAutoSync() {
+  // 1. Revalidação SWR instantânea ao focar a aba/janela do navegador
+  window.addEventListener('focus', () => {
+    checkBackgroundNeonSync();
+  });
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      syncAllData(true);
+      checkBackgroundNeonSync();
     }
   });
 
-  // 3. Polling em segundo plano a cada 5 segundos para sincronização contínua
-  setInterval(() => {
-    if (document.visibilityState === 'visible' && !document.querySelector('.modal-backdrop.active')) {
-      syncAllData(true);
-    }
-  }, 5000);
+  // 2. Revalidação ao restabelecer conexão (PWA Online)
+  window.addEventListener('online', () => {
+    checkBackgroundNeonSync();
+  });
+
+  window.addEventListener('pwa-sync-completed', () => {
+    syncAllData(true);
+  });
+
+  // 3. Polling em segundo plano a cada 3.5 segundos para detecção automática em tempo real
+  setInterval(checkBackgroundNeonSync, 3500);
+
+  // Executa uma checagem inicial de versão
+  checkBackgroundNeonSync();
 }
 
 // =====================================================================

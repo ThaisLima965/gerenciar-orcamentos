@@ -16,6 +16,7 @@ import clienteRoutes from './routes/clienteRoutes.js';
 import tecnicoRoutes from './routes/tecnicoRoutes.js';
 import usuarioRoutes from './routes/usuarioRoutes.js';
 import relatorioRoutes from './routes/relatorioRoutes.js';
+import syncRoutes from './routes/syncRoutes.js';
 
 dotenv.config();
 
@@ -76,6 +77,7 @@ app.use('/api/clientes', clienteRoutes);
 app.use('/api/tecnicos', tecnicoRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/relatorios', relatorioRoutes);
+app.use('/api/sync', syncRoutes);
 
 // 7. Servir Arquivos Estáticos do Frontend
 const publicPath = path.resolve(__dirname, '../public');

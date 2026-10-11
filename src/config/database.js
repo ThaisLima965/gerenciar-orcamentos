@@ -262,6 +262,16 @@ export async function initDatabase() {
       }
 
       saveDatabase();
+
+      // Sincronização automática em segundo plano com o Neon PostgreSQL (se configurado)
+      if (process.env.DATABASE_URL) {
+        import('../services/neonSyncService.js').then(({ neonSyncService }) => {
+          neonSyncService.syncFromNeon().catch((e) => {
+            console.warn('⚠️ [Database] Aviso na sincronização inicial do Neon:', e.message);
+          });
+        }).catch(() => {});
+      }
+
       return db;
     } catch (error) {
       console.error('❌ [Database] Erro crítico na inicialização do banco de dados:', error);

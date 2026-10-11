@@ -2,6 +2,7 @@ import * as xlsx from 'xlsx';
 import bcrypt from 'bcryptjs';
 import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
+import { neonSyncService } from '../services/neonSyncService.js';
 
 export const usuarioController = {
   // Listar usuários do sistema (Exclusivo Consultora)
@@ -107,6 +108,18 @@ export const usuarioController = {
         `).run(cleanMatricula, cleanNome, cleanEmail);
       }
 
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      neonSyncService.syncUsuarioToNeon({
+        nome: cleanNome,
+        email: cleanEmail,
+        matricula: cleanMatricula,
+        senha_hash: senhaHash,
+        perfil: cleanPerfil,
+        grupo: cleanGrupo,
+        primeiro_acesso: 1,
+        ativo: 1
+      }).catch(() => {});
+
       return res.status(201).json({
         success: true,
         message: 'Novo colaborador cadastrado com sucesso com status de Primeiro Acesso pendente.',
@@ -211,6 +224,12 @@ export const usuarioController = {
           existing.matricula
         );
       } catch (e) {}
+
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      const userAtualizado = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id);
+      if (userAtualizado) {
+        neonSyncService.syncUsuarioToNeon(userAtualizado).catch(() => {});
+      }
 
       return res.status(200).json({
         success: true,
@@ -319,6 +338,12 @@ export const usuarioController = {
         WHERE id = ?
       `).run(senhaHash, id);
 
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      const usrResetado = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id);
+      if (usrResetado) {
+        neonSyncService.syncUsuarioToNeon(usrResetado).catch(() => {});
+      }
+
       return res.status(200).json({
         success: true,
         message: `Senha de ${user.nome} resetada com sucesso para a provisória "${rawSenha}". O usuário deverá trocá-la no próximo acesso.`,
@@ -366,6 +391,12 @@ export const usuarioController = {
 
       const novoStatus = user.ativo === 1 ? 0 : 1;
       db.prepare('UPDATE usuarios SET ativo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(novoStatus, id);
+
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      const usrToggle = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id);
+      if (usrToggle) {
+        neonSyncService.syncUsuarioToNeon(usrToggle).catch(() => {});
+      }
 
       return res.status(200).json({
         success: true,
@@ -714,6 +745,9 @@ export const usuarioController = {
       } catch (e) {}
 
       db.prepare('DELETE FROM usuarios WHERE id = ?').run(id);
+
+      // Sincroniza exclusão no Neon PostgreSQL
+      neonSyncService.deleteUsuarioFromNeon(id, user.email).catch(() => {});
 
       return res.status(200).json({
         success: true,

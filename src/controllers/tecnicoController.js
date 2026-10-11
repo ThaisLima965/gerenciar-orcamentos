@@ -1,6 +1,7 @@
 import * as xlsx from 'xlsx';
 import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
+import { neonSyncService } from '../services/neonSyncService.js';
 
 export const tecnicoController = {
   // Listar todos os técnicos
@@ -60,6 +61,9 @@ export const tecnicoController = {
         email ? String(email).trim() : null,
         telefone ? String(telefone).trim() : null
       );
+
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      neonSyncService.syncTecnicoToNeon({ matricula: cleanMatricula, funcao: cleanFuncao, nome_sobrenome: finalNome, email, telefone }).catch(() => {});
 
       return res.status(201).json({
         success: true,
@@ -147,6 +151,15 @@ export const tecnicoController = {
         WHERE matricula = ?
       `).run(targetMatricula, finalNome, cleanMatricula);
 
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      neonSyncService.syncTecnicoToNeon({
+        matricula: targetMatricula,
+        funcao: cleanFuncao,
+        nome_sobrenome: finalNome,
+        email,
+        telefone
+      }).catch(() => {});
+
       return res.status(200).json({
         success: true,
         message: 'Cadastro de técnico alterado com sucesso!',
@@ -198,6 +211,9 @@ export const tecnicoController = {
       }
 
       db.prepare('DELETE FROM tecnicos WHERE matricula = ?').run(cleanMatricula);
+
+      // Sincroniza exclusão no Neon PostgreSQL
+      neonSyncService.deleteTecnicoFromNeon(cleanMatricula).catch(() => {});
 
       return res.status(200).json({
         success: true,
@@ -430,6 +446,12 @@ export const tecnicoController = {
           }
         }
       });
+
+      // Sincroniza em lote todos os técnicos com o Neon PostgreSQL
+      try {
+        const allTecs = db.prepare('SELECT * FROM tecnicos').all();
+        neonSyncService.syncTecnicosBatchToNeon(allTecs).catch(() => {});
+      } catch {}
 
       return res.status(200).json({
         success: true,
