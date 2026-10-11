@@ -8,13 +8,14 @@ export const neonAuthService = {
   /**
    * Garante que o usuário existe no Neon Auth (Better Auth) para envio de e-mails e tokens
    */
-  async ensureNeonUser(name, email, tempPassword = 'TempPassword@12345') {
+  async ensureNeonUser(name, email, tempPassword = 'TempPassword@12345', origin = null) {
     try {
+      const targetOrigin = origin || APP_ORIGIN;
       const res = await fetch(`${NEON_AUTH_URL}/sign-up/email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': APP_ORIGIN
+          'Origin': targetOrigin
         },
         body: JSON.stringify({
           name: name || 'Colaborador TKE',
@@ -34,18 +35,20 @@ export const neonAuthService = {
   /**
    * Solicita token de redefinição e envio de link por e-mail gerenciado pelo Neon
    */
-  async requestPasswordReset(email, redirectTo = `${APP_ORIGIN}/login.html`) {
+  async requestPasswordReset(email, redirectTo = null, origin = null) {
     try {
+      const targetOrigin = origin || APP_ORIGIN;
+      const targetRedirect = redirectTo || `${targetOrigin}/login.html`;
       const cleanEmail = email.toLowerCase().trim();
       const res = await fetch(`${NEON_AUTH_URL}/request-password-reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': APP_ORIGIN
+          'Origin': targetOrigin
         },
         body: JSON.stringify({
           email: cleanEmail,
-          redirectTo
+          redirectTo: targetRedirect
         })
       });
       const data = await res.json().catch(() => ({}));
@@ -59,14 +62,15 @@ export const neonAuthService = {
   /**
    * Solicita código OTP (6 dígitos) de confirmação por e-mail via Neon
    */
-  async requestPasswordResetOTP(email) {
+  async requestPasswordResetOTP(email, origin = null) {
     try {
+      const targetOrigin = origin || APP_ORIGIN;
       const cleanEmail = email.toLowerCase().trim();
       const res = await fetch(`${NEON_AUTH_URL}/email-otp/request-password-reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': APP_ORIGIN
+          'Origin': targetOrigin
         },
         body: JSON.stringify({
           email: cleanEmail
@@ -83,13 +87,14 @@ export const neonAuthService = {
   /**
    * Redefine a senha no Neon utilizando o Token de validação
    */
-  async resetPasswordWithToken(token, newPassword) {
+  async resetPasswordWithToken(token, newPassword, origin = null) {
     try {
+      const targetOrigin = origin || APP_ORIGIN;
       const res = await fetch(`${NEON_AUTH_URL}/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': APP_ORIGIN
+          'Origin': targetOrigin
         },
         body: JSON.stringify({
           token: String(token).trim(),
@@ -107,13 +112,14 @@ export const neonAuthService = {
   /**
    * Redefine a senha no Neon utilizando o código OTP
    */
-  async resetPasswordWithOTP(email, otp, newPassword) {
+  async resetPasswordWithOTP(email, otp, newPassword, origin = null) {
     try {
+      const targetOrigin = origin || APP_ORIGIN;
       const res = await fetch(`${NEON_AUTH_URL}/email-otp/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': APP_ORIGIN
+          'Origin': targetOrigin
         },
         body: JSON.stringify({
           email: email.toLowerCase().trim(),

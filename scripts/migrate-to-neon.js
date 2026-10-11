@@ -78,6 +78,20 @@ async function migrateData() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS tokens_redefinicao_senha (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        email VARCHAR(120) NOT NULL,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        otp_code VARCHAR(10),
+        expires_at TIMESTAMP NOT NULL,
+        used INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_tokens_token ON tokens_redefinicao_senha(token);
+      CREATE INDEX IF NOT EXISTS idx_tokens_email_otp ON tokens_redefinicao_senha(email, otp_code);
+
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS grupo VARCHAR(10) DEFAULT 'G11';
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS primeiro_acesso INTEGER DEFAULT 0;
       ALTER TABLE tecnicos ADD COLUMN IF NOT EXISTS funcao VARCHAR(80) DEFAULT 'Técnico de Manutenção';

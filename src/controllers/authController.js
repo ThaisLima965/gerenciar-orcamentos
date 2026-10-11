@@ -311,17 +311,21 @@ export const authController = {
       }
 
       // 3. Sincroniza e aciona envio via Neon Auth
-      const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-      const redirectUrl = `${appBaseUrl}/login.html?token=${secureToken}`;
+      const origin = req.headers.origin || `${req.protocol}://${req.get('host')}` || process.env.APP_BASE_URL || 'http://localhost:3000';
+      const redirectUrl = `${origin}/login.html?token=${secureToken}`;
       
-      // Sincroniza usuário no Neon Auth (se ainda não cadastrado)
-      await neonAuthService.ensureNeonUser(user.nome, user.email, 'TempPassword@12345');
-      
-      // Dispara envio de link com token e código OTP via serviço de e-mail do Neon
-      const neonResetRes = await neonAuthService.requestPasswordReset(user.email, redirectUrl);
-      const neonOtpRes = await neonAuthService.requestPasswordResetOTP(user.email);
-
-      const neonEnviado = neonResetRes.success || neonOtpRes.success;
+      let neonEnviado = false;
+      try {
+        // Sincroniza usuário no Neon Auth (se ainda não cadastrado)
+        await neonAuthService.ensureNeonUser(user.nome, user.email, 'TempPassword@12345', origin);
+        
+        // Dispara envio de link com token e código OTP via serviço de e-mail do Neon
+        const neonResetRes = await neonAuthService.requestPasswordReset(user.email, redirectUrl, origin);
+        const neonOtpRes = await neonAuthService.requestPasswordResetOTP(user.email, origin);
+        neonEnviado = Boolean(neonResetRes?.success || neonOtpRes?.success);
+      } catch (neonErr) {
+        console.warn('⚠️ [Auth Controller] Aviso ao despachar token no Neon Auth:', neonErr.message);
+      }
 
       return res.status(200).json({
         success: true,
@@ -337,7 +341,7 @@ export const authController = {
       console.error('❌ Erro na recuperação de senha via Neon:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro interno ao processar recuperação de senha.'
+        error: error.message || 'Erro interno ao processar recuperação de senha.'
       });
     }
   },

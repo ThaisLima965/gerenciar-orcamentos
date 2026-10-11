@@ -9,110 +9,216 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+
 const dbDirectory = path.resolve(__dirname, '../../database');
-if (!fs.existsSync(dbDirectory)) {
-  fs.mkdirSync(dbDirectory, { recursive: true });
+try {
+  if (!fs.existsSync(dbDirectory) && !isServerless) {
+    fs.mkdirSync(dbDirectory, { recursive: true });
+  }
+} catch (e) {
+  // Ignora se o diretório não puder ser criado em ambiente de somente leitura
 }
 
-const dbPath = process.env.DB_PATH 
-  ? path.resolve(process.cwd(), process.env.DB_PATH) 
-  : path.join(dbDirectory, 'database.sqlite');
+// Procura caminhos possíveis para o banco de dados SQLite
+function resolveDbPath() {
+  if (isServerless && fs.existsSync('/tmp/database.sqlite')) {
+    return '/tmp/database.sqlite';
+  }
+  if (process.env.DB_PATH) {
+    const custom = path.resolve(process.cwd(), process.env.DB_PATH);
+    if (fs.existsSync(custom)) return custom;
+  }
+  const defaultPath = path.join(dbDirectory, 'database.sqlite');
+  if (fs.existsSync(defaultPath)) return defaultPath;
 
+  const cwdPath = path.resolve(process.cwd(), 'database/database.sqlite');
+  if (fs.existsSync(cwdPath)) return cwdPath;
+
+  return defaultPath;
+}
+
+let dbPath = resolveDbPath();
 let sqlDb = null;
+let initPromise = null;
 
-// Função para persistir o banco de dados em disco
+// Função resiliente para persistir o banco de dados em disco
 export function saveDatabase() {
   if (sqlDb) {
-    const data = sqlDb.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(dbPath, buffer);
+    try {
+      const data = sqlDb.export();
+      const buffer = Buffer.from(data);
+      if (isServerless) {
+        fs.writeFileSync('/tmp/database.sqlite', buffer);
+      } else {
+        fs.writeFileSync(dbPath, buffer);
+      }
+    } catch (err) {
+      console.warn('⚠️ [Database] Aviso ao salvar banco de dados em disco:', err.message);
+    }
   }
 }
 
-// Inicializador assíncrono do sql.js
+// DDL essencial garantido mesmo que os arquivos externos não sejam encontrados
+const ESSENTIAL_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome VARCHAR(100) NOT NULL,
+    email VARCHAR(120) NOT NULL UNIQUE,
+    matricula VARCHAR(30) NOT NULL UNIQUE,
+    senha_hash VARCHAR(255) NOT NULL,
+    perfil VARCHAR(20) NOT NULL CHECK(perfil IN ('TECNICO', 'SUPERVISOR', 'CONSULTORA')),
+    grupo VARCHAR(10) NOT NULL DEFAULT 'G11',
+    primeiro_acesso INTEGER NOT NULL DEFAULT 1 CHECK(primeiro_acesso IN (0, 1)),
+    ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0, 1)),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS clientes (
+    numero_contrato VARCHAR(50) PRIMARY KEY,
+    nome_cliente VARCHAR(150) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tecnicos (
+    matricula VARCHAR(30) PRIMARY KEY,
+    funcao VARCHAR(80) NOT NULL DEFAULT 'Técnico de Manutenção',
+    nome_sobrenome VARCHAR(120) NOT NULL,
+    email VARCHAR(120),
+    telefone VARCHAR(20),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS chamados_orcamentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    matricula_tecnico VARCHAR(30) NOT NULL,
+    nome_tecnico VARCHAR(120) NOT NULL,
+    tipo_servico VARCHAR(20) NOT NULL,
+    numero_pgo VARCHAR(50) NOT NULL,
+    g_origem VARCHAR(10) NOT NULL DEFAULT 'G11',
+    numero_contrato VARCHAR(50) NOT NULL,
+    nome_cliente VARCHAR(150) NOT NULL,
+    numero_orcamento VARCHAR(50) NOT NULL DEFAULT 'Aguardando Orçamento',
+    descricao_servico TEXT,
+    data_liberacao DATE,
+    geor_liberou VARCHAR(10) NOT NULL DEFAULT 'Não',
+    data_envio_cliente DATE,
+    status VARCHAR(30) NOT NULL DEFAULT 'Aberto',
+    valor_total REAL NOT NULL DEFAULT 0.00,
+    data_criacao DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by_id INTEGER,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tokens_redefinicao_senha (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    email VARCHAR(120) NOT NULL,
+    token VARCHAR(255) NOT NULL UNIQUE,
+    otp_code VARCHAR(10),
+    expires_at DATETIME NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0 CHECK(used IN (0, 1)),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_tokens_token ON tokens_redefinicao_senha(token);
+CREATE INDEX IF NOT EXISTS idx_tokens_email_otp ON tokens_redefinicao_senha(email, otp_code);
+CREATE INDEX IF NOT EXISTS idx_chamados_matricula ON chamados_orcamentos(matricula_tecnico);
+CREATE INDEX IF NOT EXISTS idx_chamados_contrato ON chamados_orcamentos(numero_contrato);
+CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
+CREATE INDEX IF NOT EXISTS idx_usuarios_matricula ON usuarios(matricula);
+`;
+
+// Inicializador assíncrono idempotente do sql.js
 export async function initDatabase() {
-  try {
-    const SQL = await initSqlJs();
+  if (sqlDb) return db;
+  if (initPromise) return initPromise;
 
-    if (fs.existsSync(dbPath)) {
-      const fileBuffer = fs.readFileSync(dbPath);
-      sqlDb = new SQL.Database(fileBuffer);
-      console.log('📦 [Database] Banco de dados SQLite carregado do disco com sucesso.');
-    } else {
-      sqlDb = new SQL.Database();
-      console.log('🆕 [Database] Novo banco de dados SQLite inicializado na memória.');
-    }
-
-    // Executa schema DDL
-    const schemaPath = path.join(dbDirectory, 'schema.sql');
-    const seedPath = path.join(dbDirectory, 'seed.sql');
-
-    if (fs.existsSync(schemaPath)) {
-      const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-      sqlDb.run(schemaSql);
-      console.log('✅ [Database] Tabelas do banco de dados verificadas/criadas.');
-    }
-
-    // Garante migração da coluna descricao_servico caso o banco já exista
+  initPromise = (async () => {
     try {
-      sqlDb.run('ALTER TABLE chamados_orcamentos ADD COLUMN descricao_servico TEXT;');
-    } catch (e) {
-      // Coluna já existe
+      const SQL = await initSqlJs();
+      dbPath = resolveDbPath();
+
+      if (fs.existsSync(dbPath)) {
+        const fileBuffer = fs.readFileSync(dbPath);
+        sqlDb = new SQL.Database(fileBuffer);
+        console.log(`📦 [Database] Banco de dados SQLite carregado com sucesso (${dbPath}).`);
+      } else {
+        sqlDb = new SQL.Database();
+        console.log('🆕 [Database] Novo banco de dados SQLite inicializado na memória.');
+      }
+
+      // Aplica DDL essencial
+      sqlDb.run(ESSENTIAL_SCHEMA_SQL);
+
+      // Tenta ler schema.sql se disponível
+      const schemaCandidate = [
+        path.join(dbDirectory, 'schema.sql'),
+        path.resolve(process.cwd(), 'database/schema.sql')
+      ].find(p => fs.existsSync(p));
+
+      if (schemaCandidate) {
+        try {
+          const schemaSql = fs.readFileSync(schemaCandidate, 'utf8');
+          sqlDb.run(schemaSql);
+        } catch (e) {
+          console.warn('⚠️ [Database] Aviso ao aplicar schema.sql:', e.message);
+        }
+      }
+
+      // Migrações dinâmicas de colunas adicionais
+      const safeMigrations = [
+        'ALTER TABLE chamados_orcamentos ADD COLUMN descricao_servico TEXT;',
+        "ALTER TABLE tecnicos ADD COLUMN funcao VARCHAR(80) DEFAULT 'Técnico de Manutenção';",
+        "ALTER TABLE chamados_orcamentos ADD COLUMN g_origem VARCHAR(10) DEFAULT 'G11';",
+        'ALTER TABLE chamados_orcamentos ADD COLUMN valor_total REAL DEFAULT 0.00;',
+        'ALTER TABLE usuarios ADD COLUMN primeiro_acesso INTEGER DEFAULT 0;',
+        "ALTER TABLE usuarios ADD COLUMN grupo VARCHAR(10) DEFAULT 'G11';"
+      ];
+
+      for (const mig of safeMigrations) {
+        try {
+          sqlDb.run(mig);
+        } catch {}
+      }
+
+      // Garante a existência de usuários padrão corporativos
+      const resUsr = sqlDb.exec('SELECT COUNT(*) as count FROM usuarios');
+      const userCount = resUsr.length > 0 && resUsr[0].values.length > 0 ? resUsr[0].values[0][0] : 0;
+
+      if (userCount === 0) {
+        sqlDb.run(`
+          INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, ativo, primeiro_acesso, grupo) VALUES
+          (1, 'Thaís Lima (Consultora Admin)', 'thais.lima@tkelevator.com', '55011190', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'CONSULTORA', 1, 0, 'G11'),
+          (2, 'Camila Mendes (Consultora Admin)', 'consultora@empresa.com', 'CONS001', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'CONSULTORA', 1, 0, 'G11'),
+          (3, 'Carlos Albuquerque (Supervisor)', 'supervisor@empresa.com', 'SUP001', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'SUPERVISOR', 1, 0, 'G11'),
+          (4, 'Thiago Silva (Técnico 1001)', 'tecnico@empresa.com', '1001', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'TECNICO', 1, 0, 'G11');
+        `);
+        console.log('👑 [Database] Usuários corporativos padrão inicializados com sucesso.');
+      } else {
+        // Garante que Thaís Lima exista mesmo em bases antigas
+        try {
+          const thaisCheck = sqlDb.exec("SELECT id FROM usuarios WHERE LOWER(email) = 'thais.lima@tkelevator.com'");
+          if (!thaisCheck.length || !thaisCheck[0].values.length) {
+            sqlDb.run(`
+              INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, ativo, primeiro_acesso, grupo)
+              VALUES ('Thaís Lima (Consultora Admin)', 'thais.lima@tkelevator.com', '55011190', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'CONSULTORA', 1, 0, 'G11');
+            `);
+          }
+        } catch {}
+      }
+
+      saveDatabase();
+      return db;
+    } catch (error) {
+      console.error('❌ [Database] Erro na inicialização do banco de dados:', error);
+      throw error;
     }
+  })();
 
-    // Garante migração da coluna funcao na tabela tecnicos
-    try {
-      sqlDb.run("ALTER TABLE tecnicos ADD COLUMN funcao VARCHAR(80) DEFAULT 'Técnico de Manutenção';");
-    } catch (e) {
-      // Coluna já existe
-    }
-
-    // Garante migração da coluna g_origem na tabela chamados_orcamentos
-    try {
-      sqlDb.run("ALTER TABLE chamados_orcamentos ADD COLUMN g_origem VARCHAR(10) DEFAULT 'G11';");
-    } catch (e) {
-      // Coluna já existe
-    }
-
-    // Garante migração da coluna valor_total na tabela chamados_orcamentos
-    try {
-      sqlDb.run("ALTER TABLE chamados_orcamentos ADD COLUMN valor_total REAL DEFAULT 0.00;");
-    } catch (e) {
-      // Coluna já existe
-    }
-
-    // Garante migração da coluna primeiro_acesso na tabela usuarios
-    try {
-      sqlDb.run("ALTER TABLE usuarios ADD COLUMN primeiro_acesso INTEGER DEFAULT 0;");
-    } catch (e) {
-      // Coluna já existe
-    }
-
-    // Garante migração da coluna grupo na tabela usuarios
-    try {
-      sqlDb.run("ALTER TABLE usuarios ADD COLUMN grupo VARCHAR(10) DEFAULT 'G11';");
-    } catch (e) {
-      // Coluna já existe
-    }
-
-    // Garante a existência do usuário Administrador caso a tabela esteja vazia
-    const resUsr = sqlDb.exec('SELECT COUNT(*) as count FROM usuarios');
-    const userCount = resUsr.length > 0 && resUsr[0].values.length > 0 ? resUsr[0].values[0][0] : 0;
-
-    if (userCount === 0) {
-      sqlDb.run(`
-        INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, ativo, primeiro_acesso, grupo) VALUES
-        (1, 'Camila Mendes (Consultora Admin)', 'consultora@empresa.com', 'CONS001', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'CONSULTORA', 1, 0, 'G11');
-      `);
-      console.log('👑 [Database] Usuário Consultora Admin inicial padrão configurado.');
-    }
-
-    saveDatabase();
-    return db;
-  } catch (error) {
-    console.error('❌ [Database] Erro na inicialização do banco de dados:', error);
-    throw error;
-  }
+  return initPromise;
 }
 
 // Wrapper intuitivo compatível com APIs padrão SQLite
@@ -120,6 +226,9 @@ export const db = {
   prepare(sql) {
     return {
       get(...params) {
+        if (!sqlDb) {
+          throw new Error('Banco de dados SQLite ainda não inicializado.');
+        }
         const stmt = sqlDb.prepare(sql);
         try {
           const bindParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
@@ -133,6 +242,9 @@ export const db = {
         }
       },
       all(...params) {
+        if (!sqlDb) {
+          throw new Error('Banco de dados SQLite ainda não inicializado.');
+        }
         const stmt = sqlDb.prepare(sql);
         const rows = [];
         try {
@@ -147,18 +259,27 @@ export const db = {
         }
       },
       run(...params) {
+        if (!sqlDb) {
+          throw new Error('Banco de dados SQLite ainda não inicializado.');
+        }
         const bindParams = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
         sqlDb.run(sql, bindParams);
-        const lastIdRes = sqlDb.exec('SELECT last_insert_rowid() as id, changes() as changes');
-        const lastInsertRowid = lastIdRes[0]?.values[0]?.[0] || 0;
-        const changes = lastIdRes[0]?.values[0]?.[1] || 0;
+        let lastInsertRowid = 0;
+        let changes = 0;
+        try {
+          const lastIdRes = sqlDb.exec('SELECT last_insert_rowid() as id, changes() as changes');
+          lastInsertRowid = lastIdRes[0]?.values[0]?.[0] || 0;
+          changes = lastIdRes[0]?.values[0]?.[1] || 0;
+        } catch {}
         saveDatabase();
-        
         return { lastInsertRowid, changes };
       }
     };
   },
   exec(sql) {
+    if (!sqlDb) {
+      throw new Error('Banco de dados SQLite ainda não inicializado.');
+    }
     const result = sqlDb.exec(sql);
     saveDatabase();
     return result;
