@@ -295,10 +295,18 @@ export const authController = {
         });
       }
 
-      // 1. Gera token seguro e código OTP de 6 dígitos
-      const secureToken = crypto.randomBytes(24).toString('hex');
+      // 1. Gera token seguro assinado e código OTP de 6 dígitos
+      const secret = SECURITY_CONFIG.jwtSecret || process.env.JWT_SECRET || 'super_secret_corporate_budget_jwt_key_987654321_!@#';
       const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hora de validade
+      const secureToken = jwt.sign({
+        sub: user.id,
+        email: user.email,
+        nome: user.nome,
+        matricula: user.matricula,
+        otp: otpCode,
+        type: 'pwd_reset'
+      }, secret, { expiresIn: '1h' });
 
       // 2. Registra o token no banco de dados local
       try {
@@ -308,6 +316,17 @@ export const authController = {
         `).run(user.id, user.email, secureToken, otpCode, expiresAt);
       } catch (dbErr) {
         console.warn('⚠️ [Auth Controller] Aviso ao salvar token na tabela local:', dbErr.message);
+      }
+
+      // Sincroniza token no Neon PostgreSQL para redundância em nuvem
+      if (process.env.DATABASE_URL) {
+        import('pg').then(({ default: pg }) => {
+          const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+          pool.query(
+            'INSERT INTO tokens_redefinicao_senha (user_id, email, token, otp_code, expires_at, used) VALUES ($1, $2, $3, $4, $5, 0)',
+            [user.id, user.email, secureToken, otpCode, expiresAt]
+          ).catch(() => {}).finally(() => pool.end());
+        }).catch(() => {});
       }
 
       // 3. Sincroniza e aciona envio via Neon Auth
@@ -375,6 +394,25 @@ export const authController = {
           JOIN usuarios u ON u.id = t.user_id
           WHERE LOWER(t.email) = ? AND t.otp_code = ? AND t.used = 0
         `).get(String(email).trim().toLowerCase(), String(otp).trim());
+      }
+
+      if (!tokenRecord && token) {
+        try {
+          const secret = SECURITY_CONFIG.jwtSecret || process.env.JWT_SECRET || 'super_secret_corporate_budget_jwt_key_987654321_!@#';
+          const decoded = jwt.verify(String(token).trim(), secret);
+          if (decoded && decoded.type === 'pwd_reset') {
+            const u = db.prepare('SELECT id, nome, email, matricula, ativo FROM usuarios WHERE id = ? OR LOWER(email) = ?').get(decoded.sub, decoded.email.toLowerCase());
+            if (u && u.ativo === 1) {
+              tokenRecord = {
+                user_id: u.id,
+                email: u.email,
+                nome: u.nome,
+                matricula: u.matricula,
+                expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+              };
+            }
+          }
+        } catch {}
       }
 
       if (!tokenRecord) {
@@ -492,6 +530,30 @@ export const authController = {
         }
       }
 
+      // Fallback: se não encontrou no banco local, valida assinatura do token JWT
+      if (!tokenRecord && cleanToken) {
+        try {
+          const secret = SECURITY_CONFIG.jwtSecret || process.env.JWT_SECRET || 'super_secret_corporate_budget_jwt_key_987654321_!@#';
+          const decoded = jwt.verify(cleanToken, secret);
+          if (decoded && decoded.type === 'pwd_reset') {
+            const u = db.prepare('SELECT id, nome, email, matricula, senha_hash, ativo FROM usuarios WHERE id = ? OR LOWER(email) = ?').get(decoded.sub, decoded.email.toLowerCase());
+            if (u && u.ativo === 1) {
+              tokenRecord = {
+                id: 0,
+                user_id: u.id,
+                email: u.email,
+                nome: u.nome,
+                matricula: u.matricula,
+                senha_hash: u.senha_hash,
+                token: cleanToken,
+                expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+                used: 0
+              };
+            }
+          }
+        } catch {}
+      }
+
       if (!tokenRecord) {
         return res.status(400).json({
           success: false,
@@ -525,10 +587,23 @@ export const authController = {
         WHERE id = ?
       `).run(novoHash, tokenRecord.user_id);
 
-      // 3. Marca token como utilizado
-      db.prepare('UPDATE tokens_redefinicao_senha SET used = 1 WHERE id = ?').run(tokenRecord.id);
+      // 3. Marca token como utilizado se tiver ID no banco local
+      if (tokenRecord.id) {
+        db.prepare('UPDATE tokens_redefinicao_senha SET used = 1 WHERE id = ?').run(tokenRecord.id);
+      }
 
-      // 4. Sincroniza a nova senha com o Neon Auth em background
+      // 4. Sincroniza a nova senha com o Neon PostgreSQL
+      if (process.env.DATABASE_URL) {
+        import('pg').then(({ default: pg }) => {
+          const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+          pool.query(
+            'UPDATE usuarios SET senha_hash = $1, primeiro_acesso = 0, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [novoHash, tokenRecord.user_id]
+          ).catch(() => {}).finally(() => pool.end());
+        }).catch(() => {});
+      }
+
+      // 5. Sincroniza a nova senha com o Neon Auth em background
       neonAuthService.resetPasswordWithToken(tokenRecord.token, newPass).catch(() => {});
 
       return res.status(200).json({
