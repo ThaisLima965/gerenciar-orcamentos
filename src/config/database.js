@@ -264,7 +264,7 @@ export async function initDatabase() {
       saveDatabase();
 
       // Sincronização automática em segundo plano com o Neon PostgreSQL (se configurado)
-      if (process.env.DATABASE_URL) {
+      if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL) {
         import('../services/neonSyncService.js').then(({ neonSyncService }) => {
           neonSyncService.syncFromNeon().catch((e) => {
             console.warn('⚠️ [Database] Aviso na sincronização inicial do Neon:', e.message);

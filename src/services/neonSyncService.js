@@ -8,10 +8,15 @@ const { Pool } = pg;
 
 let pool = null;
 
+function getDatabaseUrl() {
+  return process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL_NON_POOLING;
+}
+
 function getPool() {
-  if (!pool && process.env.DATABASE_URL) {
+  const dbUrl = getDatabaseUrl();
+  if (!pool && dbUrl) {
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: dbUrl,
       ssl: { rejectUnauthorized: false },
       max: 10,
       idleTimeoutMillis: 30000,
@@ -50,7 +55,7 @@ let isSyncingFromNeon = false;
 
 export const neonSyncService = {
   get isConfigured() {
-    return Boolean(process.env.DATABASE_URL);
+    return Boolean(getDatabaseUrl());
   },
 
   /**
