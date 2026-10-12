@@ -3,7 +3,7 @@
  * Estratégia de Caching: Stale-While-Revalidate para App Shell & Network-First para APIs
  */
 
-const CACHE_NAME = 'tke-orcamentos-v1.1.0';
+const CACHE_NAME = 'tke-orcamentos-v2.0.0';
 
 // Recursos essenciais para funcionamento 100% offline
 const APP_SHELL = [
@@ -39,7 +39,7 @@ const APP_SHELL = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      console.log('⚡ [Service Worker] Pre-cacheando App Shell...');
+      console.log('⚡ [Service Worker] Pre-cacheando App Shell v2.0.0...');
       
       // Adiciona itens tolerando falhas pontuais de fontes externas
       for (const url of APP_SHELL) {
@@ -54,7 +54,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Ativação e limpeza de caches antigos
+// Ativação e limpeza imediata de todos os caches antigos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -85,7 +85,6 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Clona a resposta e atualiza o cache para leitura offline
           if (response.status === 200) {
             const responseClone = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -95,7 +94,6 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(async () => {
-          // Se estiver offline, tenta buscar a última resposta em cache
           const cachedResponse = await caches.match(request);
           if (cachedResponse) {
             console.log(`📦 [Service Worker] Retornando API do cache offline: ${url.pathname}`);
@@ -113,20 +111,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Navegação / Páginas HTML: Stale-While-Revalidate com Fallback
-  if (request.mode === 'navigate') {
+  // 2. Navegação / Páginas HTML: Network-First garantido (nunca serve text/plain em cache)
+  if (request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname === '/') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-cache' })
         .then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+          const cType = response.headers.get('content-type') || '';
+          if (response.status === 200 && cType.includes('text/html')) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+          }
           return response;
         })
         .catch(async () => {
           const cachedPage = await caches.match(request);
-          if (cachedPage) return cachedPage;
+          if (cachedPage && cachedPage.headers.get('content-type')?.includes('text/html')) {
+            return cachedPage;
+          }
           const indexFallback = await caches.match('/index.html');
-          if (indexFallback) return indexFallback;
+          if (indexFallback && indexFallback.headers.get('content-type')?.includes('text/html')) {
+            return indexFallback;
+          }
           return caches.match('/login.html');
         })
     );

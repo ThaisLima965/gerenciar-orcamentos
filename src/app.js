@@ -96,13 +96,35 @@ app.use('/api/sync', syncRoutes);
 
 // 7. Servir Arquivos Estáticos do Frontend
 const publicPath = path.resolve(__dirname, '../public');
-app.use(express.static(publicPath));
+
+// Desativa cache em páginas HTML para evitar que navegadores reutilizem 304 com cabeçalhos corrompidos
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
+app.use(express.static(publicPath, {
+  etag: false,
+  lastModified: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    }
+  }
+}));
 
 // 8. Rota de Fallback para SPA / Home
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ success: false, error: 'Endpoint da API não encontrado.' });
   }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
