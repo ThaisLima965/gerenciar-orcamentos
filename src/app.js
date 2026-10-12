@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import { SECURITY_CONFIG } from './config/security.js';
 import { csrfProtection } from './middleware/csrf.js';
 import { apiGeneralRateLimiter } from './middleware/rateLimiter.js';
+import { sanitizeDeep } from './utils/encodingUtils.js';
 
 import authRoutes from './routes/authRoutes.js';
 import orcamentoRoutes from './routes/orcamentoRoutes.js';
@@ -57,6 +58,20 @@ app.use(cookieParser(process.env.COOKIE_SECRET || 'cookie_secret_fallback'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Higienização automática de encoding UTF-8 em payloads de entrada e charset explícito
+app.use((req, res, next) => {
+  if (req.body) req.body = sanitizeDeep(req.body);
+  if (req.query) req.query = sanitizeDeep(req.query);
+  if (req.params) req.params = sanitizeDeep(req.params);
+
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return originalJson(sanitizeDeep(body));
+  };
+  next();
+});
+
 // 4. Proteção CSRF
 app.use(csrfProtection);
 
@@ -79,9 +94,18 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/relatorios', relatorioRoutes);
 app.use('/api/sync', syncRoutes);
 
-// 7. Servir Arquivos Estáticos do Frontend
+// 7. Servir Arquivos Estáticos do Frontend com Charset UTF-8 explícito
 const publicPath = path.resolve(__dirname, '../public');
-app.use(express.static(publicPath));
+app.use(express.static(publicPath, {
+  setHeaders: (res, filePath) => {
+    if (/\.(html|js|css|json)$/i.test(filePath)) {
+      const currentType = res.getHeader('Content-Type') || '';
+      if (!currentType.includes('charset')) {
+        res.setHeader('Content-Type', `${currentType || 'text/plain'}; charset=utf-8`);
+      }
+    }
+  }
+}));
 
 // 8. Rota de Fallback para SPA / Home
 app.get('*', (req, res, next) => {

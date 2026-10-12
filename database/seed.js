@@ -44,7 +44,7 @@ async function runSeed() {
     } catch (e) {}
 
     try {
-      sqlDb.run("ALTER TABLE tecnicos ADD COLUMN funcao VARCHAR(80) DEFAULT 'Técnico de Manutenção';");
+      sqlDb.run("ALTER TABLE tecnicos ADD COLUMN funcao VARCHAR(80) DEFAULT 'Preventivo';");
     } catch (e) {}
 
     try {

@@ -17,14 +17,14 @@ INSERT OR REPLACE INTO clientes (numero_contrato, nome_cliente) VALUES
 
 -- 2. TÉCNICOS INICIAIS (8 REGISTROS: MATRÍCULAS 1001 a 1008)
 INSERT OR REPLACE INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone) VALUES
-('1001', 'Técnico de Manutenção', 'Thiago Silva Santos', 'tecnico@empresa.com', '(11) 98765-4321'),
-('1002', 'Técnico Residente', 'Marcos Vinicius Costa', 'marcos.costa@empresa.com', '(11) 98765-4322'),
-('1003', 'Técnico Especialista', 'Rafael Fernandes Oliveira', 'rafael.fernandes@empresa.com', '(11) 98765-4323'),
-('1004', 'Técnica de Manutenção', 'Larissa Duarte Mendes', 'larissa.duarte@empresa.com', '(11) 98765-4324'),
-('1005', 'Técnica Residente', 'Juliana Prado Martins', 'juliana.prado@empresa.com', '(11) 98765-4325'),
-('1006', 'Técnico de Instalação', 'Roberto Alencar Lima', 'roberto.lima@empresa.com', '(11) 98765-4326'),
-('1007', 'Técnico de Reparos', 'Carlos Eduardo Souza', 'carlos.souza@empresa.com', '(11) 98765-4327'),
-('1008', 'Técnica Especialista', 'Mariana Becker Ramos', 'mariana.ramos@empresa.com', '(11) 98765-4328');
+('1001', 'Preventivo', 'Thiago Silva Santos', 'tecnico@empresa.com', '(11) 98765-4321'),
+('1002', 'Residente', 'Marcos Vinicius Costa', 'marcos.costa@empresa.com', '(11) 98765-4322'),
+('1003', 'Corretivo', 'Rafael Fernandes Oliveira', 'rafael.fernandes@empresa.com', '(11) 98765-4323'),
+('1004', 'Preventivo', 'Larissa Duarte Mendes', 'larissa.duarte@empresa.com', '(11) 98765-4324'),
+('1005', 'Residente', 'Juliana Prado Martins', 'juliana.prado@empresa.com', '(11) 98765-4325'),
+('1006', 'Corretivo', 'Roberto Alencar Lima', 'roberto.lima@empresa.com', '(11) 98765-4326'),
+('1007', 'Preventivo', 'Carlos Eduardo Souza', 'carlos.souza@empresa.com', '(11) 98765-4327'),
+('1008', 'Corretivo', 'Mariana Becker Ramos', 'mariana.ramos@empresa.com', '(11) 98765-4328');
 
 -- 3. USUÁRIOS PADRÃO PARA TESTES IMEDIATOS (SENHA PADRÃO: Senha@12345)
 -- Bcrypt Hash para 'Senha@12345': $2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6

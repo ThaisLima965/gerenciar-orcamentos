@@ -23,7 +23,7 @@ const { initDatabase, db, saveDatabase } = await import('../src/config/database.
 
 let server;
 const PORT = 3099;
-const BASE_URL = `http://localhost:${PORT}`;
+const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 async function runTests() {
   console.log('🧪 ========================================================');
@@ -43,7 +43,7 @@ async function runTests() {
   const defaultHash = bcrypt.hashSync('Senha@12345', 10);
   db.prepare("UPDATE usuarios SET senha_hash = ?, primeiro_acesso = 0, ativo = 1 WHERE id IN (1, 2, 3)").run(defaultHash);
 
-  server = app.listen(PORT);
+  server = app.listen(PORT, '127.0.0.1');
   console.log(`📡 Servidor de testes rodando na porta ${PORT}`);
 
   try {
@@ -742,8 +742,10 @@ function request(method, path, body = null, headers = {}) {
       path: url.pathname + url.search,
       headers: {
         'Content-Type': 'application/json',
+        'Connection': 'close',
         ...headers
-      }
+      },
+      agent: false
     };
 
     const req = http.request(reqOptions, (res) => {
@@ -791,9 +793,11 @@ function postMultipart(path, filename, fileContent, cookie = '', csrfToken = '')
       headers: {
         'Content-Type': `multipart/form-data; boundary=${boundary}`,
         'Content-Length': payload.length,
+        'Connection': 'close',
         'Cookie': cookie,
         'X-CSRF-Token': csrfToken
-      }
+      },
+      agent: false
     };
 
     const req = http.request(reqOptions, (res) => {
@@ -824,7 +828,11 @@ function getRaw(path, headers = {}) {
       hostname: url.hostname,
       port: url.port,
       path: url.pathname + url.search,
-      headers
+      headers: {
+        'Connection': 'close',
+        ...headers
+      },
+      agent: false
     };
 
     const req = http.request(reqOptions, (res) => {

@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { initDatabase, db } from '../src/config/database.js';
+import { normalizeTecnicoFuncao, sanitizeUtf8 } from '../src/utils/encodingUtils.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -50,7 +51,7 @@ async function migrateData() {
 
       CREATE TABLE IF NOT EXISTS tecnicos (
         matricula VARCHAR(50) PRIMARY KEY,
-        funcao VARCHAR(80) DEFAULT 'Técnico de Manutenção',
+        funcao VARCHAR(80) DEFAULT 'Preventivo',
         nome_sobrenome VARCHAR(150) NOT NULL,
         email VARCHAR(150),
         telefone VARCHAR(50),
@@ -94,7 +95,7 @@ async function migrateData() {
 
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS grupo VARCHAR(10) DEFAULT 'G11';
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS primeiro_acesso INTEGER DEFAULT 0;
-      ALTER TABLE tecnicos ADD COLUMN IF NOT EXISTS funcao VARCHAR(80) DEFAULT 'Técnico de Manutenção';
+      ALTER TABLE tecnicos ADD COLUMN IF NOT EXISTS funcao VARCHAR(80) DEFAULT 'Preventivo';
       ALTER TABLE chamados_orcamentos ADD COLUMN IF NOT EXISTS g_origem VARCHAR(10) DEFAULT 'G11';
       ALTER TABLE chamados_orcamentos ADD COLUMN IF NOT EXISTS descricao_servico TEXT;
       ALTER TABLE chamados_orcamentos ADD COLUMN IF NOT EXISTS valor_total NUMERIC(15,2) DEFAULT 0.00;
@@ -171,8 +172,8 @@ async function migrateData() {
           telefone = EXCLUDED.telefone
       `, [
         t.matricula,
-        t.funcao || 'Técnico de Manutenção',
-        t.nome_sobrenome,
+        normalizeTecnicoFuncao(t.funcao),
+        sanitizeUtf8(t.nome_sobrenome),
         t.email || null,
         t.telefone || null,
         t.created_at || new Date().toISOString()
@@ -205,7 +206,7 @@ async function migrateData() {
           INSERT INTO tecnicos (matricula, funcao, nome_sobrenome)
           VALUES ($1, $2, $3)
           ON CONFLICT (matricula) DO NOTHING
-        `, [tecnicoMatricula, 'Técnico de Manutenção', ch.nome_tecnico || 'Técnico']);
+        `, [tecnicoMatricula, 'Preventivo', sanitizeUtf8(ch.nome_tecnico || 'Técnico')]);
       }
 
       await client.query(`

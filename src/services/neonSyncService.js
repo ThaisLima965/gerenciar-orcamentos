@@ -1,6 +1,7 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
 import { db, saveDatabase } from '../config/database.js';
+import { sanitizeUtf8, normalizeTecnicoFuncao } from '../utils/encodingUtils.js';
 
 dotenv.config();
 
@@ -92,7 +93,13 @@ export const neonSyncService = {
         ORDER BY id ASC
       `);
 
-      if (orcRes.rows && orcRes.rows.length > 0) {
+      if (orcRes.rows && orcRes.rows.length === 0) {
+        // Se a tabela no Neon está limpa/vazia para nova importação oficial, garante SQLite também vazio
+        const localOrcs = db.prepare('SELECT COUNT(*) as count FROM chamados_orcamentos').get()?.count || 0;
+        if (localOrcs > 0) {
+          db.prepare('DELETE FROM chamados_orcamentos').run();
+        }
+      } else if (orcRes.rows && orcRes.rows.length > 0) {
         const stmtOrc = db.prepare(`
           INSERT OR REPLACE INTO chamados_orcamentos (
             id, matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
@@ -107,14 +114,14 @@ export const neonSyncService = {
             stmtOrc.run(
               row.id,
               row.matricula_tecnico,
-              row.nome_tecnico,
+              sanitizeUtf8(row.nome_tecnico),
               row.tipo_servico,
               row.numero_pgo,
               row.g_origem || 'G11',
               row.numero_contrato,
-              row.nome_cliente,
+              sanitizeUtf8(row.nome_cliente),
               row.numero_orcamento || 'Aguardando Orçamento',
-              row.descricao_servico,
+              sanitizeUtf8(row.descricao_servico),
               Number(row.valor_total) || 0.00,
               row.data_liberacao,
               row.geor_liberou || 'Não',
@@ -136,29 +143,48 @@ export const neonSyncService = {
         const stmtCli = db.prepare('INSERT OR REPLACE INTO clientes (numero_contrato, nome_cliente, created_at) VALUES (?, ?, ?)');
         for (const c of cliRes.rows) {
           try {
-            stmtCli.run(c.numero_contrato, c.nome_cliente, c.created_at ? new Date(c.created_at).toISOString() : new Date().toISOString());
+            stmtCli.run(c.numero_contrato, sanitizeUtf8(c.nome_cliente), c.created_at ? new Date(c.created_at).toISOString() : new Date().toISOString());
           } catch {}
         }
       }
 
-      // 3. Técnicos
+      // 3. Técnicos (padronizado com os 3 níveis oficiais e UTF-8 higienizado)
       const tecRes = await queryNeon('SELECT matricula, funcao, nome_sobrenome, email, telefone, created_at FROM tecnicos ORDER BY matricula ASC');
       if (tecRes.rows && tecRes.rows.length > 0) {
         const stmtTec = db.prepare('INSERT OR REPLACE INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at) VALUES (?, ?, ?, ?, ?, ?)');
         for (const t of tecRes.rows) {
           try {
-            stmtTec.run(t.matricula, t.funcao || 'Técnico de Manutenção', t.nome_sobrenome, t.email, t.telefone, t.created_at ? new Date(t.created_at).toISOString() : new Date().toISOString());
+            stmtTec.run(
+              t.matricula, 
+              normalizeTecnicoFuncao(t.funcao), 
+              sanitizeUtf8(t.nome_sobrenome), 
+              t.email ? sanitizeUtf8(t.email) : null, 
+              t.telefone, 
+              t.created_at ? new Date(t.created_at).toISOString() : new Date().toISOString()
+            );
           } catch {}
         }
       }
 
-      // 4. Usuários (sem sobrescrever senha se não houver no Neon)
+      // 4. Usuários
       const usrRes = await queryNeon('SELECT id, nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at FROM usuarios ORDER BY id ASC');
       if (usrRes.rows && usrRes.rows.length > 0) {
         const stmtUsr = db.prepare('INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         for (const u of usrRes.rows) {
           try {
-            stmtUsr.run(u.id, u.nome, u.email, u.matricula, u.senha_hash, u.perfil, u.grupo || 'G11', u.primeiro_acesso ?? 0, u.ativo ?? 1, u.created_at ? new Date(u.created_at).toISOString() : new Date().toISOString(), u.updated_at ? new Date(u.updated_at).toISOString() : new Date().toISOString());
+            stmtUsr.run(
+              u.id, 
+              sanitizeUtf8(u.nome), 
+              u.email ? sanitizeUtf8(u.email) : null, 
+              u.matricula, 
+              u.senha_hash, 
+              u.perfil, 
+              u.grupo || 'G11', 
+              u.primeiro_acesso ?? 0, 
+              u.ativo ?? 1, 
+              u.created_at ? new Date(u.created_at).toISOString() : new Date().toISOString(), 
+              u.updated_at ? new Date(u.updated_at).toISOString() : new Date().toISOString()
+            );
           } catch {}
         }
       }
@@ -333,6 +359,21 @@ export const neonSyncService = {
   },
 
   /**
+   * Limpa a tabela chamados_orcamentos no Neon PostgreSQL
+   */
+  async clearOrcamentosInNeon() {
+    if (!this.isConfigured) return;
+    if (!getPool()) return;
+
+    try {
+      await queryNeon('DELETE FROM chamados_orcamentos');
+      console.log('🧹 [NeonSyncService] Tabela chamados_orcamentos limpa no Neon com sucesso.');
+    } catch (err) {
+      console.warn('⚠️ [NeonSyncService] Falha ao limpar orçamentos no Neon:', err.message);
+    }
+  },
+
+  /**
    * Envia atualização de Técnico diretamente para o Neon
    */
   async syncTecnicoToNeon(tec) {
@@ -350,9 +391,9 @@ export const neonSyncService = {
           telefone = EXCLUDED.telefone
       `, [
         tec.matricula,
-        tec.funcao || 'Técnico de Manutenção',
-        tec.nome_sobrenome || tec.nome_completo,
-        tec.email || null,
+        normalizeTecnicoFuncao(tec.funcao),
+        sanitizeUtf8(tec.nome_sobrenome || tec.nome_completo),
+        tec.email ? sanitizeUtf8(tec.email) : null,
         tec.telefone || null
       ]);
     } catch (err) {

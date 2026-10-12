@@ -107,7 +107,7 @@ export const relatorioController = {
         SELECT 
           t.matricula,
           t.nome_sobrenome as nome_tecnico,
-          COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
+          COALESCE(t.funcao, 'Preventivo') as funcao,
           COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
@@ -136,7 +136,7 @@ export const relatorioController = {
         SELECT 
           t.matricula,
           t.nome_sobrenome as nome_tecnico,
-          COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
+          COALESCE(t.funcao, 'Preventivo') as funcao,
           COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
@@ -176,7 +176,7 @@ export const relatorioController = {
           matricula: item.matricula,
           colaborador: item.nome_tecnico,
           nome_tecnico: item.nome_tecnico,
-          funcao: item.funcao || 'Técnico de Manutenção',
+          funcao: item.funcao || 'Preventivo',
           grupo: item.grupo || 'G11',
           qtd_aprovados: qtd,
           valor_total: Number(item.valor_total) || 0.0,
@@ -194,7 +194,7 @@ export const relatorioController = {
           matricula: item.matricula,
           colaborador: item.nome_tecnico,
           nome_tecnico: item.nome_tecnico,
-          funcao: item.funcao || 'Técnico de Manutenção',
+          funcao: item.funcao || 'Preventivo',
           grupo: item.grupo || 'G11',
           qtd_aprovados: qtd,
           valor_total: Number(item.valor_total) || 0.0,
@@ -283,7 +283,7 @@ export const relatorioController = {
         SELECT 
           t.matricula,
           t.nome_sobrenome as nome_tecnico,
-          COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
+          COALESCE(t.funcao, 'Preventivo') as funcao,
           COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
@@ -308,7 +308,7 @@ export const relatorioController = {
         SELECT 
           t.matricula,
           t.nome_sobrenome as nome_tecnico,
-          COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
+          COALESCE(t.funcao, 'Preventivo') as funcao,
           COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
@@ -509,7 +509,7 @@ export const relatorioController = {
         SELECT 
           t.matricula,
           t.nome_sobrenome as nome_tecnico,
-          COALESCE(t.funcao, 'Técnico de Manutenção') as funcao,
+          COALESCE(t.funcao, 'Preventivo') as funcao,
           COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_total_ciclo,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total_ciclo

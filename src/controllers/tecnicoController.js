@@ -2,19 +2,28 @@ import * as xlsx from 'xlsx';
 import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
 import { neonSyncService } from '../services/neonSyncService.js';
+import { sanitizeUtf8, normalizeTecnicoFuncao, TECNICO_NIVEIS } from '../utils/encodingUtils.js';
 
 export const tecnicoController = {
   // Listar todos os técnicos
   async list(req, res) {
     try {
       const tecnicos = db.prepare(`
-        SELECT matricula, COALESCE(funcao, 'Técnico de Manutenção') AS funcao, nome_sobrenome, email, telefone, created_at 
+        SELECT matricula, COALESCE(funcao, 'Preventivo') AS funcao, nome_sobrenome, email, telefone, created_at 
         FROM tecnicos 
         ORDER BY CAST(matricula AS INTEGER) ASC, nome_sobrenome ASC
       `).all();
+
+      const sanitizedTecnicos = tecnicos.map(t => ({
+        ...t,
+        funcao: normalizeTecnicoFuncao(t.funcao),
+        nome_sobrenome: sanitizeUtf8(t.nome_sobrenome),
+        email: t.email ? sanitizeUtf8(t.email) : null
+      }));
+
       return res.status(200).json({
         success: true,
-        data: tecnicos
+        data: sanitizedTecnicos
       });
     } catch (error) {
       console.error('❌ Erro ao listar técnicos:', error);
@@ -35,9 +44,9 @@ export const tecnicoController = {
         });
       }
       const { matricula, funcao, nome_sobrenome, nome_completo, email, telefone } = req.body;
-      const finalNome = String(nome_completo || nome_sobrenome || '').trim();
+      const finalNome = sanitizeUtf8(String(nome_completo || nome_sobrenome || '').trim());
       const cleanMatricula = String(matricula || '').trim();
-      const cleanFuncao = String(funcao || 'Técnico de Manutenção').trim();
+      const cleanFuncao = normalizeTecnicoFuncao(funcao);
 
       if (!cleanMatricula || !finalNome) {
         return res.status(400).json({
@@ -58,7 +67,7 @@ export const tecnicoController = {
         cleanMatricula,
         cleanFuncao,
         finalNome,
-        email ? String(email).trim() : null,
+        email ? sanitizeUtf8(String(email).trim()) : null,
         telefone ? String(telefone).trim() : null
       );
 
@@ -93,8 +102,8 @@ export const tecnicoController = {
       const { funcao, nome_sobrenome, nome_completo, email, telefone, nova_matricula } = req.body;
 
       const cleanMatricula = String(matricula || '').trim();
-      const finalNome = String(nome_completo || nome_sobrenome || '').trim();
-      const cleanFuncao = String(funcao || 'Técnico de Manutenção').trim();
+      const finalNome = sanitizeUtf8(String(nome_completo || nome_sobrenome || '').trim());
+      const cleanFuncao = normalizeTecnicoFuncao(funcao);
       const targetMatricula = String(nova_matricula || cleanMatricula).trim();
 
       const existing = db.prepare('SELECT matricula, nome_sobrenome, funcao, email, telefone FROM tecnicos WHERE matricula = ?').get(cleanMatricula);
@@ -132,7 +141,7 @@ export const tecnicoController = {
         targetMatricula,
         cleanFuncao,
         finalNome,
-        email ? String(email).trim() : null,
+        email ? sanitizeUtf8(String(email).trim()) : null,
         telefone ? String(telefone).trim() : null,
         cleanMatricula
       );
@@ -245,10 +254,10 @@ export const tecnicoController = {
         });
       }
 
-      // Leitura da planilha em memória
+      // Leitura da planilha em memória com codepage 65001 (UTF-8 garantido)
       let workbook;
       try {
-        workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        workbook = xlsx.read(req.file.buffer, { type: 'buffer', codepage: 65001, cellDates: true });
       } catch (readErr) {
         return res.status(400).json({
           success: false,
@@ -287,7 +296,7 @@ export const tecnicoController = {
           for (const key of keys) {
             const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
             if (normKey === normCandidate && String(row[key]).trim() !== '') {
-              return String(row[key]).trim();
+              return sanitizeUtf8(String(row[key]).trim());
             }
           }
         }
@@ -296,7 +305,7 @@ export const tecnicoController = {
 
       const parseGrupoEFuncao = (rawVal) => {
         if (!rawVal) return { grupo: null, perfil: null, funcao: null };
-        const str = String(rawVal).trim();
+        const str = sanitizeUtf8(String(rawVal).trim());
         if (!str) return { grupo: null, perfil: null, funcao: null };
 
         let grupo = null;
@@ -337,18 +346,9 @@ export const tecnicoController = {
         } else if (upper.includes('SUPERV')) {
           perfil = 'SUPERVISOR';
           funcaoClean = 'Supervisor';
-        } else if (upper.includes('PREVENTIV')) {
+        } else {
           perfil = 'TECNICO';
-          funcaoClean = 'Preventivo';
-        } else if (upper.includes('CORRETIV')) {
-          perfil = 'TECNICO';
-          funcaoClean = 'Corretivo';
-        } else if (upper.includes('RESIDENT')) {
-          perfil = 'TECNICO';
-          funcaoClean = 'Residente';
-        } else if (upper.includes('TECN')) {
-          perfil = 'TECNICO';
-          funcaoClean = 'Técnico de Manutenção';
+          funcaoClean = normalizeTecnicoFuncao(funcaoClean);
         }
 
         return { grupo, perfil, funcao: funcaoClean };
@@ -374,7 +374,7 @@ export const tecnicoController = {
         const parsedFuncao = parseGrupoEFuncao(rawFuncaoOrCargo);
         const parsedGrupo = parseGrupoEFuncao(rawGrupoField);
 
-        const finalFuncao = parsedFuncao.funcao || (rawFuncaoOrCargo ? rawFuncaoOrCargo : 'Técnico de Manutenção');
+        const finalFuncao = normalizeTecnicoFuncao(parsedFuncao.funcao || rawFuncaoOrCargo || 'Preventivo');
         const finalGrupo = parsedGrupo.grupo || parsedFuncao.grupo || 'G11';
         const finalPerfil = parsedFuncao.perfil || (finalFuncao.toUpperCase().includes('SUPERV') ? 'SUPERVISOR' : 'TECNICO');
 
@@ -386,8 +386,12 @@ export const tecnicoController = {
         const email = findField(row, ['Email', 'email', 'E-mail', 'Correio']);
         const telefone = findField(row, ['Telefone', 'telefone', 'Celular', 'Fone', 'Contato']);
 
-        // Linha completamente em branco é ignorada
+        // Linha completamente em branco ou cabeçalho acidental é ignorada
         if (!matricula && !nomeSobrenome) {
+          return;
+        }
+
+        if (matricula.toLowerCase() === 'matricula' && (nomeSobrenome.toLowerCase().includes('nome') || nomeSobrenome.toLowerCase().includes('colaborador'))) {
           return;
         }
 
@@ -403,14 +407,14 @@ export const tecnicoController = {
         }
 
         const cleanMatricula = matricula.trim();
-        const cleanNome = nomeSobrenome.trim();
-        const cleanEmail = email ? email.toLowerCase().trim() : null;
+        const cleanNome = sanitizeUtf8(nomeSobrenome.trim());
+        const cleanEmail = email ? sanitizeUtf8(email.toLowerCase().trim()) : null;
         const cleanTelefone = telefone ? telefone.trim() : null;
 
         // Tratamento de duplicados (Upsert / Atualização sem quebrar integridade)
         const existing = db.prepare('SELECT matricula, funcao, email, telefone FROM tecnicos WHERE matricula = ?').get(cleanMatricula);
         if (existing) {
-          const tecFuncao = finalFuncao || existing.funcao || 'Técnico de Manutenção';
+          const tecFuncao = normalizeTecnicoFuncao(finalFuncao || existing.funcao || 'Preventivo');
           const tecEmail = cleanEmail || existing.email;
           const tecTelefone = cleanTelefone || existing.telefone;
           db.prepare('UPDATE tecnicos SET funcao = ?, nome_sobrenome = ?, email = ?, telefone = ? WHERE matricula = ?').run(
@@ -489,9 +493,9 @@ export const tecnicoController = {
       const format = (req.query.format || 'xlsx').toLowerCase();
       
       const sampleData = [
-        { 'Matricula': '1001', 'Funcao': 'Técnico de Manutenção', 'Nome_Completo': 'Thiago Silva Santos' },
-        { 'Matricula': '1002', 'Funcao': 'Técnico Residente', 'Nome_Completo': 'Marcos Vinicius Costa' },
-        { 'Matricula': '1003', 'Funcao': 'Técnico Especialista', 'Nome_Completo': 'Rafael Fernandes Oliveira' }
+        { 'Matricula': '1001', 'Funcao': 'Preventivo', 'Nome_Completo': 'Thiago Silva Santos' },
+        { 'Matricula': '1002', 'Funcao': 'Corretivo', 'Nome_Completo': 'Marcos Vinicius Costa' },
+        { 'Matricula': '1003', 'Funcao': 'Residente', 'Nome_Completo': 'Rafael Fernandes Oliveira' }
       ];
 
       const ws = xlsx.utils.json_to_sheet(sampleData);

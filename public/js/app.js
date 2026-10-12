@@ -552,7 +552,7 @@ function applyRbacToModal(isEdit = false, item = null) {
     selectStatus.disabled = true;
 
     saveBtn.style.display = 'none';
-    rbacText.innerHTML = '👁️ <strong>Perfil Técnico (Somente Visualização):</strong> Acesso de consulta aos chamados e orçamentos. Nenhuma alteração ou inclusão é permitida.';
+    rbacText.innerHTML = '👁️ <strong>Perfil Técnico (100% Somente Leitura):</strong> Acesso exclusivo de visualização aos chamados e orçamentos. Nenhuma criação, edição ou exclusão é permitida.';
     return;
   }
 
@@ -797,6 +797,11 @@ function setupEventListeners() {
   // Salvar Orçamento (Create / Update)
   document.getElementById('orcamento-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    if (state.user?.perfil === 'TECNICO') {
+      showToast('Acesso negado. O perfil de Técnico possui acesso 100% somente leitura.', 'warning');
+      return;
+    }
 
     const saveBtn = document.getElementById('modal-save-btn');
     saveBtn.disabled = true;
@@ -1424,12 +1429,21 @@ function renderCadastrosTecnicosTable() {
     return;
   }
 
-  tbody.innerHTML = state.tecnicos.map(t => `
+  tbody.innerHTML = state.tecnicos.map(t => {
+    const nivel = t.funcao || 'Preventivo';
+    let badgeStyle = 'background: rgba(16, 185, 129, 0.12); color: #059669; border: 1px solid rgba(16, 185, 129, 0.25);';
+    if (nivel === 'Corretivo') {
+      badgeStyle = 'background: rgba(239, 68, 68, 0.12); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.25);';
+    } else if (nivel === 'Residente') {
+      badgeStyle = 'background: rgba(98, 0, 234, 0.12); color: var(--tke-purple); border: 1px solid rgba(98, 0, 234, 0.25);';
+    }
+
+    return `
     <tr>
       <td style="font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 0.88rem;">${escapeHtml(t.matricula)}</td>
       <td>
-        <span class="badge-tag" style="background: rgba(98, 0, 234, 0.08); color: var(--tke-purple); font-weight: 600;">
-          ${escapeHtml(t.funcao || 'Técnico de Manutenção')}
+        <span class="badge-tag" style="${badgeStyle} font-weight: 800; font-size: 0.76rem; letter-spacing: 0.02em;">
+          ${escapeHtml(nivel)}
         </span>
       </td>
       <td style="font-weight: 600; color: var(--text-primary);">${escapeHtml(t.nome_sobrenome)}</td>
@@ -1449,7 +1463,7 @@ function renderCadastrosTecnicosTable() {
             <button 
               type="button" 
               class="btn btn-secondary btn-sm btn-delete-cad-tec" 
-              data-matricula="${escapeHtml(t.matricula)}"
+              data-matricula="${escapeHtml(t.matricula)}" 
               data-name="${escapeHtml(t.nome_sobrenome)}"
               title="Excluir Técnico"
               style="padding: 0.2rem 0.5rem; font-size: 0.75rem; color: #EF4444;"
@@ -1462,7 +1476,8 @@ function renderCadastrosTecnicosTable() {
         `}
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   if (isConsultora) {
     document.querySelectorAll('.btn-edit-cad-tec').forEach(btn => {
@@ -1630,8 +1645,12 @@ function openEditTecnicoModal(matricula) {
         <input type="text" id="edit-tec-matricula" class="form-control" value="${escapeHtml(tec.matricula)}" required>
       </div>
       <div class="form-group">
-        <label style="font-weight: 700; font-size: 0.85rem;">Função / Cargo *</label>
-        <input type="text" id="edit-tec-funcao" class="form-control" value="${escapeHtml(tec.funcao || 'Técnico de Manutenção')}" required>
+        <label style="font-weight: 700; font-size: 0.85rem;">Nível do Técnico *</label>
+        <select id="edit-tec-funcao" class="form-control" required>
+          <option value="Preventivo" ${tec.funcao === 'Preventivo' ? 'selected' : ''}>Preventivo</option>
+          <option value="Corretivo" ${tec.funcao === 'Corretivo' ? 'selected' : ''}>Corretivo</option>
+          <option value="Residente" ${tec.funcao === 'Residente' ? 'selected' : ''}>Residente</option>
+        </select>
       </div>
     </div>
     <div class="form-group" style="margin-bottom: 1rem;">

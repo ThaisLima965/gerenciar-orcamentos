@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS clientes (
 -- 3. TABELA DE TÉCNICOS
 CREATE TABLE IF NOT EXISTS tecnicos (
     matricula VARCHAR(30) PRIMARY KEY,
-    funcao VARCHAR(80) NOT NULL DEFAULT 'Técnico de Manutenção',
+    funcao VARCHAR(80) NOT NULL DEFAULT 'Preventivo',
     nome_sobrenome VARCHAR(120) NOT NULL,
     email VARCHAR(120),
     telefone VARCHAR(20),

@@ -2,6 +2,7 @@ import * as xlsx from 'xlsx';
 import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
 import { neonSyncService } from '../services/neonSyncService.js';
+import { sanitizeUtf8 } from '../utils/encodingUtils.js';
 
 export const clienteController = {
   // Listar todos os clientes
@@ -212,10 +213,10 @@ export const clienteController = {
         });
       }
 
-      // Leitura da planilha em memória
+      // Leitura da planilha em memória com codepage 65001 (UTF-8 garantido)
       let workbook;
       try {
-        workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        workbook = xlsx.read(req.file.buffer, { type: 'buffer', codepage: 65001, cellDates: true });
       } catch (readErr) {
         return res.status(400).json({
           success: false,
@@ -254,7 +255,7 @@ export const clienteController = {
           for (const key of keys) {
             const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
             if (normKey === normCandidate && String(row[key]).trim() !== '') {
-              return String(row[key]).trim();
+              return sanitizeUtf8(String(row[key]).trim());
             }
           }
         }

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
 import { neonSyncService } from '../services/neonSyncService.js';
+import { sanitizeUtf8, normalizeTecnicoFuncao } from '../utils/encodingUtils.js';
 
 export const usuarioController = {
   // Listar usuários do sistema (Exclusivo Consultora)
@@ -101,7 +102,7 @@ export const usuarioController = {
       if (cleanPerfil === 'TECNICO') {
         db.prepare(`
           INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email)
-          VALUES (?, 'Técnico de Manutenção', ?, ?)
+          VALUES (?, 'Preventivo', ?, ?)
           ON CONFLICT(matricula) DO UPDATE SET
             nome_sobrenome = excluded.nome_sobrenome,
             email = excluded.email
@@ -212,7 +213,7 @@ export const usuarioController = {
       if (tecExists) {
         db.prepare('UPDATE tecnicos SET matricula = ?, nome_sobrenome = ?, email = ? WHERE matricula = ?').run(cleanMatricula, cleanNome, cleanEmail, tecExists.matricula);
       } else if (cleanPerfil === 'TECNICO' || cleanPerfil === 'SUPERVISOR') {
-        db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email) VALUES (?, ?, ?, ?)').run(cleanMatricula, 'Técnico de Manutenção', cleanNome, cleanEmail);
+        db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email) VALUES (?, ?, ?, ?)').run(cleanMatricula, 'Preventivo', cleanNome, cleanEmail);
       }
 
       // Sincroniza histórico de orçamentos e chamados do colaborador
@@ -433,7 +434,7 @@ export const usuarioController = {
 
       let workbook;
       try {
-        workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        workbook = xlsx.read(req.file.buffer, { type: 'buffer', codepage: 65001, cellDates: true });
       } catch (readErr) {
         return res.status(400).json({
           success: false,
@@ -470,7 +471,7 @@ export const usuarioController = {
           for (const key of keys) {
             const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
             if (normKey === normCandidate && String(row[key]).trim() !== '') {
-              return String(row[key]).trim();
+              return sanitizeUtf8(String(row[key]).trim());
             }
           }
         }
@@ -531,7 +532,7 @@ export const usuarioController = {
           funcaoClean = 'Residente';
         } else if (upper.includes('TECN')) {
           perfil = 'TECNICO';
-          funcaoClean = 'Técnico de Manutenção';
+          funcaoClean = normalizeTecnicoFuncao(funcaoClean);
         }
 
         return { grupo, perfil, funcao: funcaoClean };
@@ -568,7 +569,10 @@ export const usuarioController = {
 
         let perfil = parsedFuncao.perfil || (rawFuncaoOrCargo.toUpperCase().includes('SUPERV') ? 'SUPERVISOR' : (rawFuncaoOrCargo.toUpperCase().includes('CONSULT') ? 'CONSULTORA' : 'TECNICO'));
         let grupo = parsedGrupo.grupo || parsedFuncao.grupo || 'G11';
-        let cleanFuncao = parsedFuncao.funcao || (perfil === 'SUPERVISOR' ? 'Supervisor' : (perfil === 'CONSULTORA' ? 'Consultora' : 'Técnico de Manutenção'));
+        let cleanFuncao = parsedFuncao.funcao || (perfil === 'SUPERVISOR' ? 'Supervisor' : (perfil === 'CONSULTORA' ? 'Consultora' : 'Preventivo'));
+        if (perfil === 'TECNICO') {
+          cleanFuncao = normalizeTecnicoFuncao(cleanFuncao);
+        }
 
         const rawSenha = findField(row, [
           'Senha_Provisoria', 'senha_provisoria', 'Senha_Padrao', 'Senha', 'Password'

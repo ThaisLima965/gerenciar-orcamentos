@@ -1514,8 +1514,12 @@
                 <input type="text" id="cad-tec-matricula" class="form-control" placeholder="ex: 1001" required>
               </div>
               <div class="form-group">
-                <label style="font-size: 0.72rem;">Função</label>
-                <input type="text" id="cad-tec-funcao" class="form-control" placeholder="ex: Técnico de Manutenção" required>
+                <label style="font-size: 0.72rem;">Nível do Técnico *</label>
+                <select id="cad-tec-funcao" class="form-control" required>
+                  <option value="Preventivo">Preventivo</option>
+                  <option value="Corretivo">Corretivo</option>
+                  <option value="Residente">Residente</option>
+                </select>
               </div>
               <div class="form-group">
                 <label style="font-size: 0.72rem;">Nome Completo</label>
@@ -1530,7 +1534,7 @@
             <div id="import-tec-panel" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-strong);">
               <div class="template-download-bar" style="margin-bottom: 0.85rem; padding: 0.6rem 0.85rem;">
                 <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-primary);">
-                  <i class="bi bi-info-circle-fill" style="color: var(--tke-purple);"></i> Colunas esperadas: <code>Matricula</code>, <code>Funcao</code>, <code>Nome_Completo</code>
+                  <i class="bi bi-info-circle-fill" style="color: var(--tke-purple);"></i> Níveis oficiais permitidos: <code>Preventivo</code>, <code>Corretivo</code>, <code>Residente</code>. Colunas: <code>Matricula</code>, <code>Funcao</code>, <code>Nome_Completo</code>
                 </div>
                 <div style="display: flex; gap: 0.4rem;">
                   <a href="/api/tecnicos/template?format=xlsx" class="btn btn-secondary btn-sm" style="font-size: 0.72rem;">

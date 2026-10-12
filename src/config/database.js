@@ -24,8 +24,10 @@ function resolveDbPath() {
   if (isServerless && fs.existsSync('/tmp/database.sqlite')) {
     return '/tmp/database.sqlite';
   }
+  if (process.env.DB_PATH) {
+    return path.resolve(process.cwd(), process.env.DB_PATH);
+  }
   const candidates = [
-    process.env.DB_PATH ? path.resolve(process.cwd(), process.env.DB_PATH) : null,
     path.join(process.cwd(), 'database/database.sqlite'),
     path.join(dbDirectory, 'database.sqlite'),
     path.resolve(__dirname, '../../database/database.sqlite')
@@ -129,7 +131,7 @@ CREATE TABLE IF NOT EXISTS clientes (
 
 CREATE TABLE IF NOT EXISTS tecnicos (
     matricula VARCHAR(30) PRIMARY KEY,
-    funcao VARCHAR(80) NOT NULL DEFAULT 'Técnico de Manutenção',
+    funcao VARCHAR(80) NOT NULL DEFAULT 'Preventivo',
     nome_sobrenome VARCHAR(120) NOT NULL,
     email VARCHAR(120),
     telefone VARCHAR(20),
@@ -222,7 +224,7 @@ export async function initDatabase() {
       // Migrações dinâmicas de colunas adicionais
       const safeMigrations = [
         'ALTER TABLE chamados_orcamentos ADD COLUMN descricao_servico TEXT;',
-        "ALTER TABLE tecnicos ADD COLUMN funcao VARCHAR(80) DEFAULT 'Técnico de Manutenção';",
+        "ALTER TABLE tecnicos ADD COLUMN funcao VARCHAR(80) DEFAULT 'Preventivo';",
         "ALTER TABLE chamados_orcamentos ADD COLUMN g_origem VARCHAR(10) DEFAULT 'G11';",
         'ALTER TABLE chamados_orcamentos ADD COLUMN valor_total REAL DEFAULT 0.00;',
         'ALTER TABLE usuarios ADD COLUMN primeiro_acesso INTEGER DEFAULT 0;',
