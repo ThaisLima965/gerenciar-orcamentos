@@ -94,18 +94,9 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/relatorios', relatorioRoutes);
 app.use('/api/sync', syncRoutes);
 
-// 7. Servir Arquivos Estáticos do Frontend com Charset UTF-8 explícito
+// 7. Servir Arquivos Estáticos do Frontend
 const publicPath = path.resolve(__dirname, '../public');
-app.use(express.static(publicPath, {
-  setHeaders: (res, filePath) => {
-    if (/\.(html|js|css|json)$/i.test(filePath)) {
-      const currentType = res.getHeader('Content-Type') || '';
-      if (!currentType.includes('charset')) {
-        res.setHeader('Content-Type', `${currentType || 'text/plain'}; charset=utf-8`);
-      }
-    }
-  }
-}));
+app.use(express.static(publicPath));
 
 // 8. Rota de Fallback para SPA / Home
 app.get('*', (req, res, next) => {
