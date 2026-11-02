@@ -53,6 +53,35 @@ async function queryNeon(text, params = []) {
 
 let lastNeonVersion = '';
 let isSyncingFromNeon = false;
+let activeUpstreamSyncs = 0;
+
+function getLocalFingerprint() {
+  try {
+    const orcStat = db.prepare(`
+      SELECT 
+        COUNT(*) as count, 
+        COALESCE(MAX(updated_at), '') as updated_at,
+        COALESCE(SUM(valor_total), 0) as sum_val,
+        COALESCE(GROUP_CONCAT(status || ':' || geor_liberou), '') as status_sig
+      FROM chamados_orcamentos
+    `).get() || {};
+    const cliCount = db.prepare('SELECT COUNT(*) as count FROM clientes').get()?.count || 0;
+    const tecStat = db.prepare(`
+      SELECT COUNT(*) as count, COALESCE(GROUP_CONCAT(matricula || ':' || funcao), '') as sig
+      FROM tecnicos
+    `).get() || {};
+    const usrStat = db.prepare(`
+      SELECT 
+        COUNT(*) as count, 
+        COALESCE(MAX(updated_at), '') as updated_at,
+        COALESCE(GROUP_CONCAT(id || ':' || perfil || ':' || grupo || ':' || primeiro_acesso || ':' || ativo), '') as sig
+      FROM usuarios
+    `).get() || {};
+    return `${orcStat.count}:${orcStat.updated_at}:${orcStat.sum_val}:${orcStat.status_sig}|${cliCount}|${tecStat.count}:${tecStat.sig}|${usrStat.count}:${usrStat.updated_at}:${usrStat.sig}`;
+  } catch (e) {
+    return String(Date.now());
+  }
+}
 
 export const neonSyncService = {
   get isConfigured() {
@@ -65,6 +94,13 @@ export const neonSyncService = {
    */
   async syncFromNeon(force = false) {
     if (!this.isConfigured) return { success: false, reason: 'skip' };
+
+    // Aguarda caso exista uma escrita local sendo enviada ao Neon (evita sobrescrever mudança recém-feita)
+    let waitUp = 0;
+    while (activeUpstreamSyncs > 0 && waitUp < 5000) {
+      await new Promise((r) => setTimeout(r, 150));
+      waitUp += 150;
+    }
 
     if (isSyncingFromNeon) {
       if (!force) return { success: false, reason: 'already_syncing' };
@@ -151,6 +187,13 @@ export const neonSyncService = {
       // 3. Técnicos (padronizado com os 3 níveis oficiais e UTF-8 higienizado)
       const tecRes = await queryNeon('SELECT matricula, funcao, nome_sobrenome, email, telefone, created_at FROM tecnicos ORDER BY matricula ASC');
       if (tecRes.rows && tecRes.rows.length > 0) {
+        const neonMatriculas = new Set(tecRes.rows.map(r => r.matricula));
+        const localTecs = db.prepare('SELECT matricula FROM tecnicos').all();
+        for (const lt of localTecs) {
+          if (!neonMatriculas.has(lt.matricula)) {
+            try { db.prepare('DELETE FROM tecnicos WHERE matricula = ?').run(lt.matricula); } catch {}
+          }
+        }
         const stmtTec = db.prepare('INSERT OR REPLACE INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at) VALUES (?, ?, ?, ?, ?, ?)');
         for (const t of tecRes.rows) {
           try {
@@ -169,6 +212,14 @@ export const neonSyncService = {
       // 4. Usuários
       const usrRes = await queryNeon('SELECT id, nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at FROM usuarios ORDER BY id ASC');
       if (usrRes.rows && usrRes.rows.length > 0) {
+        const neonUserIds = new Set(usrRes.rows.map(r => r.id));
+        const neonUserEmails = new Set(usrRes.rows.map(r => (r.email || '').toLowerCase().trim()));
+        const localUsers = db.prepare('SELECT id, email FROM usuarios').all();
+        for (const lu of localUsers) {
+          if (!neonUserIds.has(lu.id) && !neonUserEmails.has((lu.email || '').toLowerCase().trim())) {
+            try { db.prepare('DELETE FROM usuarios WHERE id = ?').run(lu.id); } catch {}
+          }
+        }
         const stmtUsr = db.prepare('INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         for (const u of usrRes.rows) {
           try {
@@ -200,46 +251,56 @@ export const neonSyncService = {
   },
 
   /**
-   * Obtém a versão de estado atual do Neon (para detecção em tempo real de mudanças)
+   * Obtém a versão de estado atual do Neon e do banco local (para detecção em tempo real de mudanças em qualquer acesso)
    */
   async getNeonStatus() {
-    if (!this.isConfigured) {
-      // Fallback local caso DATABASE_URL não esteja ativo
-      const orcStat = db.prepare('SELECT COUNT(*) as count, MAX(updated_at) as updated_at FROM chamados_orcamentos').get() || {};
+    const localFp = getLocalFingerprint();
+
+    if (!this.isConfigured || !getPool()) {
+      const orcCount = db.prepare('SELECT COUNT(*) as count FROM chamados_orcamentos').get()?.count || 0;
       const cliCount = db.prepare('SELECT COUNT(*) as count FROM clientes').get()?.count || 0;
       const tecCount = db.prepare('SELECT COUNT(*) as count FROM tecnicos').get()?.count || 0;
       const usrCount = db.prepare('SELECT COUNT(*) as count FROM usuarios').get()?.count || 0;
-      const version = `${orcStat.count}-${orcStat.updated_at || ''}-${cliCount}-${tecCount}-${usrCount}`;
-      return { success: true, isNeon: false, version, counts: { orcamentos: orcStat.count, clientes: cliCount, tecnicos: tecCount, usuarios: usrCount } };
+      return {
+        success: true,
+        isNeon: false,
+        version: localFp,
+        counts: { orcamentos: orcCount, clientes: cliCount, tecnicos: tecCount, usuarios: usrCount }
+      };
     }
-
-    if (!getPool()) return { success: false, error: 'no_pool' };
 
     try {
       const res = await queryNeon(`
         SELECT 
           (SELECT COUNT(*) FROM chamados_orcamentos) as orc_count,
           (SELECT to_char(MAX(updated_at), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') FROM chamados_orcamentos) as orc_updated,
+          (SELECT COALESCE(SUM(valor_total), 0)::float FROM chamados_orcamentos) as orc_sum,
           (SELECT COUNT(*) FROM clientes) as cli_count,
           (SELECT COUNT(*) FROM tecnicos) as tec_count,
-          (SELECT COUNT(*) FROM usuarios) as usr_count
+          (SELECT COUNT(*) FROM usuarios) as usr_count,
+          (SELECT to_char(MAX(updated_at), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') FROM usuarios) as usr_updated,
+          (SELECT COALESCE(SUM(primeiro_acesso), 0) FROM usuarios) as usr_first_access,
+          (SELECT COALESCE(SUM(ativo), 0) FROM usuarios) as usr_active
       `);
 
       const row = res.rows[0] || {};
-      const version = `${row.orc_count}-${row.orc_updated || ''}-${row.cli_count}-${row.tec_count}-${row.usr_count}`;
+      const neonVersion = `${row.orc_count}-${row.orc_updated || ''}-${row.orc_sum || 0}-${row.cli_count}-${row.tec_count}-${row.usr_count}-${row.usr_updated || ''}-${row.usr_first_access}-${row.usr_active}`;
 
-      // Se a versão mudou em relação à última sincronização, roda sync em background
-      if (lastNeonVersion && version !== lastNeonVersion) {
-        lastNeonVersion = version;
-        this.syncFromNeon().catch(() => {});
+      // Se a versão do Neon mudou e não há escrita local em andamento, sincroniza antes de responder
+      if (lastNeonVersion && neonVersion !== lastNeonVersion && activeUpstreamSyncs === 0) {
+        lastNeonVersion = neonVersion;
+        await this.syncFromNeon().catch(() => {});
       } else {
-        lastNeonVersion = version;
+        lastNeonVersion = neonVersion;
       }
+
+      const finalLocalFp = getLocalFingerprint();
+      const combinedVersion = `${neonVersion}::${finalLocalFp}`;
 
       return {
         success: true,
         isNeon: true,
-        version,
+        version: combinedVersion,
         counts: {
           orcamentos: Number(row.orc_count) || 0,
           clientes: Number(row.cli_count) || 0,
@@ -249,7 +310,11 @@ export const neonSyncService = {
         orcamentos_updated_at: row.orc_updated
       };
     } catch (err) {
-      return { success: false, error: err.message };
+      return {
+        success: true,
+        isNeon: false,
+        version: localFp
+      };
     }
   },
 
@@ -260,6 +325,7 @@ export const neonSyncService = {
     if (!this.isConfigured || !orc) return;
     if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
       await queryNeon(`
         INSERT INTO chamados_orcamentos (
@@ -304,6 +370,8 @@ export const neonSyncService = {
       ]);
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar orçamento no Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
@@ -314,6 +382,7 @@ export const neonSyncService = {
     if (!this.isConfigured) return;
     if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
       if (numero_pgo) {
         await queryNeon('DELETE FROM chamados_orcamentos WHERE numero_pgo = $1 OR id = $2', [numero_pgo, id]);
@@ -322,6 +391,8 @@ export const neonSyncService = {
       }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao excluir orçamento no Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
@@ -332,6 +403,7 @@ export const neonSyncService = {
     if (!this.isConfigured || !cli) return;
     if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
       await queryNeon(`
         INSERT INTO clientes (numero_contrato, nome_cliente, created_at)
@@ -341,6 +413,8 @@ export const neonSyncService = {
       `, [cli.numero_contrato, cli.nome_cliente]);
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar cliente no Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
@@ -351,10 +425,13 @@ export const neonSyncService = {
     if (!this.isConfigured) return;
     if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
       await queryNeon('DELETE FROM clientes WHERE numero_contrato = $1', [numero_contrato]);
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao excluir cliente no Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
@@ -365,11 +442,14 @@ export const neonSyncService = {
     if (!this.isConfigured) return;
     if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
       await queryNeon('DELETE FROM chamados_orcamentos');
       console.log('🧹 [NeonSyncService] Tabela chamados_orcamentos limpa no Neon com sucesso.');
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao limpar orçamentos no Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
@@ -380,6 +460,7 @@ export const neonSyncService = {
     if (!this.isConfigured || !tec) return;
     if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
       await queryNeon(`
         INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at)
@@ -398,6 +479,8 @@ export const neonSyncService = {
       ]);
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar técnico no Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
@@ -408,10 +491,13 @@ export const neonSyncService = {
     if (!this.isConfigured) return;
     if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
       await queryNeon('DELETE FROM tecnicos WHERE matricula = $1', [matricula]);
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao excluir técnico no Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
@@ -422,6 +508,7 @@ export const neonSyncService = {
     if (!this.isConfigured || !usr) return;
     if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
       await queryNeon(`
         INSERT INTO usuarios (
@@ -450,6 +537,8 @@ export const neonSyncService = {
       ]);
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar usuário no Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
@@ -460,6 +549,7 @@ export const neonSyncService = {
     if (!this.isConfigured) return;
     if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
       if (email) {
         await queryNeon('DELETE FROM usuarios WHERE email = $1 OR id = $2', [email.toLowerCase().trim(), id]);
@@ -468,6 +558,8 @@ export const neonSyncService = {
       }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao excluir usuário no Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 

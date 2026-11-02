@@ -23,7 +23,7 @@ const state = {
     geor_liberou: ''
   },
   premiacao: {
-    ciclo: '2025/2026',
+    ciclo: 'todos',
     mes: 'acumulado',
     g_origem: '',
     data: null
@@ -175,8 +175,10 @@ function setupUserProfile() {
     if (btnNewOrcamento) btnNewOrcamento.style.display = '';
   } else {
     // TÉCNICO (SOMENTE VISUALIZAÇÃO)
-    roleBadge.classList.add('role-tecnico');
-    roleBadge.textContent = 'TÉCNICO (SOMENTE VISUALIZAÇÃO)';
+    if (roleBadge) {
+      roleBadge.classList.add('role-tecnico');
+      roleBadge.textContent = 'TÉCNICO (SOMENTE VISUALIZAÇÃO)';
+    }
     document.body.classList.add('role-tecnico-active');
     
     // Apenas Painel de Operação (Orçamentos - somente leitura) e Apuração de Dados (Premiação)
@@ -242,9 +244,21 @@ function setupTheme() {
 function updateThemeIcon(theme) {
   const btn = document.getElementById('theme-toggle-btn');
   if (!btn) return;
-  btn.innerHTML = theme === 'dark' 
-    ? '<i class="bi bi-sun-fill" style="color: #f59e0b;"></i>' 
-    : '<i class="bi bi-moon-stars-fill"></i>';
+  btn.setAttribute('data-active-theme', theme);
+  btn.innerHTML = `
+    <svg class="theme-sun-moon-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <line x1="12" y1="1.8" x2="12" y2="4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="12" y1="19.4" x2="12" y2="22.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="1.8" y1="12" x2="4.6" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="19.4" y1="12" x2="22.2" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="4.79" y1="4.79" x2="6.77" y2="6.77" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="17.23" y1="17.23" x2="19.21" y2="19.21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="4.79" y1="19.21" x2="6.77" y2="17.23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="17.23" y1="6.77" x2="19.21" y2="4.79" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="2"/>
+      <path d="M 11.4 8.2 A 3.8 3.8 0 1 0 15.8 12.6 A 3.3 3.3 0 0 1 11.4 8.2 Z" fill="currentColor"/>
+    </svg>
+  `;
 }
 
 // =====================================================================
@@ -445,6 +459,7 @@ function renderOrcamentosTable() {
           await api.delete(`/api/orcamentos/${id}`);
           showToast('Chamado excluído com sucesso!', 'success');
           await loadOrcamentos();
+          await loadDashboardPremiacao();
         } catch (err) {
           showToast(err.message, 'error');
         }
@@ -742,6 +757,15 @@ function setupEventListeners() {
     if (found) {
       matriculaInput.value = found.matricula;
       document.getElementById('form-tecnico-nome').value = found.nome_sobrenome;
+      const gSelect = document.getElementById('form-g-origem');
+      if (gSelect && found.grupo) {
+        gSelect.value = found.grupo;
+      }
+      const tipoSelect = document.getElementById('form-tipo');
+      if (tipoSelect && !state.editingId) {
+        if (found.funcao === 'Corretivo') tipoSelect.value = 'Corretivo';
+        else if (found.funcao === 'Preventivo' || found.funcao === 'Residente') tipoSelect.value = 'Preventivo';
+      }
     }
   };
   matriculaInput.addEventListener('input', handleMatriculaLookup);
@@ -836,6 +860,7 @@ function setupEventListeners() {
 
       closeModal();
       await loadOrcamentos();
+      await loadDashboardPremiacao();
     } catch (err) {
       showToast(err.message || 'Erro ao salvar registro', 'error');
     } finally {
@@ -1562,6 +1587,7 @@ function setupEditCadastroModal() {
           closeEditModal();
           await loadTecnicos();
           await loadOrcamentos();
+          await loadDashboardPremiacao();
           if (state.activeTab === 'usuarios') await loadUsuarios();
 
         } else if (currentEditType === 'cliente') {
@@ -1601,6 +1627,7 @@ function setupEditCadastroModal() {
           closeEditModal();
           await loadUsuarios();
           await loadTecnicos();
+          await loadOrcamentos();
           await loadDashboardPremiacao();
         }
       } catch (err) {
@@ -1735,6 +1762,19 @@ function openEditUsuarioModal(id) {
     Editando dados de acesso do colaborador <strong>${escapeHtml(user.nome)}</strong>.
   `;
 
+  const tecMatch = state.tecnicos.find(t => String(t.matricula) === String(user.matricula));
+  const userFuncao = user.funcao || tecMatch?.funcao || 'Preventivo';
+  let selectedPerfilOption = 'TECNICO_PREVENTIVO';
+  if (user.perfil === 'CONSULTORA') {
+    selectedPerfilOption = 'CONSULTORA';
+  } else if (user.perfil === 'SUPERVISOR') {
+    selectedPerfilOption = 'SUPERVISOR';
+  } else if (userFuncao === 'Corretivo') {
+    selectedPerfilOption = 'TECNICO_CORRETIVO';
+  } else if (userFuncao === 'Residente') {
+    selectedPerfilOption = 'TECNICO_RESIDENTE';
+  }
+
   const fieldsContainer = document.getElementById('edit-cad-dynamic-fields');
   fieldsContainer.innerHTML = `
     <div class="form-group" style="margin-bottom: 1rem;">
@@ -1755,9 +1795,11 @@ function openEditUsuarioModal(id) {
       <div class="form-group">
         <label style="font-weight: 700; font-size: 0.85rem;">Perfil *</label>
         <select id="edit-usr-perfil" class="form-control" required style="font-weight: 700;">
-          <option value="TECNICO" ${user.perfil === 'TECNICO' ? 'selected' : ''}>Técnico</option>
-          <option value="SUPERVISOR" ${user.perfil === 'SUPERVISOR' ? 'selected' : ''}>Supervisor</option>
-          <option value="CONSULTORA" ${user.perfil === 'CONSULTORA' ? 'selected' : ''}>Consultora (Admin)</option>
+          <option value="TECNICO_PREVENTIVO" ${selectedPerfilOption === 'TECNICO_PREVENTIVO' ? 'selected' : ''}>Técnico Preventivo</option>
+          <option value="TECNICO_CORRETIVO" ${selectedPerfilOption === 'TECNICO_CORRETIVO' ? 'selected' : ''}>Técnico Corretivo</option>
+          <option value="TECNICO_RESIDENTE" ${selectedPerfilOption === 'TECNICO_RESIDENTE' ? 'selected' : ''}>Técnico Residente</option>
+          <option value="SUPERVISOR" ${selectedPerfilOption === 'SUPERVISOR' ? 'selected' : ''}>Supervisor</option>
+          <option value="CONSULTORA" ${selectedPerfilOption === 'CONSULTORA' ? 'selected' : ''}>Consultora (Admin)</option>
         </select>
       </div>
       <div class="form-group">
@@ -1950,21 +1992,18 @@ async function syncAllData(isSilent = true) {
   syncInProgress = true;
 
   try {
-    if (state.activeTab === 'premiacao') {
-      await loadDashboardPremiacao();
-    } else if (state.activeTab === 'clientes') {
-      await loadClientes();
-    } else if (state.activeTab === 'usuarios') {
-      await loadUsuarios();
-    } else {
-      await loadOrcamentos();
-    }
-
-    // Atualiza base de clientes e técnicos em segundo plano
-    await Promise.allSettled([
+    const tasks = [
+      loadOrcamentos(),
+      loadDashboardPremiacao(),
       loadClientes(),
       loadTecnicos()
-    ]);
+    ];
+
+    if (auth.isConsultora(state.user)) {
+      tasks.push(loadUsuarios());
+    }
+
+    await Promise.allSettled(tasks);
 
     if (!isSilent) {
       showToast('Dados sincronizados com o servidor!', 'success');
@@ -2021,8 +2060,8 @@ function setupAutoSync() {
     syncAllData(true);
   });
 
-  // 3. Polling em segundo plano a cada 3.5 segundos para detecção automática em tempo real
-  setInterval(checkBackgroundNeonSync, 3500);
+  // 3. Polling em segundo plano a cada 2.5 segundos para detecção automática em tempo real
+  setInterval(checkBackgroundNeonSync, 2500);
 
   // Executa uma checagem inicial de versão
   checkBackgroundNeonSync();
@@ -2082,7 +2121,7 @@ function setupPremiacaoEventListeners() {
         showToast('Acesso negado. Apenas Consultora e Supervisor podem exportar planilhas.', 'error');
         return;
       }
-      const ciclo = encodeURIComponent(state.premiacao.ciclo || '2025/2026');
+      const ciclo = encodeURIComponent(state.premiacao.ciclo || 'todos');
       const mes = encodeURIComponent(state.premiacao.mes || 'acumulado');
       const g = encodeURIComponent(state.premiacao.g_origem || '');
       
@@ -2094,7 +2133,7 @@ function setupPremiacaoEventListeners() {
 
 async function loadDashboardPremiacao() {
   try {
-    const ciclo = state.premiacao.ciclo || '2025/2026';
+    const ciclo = state.premiacao.ciclo || 'todos';
     const mes = state.premiacao.mes || 'acumulado';
     const g_origem = state.premiacao.g_origem || '';
 
@@ -2185,7 +2224,7 @@ function renderDashboardPremiacao(res) {
                 <span class="tecnico-row-avatar">${escapeHtml((t.nome_tecnico || 'T').charAt(0).toUpperCase())}</span>
                 <div>
                   <div style="font-weight: 700; color: var(--text-primary); font-size: 0.88rem;">${escapeHtml(t.nome_tecnico)}</div>
-                  <div style="font-size: 0.72rem; color: var(--text-muted);">Mat: ${escapeHtml(t.matricula)} • ${escapeHtml(t.funcao || 'Técnico de Manutenção')}</div>
+                  <div style="font-size: 0.72rem; color: var(--text-muted);">Mat: ${escapeHtml(t.matricula)} • Técnico ${escapeHtml(t.funcao || 'Preventivo')}</div>
                 </div>
               </div>
             </td>
@@ -2255,7 +2294,7 @@ function renderDashboardPremiacao(res) {
                 <span class="tecnico-row-avatar" style="background: rgba(255, 85, 0, 0.1); color: var(--tke-orange);">${escapeHtml((t.nome_tecnico || 'T').charAt(0).toUpperCase())}</span>
                 <div>
                   <div style="font-weight: 700; color: var(--text-primary); font-size: 0.88rem;">${escapeHtml(t.nome_tecnico)}</div>
-                  <div style="font-size: 0.72rem; color: var(--text-muted);">Mat: ${escapeHtml(t.matricula)} • ${escapeHtml(t.funcao || 'Técnico de Manutenção')}</div>
+                  <div style="font-size: 0.72rem; color: var(--text-muted);">Mat: ${escapeHtml(t.matricula)} • Técnico ${escapeHtml(t.funcao || 'Preventivo')}</div>
                 </div>
               </div>
             </td>
@@ -2326,19 +2365,25 @@ function renderUsuariosTable() {
   const query = (q || '').trim().toLowerCase();
 
   const users = rawUsers.filter((u) => {
+    const tecMatch = state.tecnicos.find(t => String(t.matricula) === String(u.matricula));
+    const userFuncao = u.funcao || tecMatch?.funcao || 'Preventivo';
+
     if (query) {
       const matchNome = (u.nome || '').toLowerCase().includes(query);
       const matchEmail = (u.email || '').toLowerCase().includes(query);
       const matchMatricula = (u.matricula || '').toLowerCase().includes(query);
-      const matchPerfil = (u.perfil || '').toLowerCase().includes(query);
+      const matchPerfil = (u.perfil || '').toLowerCase().includes(query) || userFuncao.toLowerCase().includes(query);
       const matchGrupo = (u.grupo || '').toLowerCase().includes(query);
       if (!matchNome && !matchEmail && !matchMatricula && !matchPerfil && !matchGrupo) {
         return false;
       }
     }
 
-    if (perfil && u.perfil !== perfil) {
-      return false;
+    if (perfil) {
+      if (perfil === 'TECNICO_PREVENTIVO' && (u.perfil !== 'TECNICO' || userFuncao !== 'Preventivo')) return false;
+      if (perfil === 'TECNICO_CORRETIVO' && (u.perfil !== 'TECNICO' || userFuncao !== 'Corretivo')) return false;
+      if (perfil === 'TECNICO_RESIDENTE' && (u.perfil !== 'TECNICO' || userFuncao !== 'Residente')) return false;
+      if (['TECNICO', 'SUPERVISOR', 'CONSULTORA'].includes(perfil) && u.perfil !== perfil) return false;
     }
 
     if (grupo && (u.grupo || 'G11') !== grupo) {
@@ -2377,14 +2422,21 @@ function renderUsuariosTable() {
   }
 
   tbody.innerHTML = users.map((u) => {
+    const tecMatch = state.tecnicos.find(t => String(t.matricula) === String(u.matricula));
+    const userFuncao = u.funcao || tecMatch?.funcao || 'Preventivo';
+
     let roleClass = 'role-tecnico';
-    let roleLabel = 'Técnico';
+    let roleLabel = 'Técnico Preventivo';
     if (u.perfil === 'CONSULTORA') {
       roleClass = 'role-consultora';
       roleLabel = 'Consultora (Admin)';
     } else if (u.perfil === 'SUPERVISOR') {
       roleClass = 'role-supervisor';
       roleLabel = 'Supervisor';
+    } else if (userFuncao === 'Corretivo') {
+      roleLabel = 'Técnico Corretivo';
+    } else if (userFuncao === 'Residente') {
+      roleLabel = 'Técnico Residente';
     }
 
     const isPrimeiroAcesso = Boolean(u.primeiro_acesso);
@@ -2508,8 +2560,9 @@ function renderUsuariosTable() {
         const userObj = state.usuarios.find(u => Number(u.id) === Number(id));
         if (userObj) userObj.grupo = newGrupo;
 
-        // Atualiza também os dados de técnicos e premiação automaticamente
+        // Atualiza também os dados de técnicos, orçamentos e premiação automaticamente
         await loadTecnicos();
+        await loadOrcamentos();
         await loadDashboardPremiacao();
       } catch (err) {
         showToast(`Erro ao alterar grupo: ${err.message}`, 'error');
@@ -2553,6 +2606,8 @@ function renderUsuariosTable() {
           const res = await api.patch(`/api/usuarios/${id}/toggle-status`, { ativo: !currentAtivo });
           showToast(res.message || `Usuário ${action}do com sucesso!`, 'success');
           await loadUsuarios();
+          await loadTecnicos();
+          await loadDashboardPremiacao();
         } catch (err) {
           showToast(`Erro: ${err.message}`, 'error');
         }
@@ -2570,6 +2625,8 @@ function renderUsuariosTable() {
           const res = await api.delete(`/api/usuarios/${id}`);
           showToast(res.message || 'Colaborador excluído com sucesso!', 'success');
           await loadUsuarios();
+          await loadTecnicos();
+          await loadDashboardPremiacao();
         } catch (err) {
           showToast(`Erro ao excluir colaborador: ${err.message}`, 'error');
         }
@@ -2594,6 +2651,8 @@ function setupUsuariosEventListeners() {
     refreshFn: async () => {
       await loadUsuarios();
       await loadTecnicos();
+      await loadOrcamentos();
+      await loadDashboardPremiacao();
     }
   });
 

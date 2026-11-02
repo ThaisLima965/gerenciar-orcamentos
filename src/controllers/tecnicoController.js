@@ -5,20 +5,40 @@ import { neonSyncService } from '../services/neonSyncService.js';
 import { sanitizeUtf8, normalizeTecnicoFuncao, TECNICO_NIVEIS } from '../utils/encodingUtils.js';
 
 export const tecnicoController = {
-  // Listar todos os técnicos
+  // Listar todos os técnicos (Sincronizado com Gestão de Acesso)
   async list(req, res) {
     try {
+      // Garante que qualquer técnico ativo em usuarios esteja presente na tabela tecnicos
+      try {
+        db.prepare(`
+          INSERT OR IGNORE INTO tecnicos (matricula, funcao, nome_sobrenome, email)
+          SELECT matricula, 'Preventivo', nome, email
+          FROM usuarios
+          WHERE perfil = 'TECNICO' AND ativo = 1 AND matricula IS NOT NULL AND matricula != ''
+        `).run();
+      } catch (e) {}
+
       const tecnicos = db.prepare(`
-        SELECT matricula, COALESCE(funcao, 'Preventivo') AS funcao, nome_sobrenome, email, telefone, created_at 
-        FROM tecnicos 
-        ORDER BY CAST(matricula AS INTEGER) ASC, nome_sobrenome ASC
+        SELECT 
+          COALESCE(u.matricula, t.matricula) AS matricula, 
+          COALESCE(t.funcao, CASE WHEN u.perfil = 'SUPERVISOR' THEN 'Supervisor' ELSE 'Preventivo' END) AS funcao, 
+          COALESCE(u.nome, t.nome_sobrenome) AS nome_sobrenome, 
+          COALESCE(u.email, t.email) AS email, 
+          COALESCE(u.grupo, 'G11') AS grupo,
+          t.telefone, 
+          t.created_at 
+        FROM tecnicos t
+        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        WHERE u.id IS NULL OR (u.ativo = 1 AND u.perfil IN ('TECNICO', 'SUPERVISOR'))
+        ORDER BY CAST(COALESCE(u.matricula, t.matricula) AS INTEGER) ASC, COALESCE(u.nome, t.nome_sobrenome) ASC
       `).all();
 
       const sanitizedTecnicos = tecnicos.map(t => ({
         ...t,
         funcao: normalizeTecnicoFuncao(t.funcao),
         nome_sobrenome: sanitizeUtf8(t.nome_sobrenome),
-        email: t.email ? sanitizeUtf8(t.email) : null
+        email: t.email ? sanitizeUtf8(t.email) : null,
+        grupo: t.grupo || 'G11'
       }));
 
       return res.status(200).json({

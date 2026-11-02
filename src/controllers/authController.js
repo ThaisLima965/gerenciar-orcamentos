@@ -5,6 +5,7 @@ import { db } from '../config/database.js';
 import { SECURITY_CONFIG } from '../config/security.js';
 import { generateCsrfToken } from '../middleware/csrf.js';
 import { neonAuthService } from '../services/neonAuthService.js';
+import { neonSyncService } from '../services/neonSyncService.js';
 
 export const authController = {
   // Login corporativo seguro
@@ -192,6 +193,12 @@ export const authController = {
         SET senha_hash = ?, primeiro_acesso = 0, updated_at = CURRENT_TIMESTAMP 
         WHERE id = ?
       `).run(novoHash, user.id);
+
+      // Sincroniza conclusão do primeiro acesso e nova senha com o Neon PostgreSQL
+      const usrAtualizado = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(user.id);
+      if (usrAtualizado) {
+        await neonSyncService.syncUsuarioToNeon(usrAtualizado).catch(() => {});
+      }
 
       // Gera novo token JWT atualizado
       const tokenPayload = {

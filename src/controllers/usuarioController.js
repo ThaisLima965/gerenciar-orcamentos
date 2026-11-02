@@ -17,9 +17,12 @@ export const usuarioController = {
       }
 
       const usuarios = db.prepare(`
-        SELECT id, nome, email, matricula, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at 
-        FROM usuarios 
-        ORDER BY nome ASC
+        SELECT 
+          u.id, u.nome, u.email, u.matricula, u.perfil, u.grupo, u.primeiro_acesso, u.ativo, u.created_at, u.updated_at,
+          COALESCE(t.funcao, CASE WHEN u.perfil = 'SUPERVISOR' THEN 'Supervisor' WHEN u.perfil = 'CONSULTORA' THEN 'Consultora' ELSE 'Preventivo' END) AS funcao
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON t.matricula = u.matricula
+        ORDER BY u.nome ASC
       `).all();
 
       return res.status(200).json({
@@ -45,7 +48,7 @@ export const usuarioController = {
         });
       }
 
-      const { nome, email, matricula, senha, perfil, grupo } = req.body;
+      const { nome, email, matricula, senha, senha_padrao, perfil, funcao, grupo } = req.body;
 
       if (!nome || !email || !perfil) {
         return res.status(400).json({
@@ -56,14 +59,34 @@ export const usuarioController = {
 
       const cleanNome = String(nome).trim();
       const cleanEmail = String(email).trim().toLowerCase();
-      const cleanPerfil = String(perfil).trim().toUpperCase();
+      const rawPerfil = String(perfil).trim().toUpperCase();
       const cleanGrupo = String(grupo || 'G11').trim().toUpperCase();
-      const rawSenha = String(senha || 'Tke@1234').trim();
+      const rawSenha = String(senha || senha_padrao || 'Tke@1234').trim();
+
+      let cleanPerfil = rawPerfil;
+      let cleanFuncao = funcao ? normalizeTecnicoFuncao(funcao) : 'Preventivo';
+
+      if (rawPerfil === 'TECNICO_PREVENTIVO' || rawPerfil === 'TÉCNICO PREVENTIVO' || rawPerfil === 'PREVENTIVO') {
+        cleanPerfil = 'TECNICO';
+        cleanFuncao = 'Preventivo';
+      } else if (rawPerfil === 'TECNICO_CORRETIVO' || rawPerfil === 'TÉCNICO CORRETIVO' || rawPerfil === 'CORRETIVO') {
+        cleanPerfil = 'TECNICO';
+        cleanFuncao = 'Corretivo';
+      } else if (rawPerfil === 'TECNICO_RESIDENTE' || rawPerfil === 'TÉCNICO RESIDENTE' || rawPerfil === 'RESIDENTE') {
+        cleanPerfil = 'TECNICO';
+        cleanFuncao = 'Residente';
+      } else if (rawPerfil === 'SUPERVISOR') {
+        cleanPerfil = 'SUPERVISOR';
+        cleanFuncao = 'Supervisor';
+      } else if (rawPerfil === 'CONSULTORA') {
+        cleanPerfil = 'CONSULTORA';
+        cleanFuncao = 'Consultora';
+      }
 
       if (!['TECNICO', 'SUPERVISOR', 'CONSULTORA'].includes(cleanPerfil)) {
         return res.status(400).json({
           success: false,
-          error: 'Perfil de Acesso inválido. As opções permitidas são: TECNICO, SUPERVISOR ou CONSULTORA.'
+          error: 'Perfil de Acesso inválido. As opções permitidas são: Técnico Preventivo, Técnico Corretivo, Técnico Residente, Supervisor ou Consultora.'
         });
       }
 
@@ -98,15 +121,23 @@ export const usuarioController = {
         VALUES (?, ?, ?, ?, ?, ?, 1, 1)
       `).run(cleanNome, cleanEmail, cleanMatricula, senhaHash, cleanPerfil, cleanGrupo);
 
-      // Se for perfil Técnico, sincroniza automaticamente na tabela de técnicos de apoio
-      if (cleanPerfil === 'TECNICO') {
+      // Se for perfil Técnico ou Supervisor, sincroniza automaticamente na tabela de técnicos de apoio
+      if (cleanPerfil === 'TECNICO' || cleanPerfil === 'SUPERVISOR') {
         db.prepare(`
           INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email)
-          VALUES (?, 'Preventivo', ?, ?)
+          VALUES (?, ?, ?, ?)
           ON CONFLICT(matricula) DO UPDATE SET
+            funcao = excluded.funcao,
             nome_sobrenome = excluded.nome_sobrenome,
             email = excluded.email
-        `).run(cleanMatricula, cleanNome, cleanEmail);
+        `).run(cleanMatricula, cleanFuncao, cleanNome, cleanEmail);
+
+        neonSyncService.syncTecnicoToNeon({
+          matricula: cleanMatricula,
+          funcao: cleanFuncao,
+          nome_sobrenome: cleanNome,
+          email: cleanEmail
+        }).catch(() => {});
       }
 
       // Sincroniza imediatamente com o Neon PostgreSQL
@@ -130,6 +161,7 @@ export const usuarioController = {
           email: cleanEmail,
           matricula: cleanMatricula,
           perfil: cleanPerfil,
+          funcao: cleanFuncao,
           grupo: cleanGrupo,
           primeiro_acesso: true,
           senha_provisoria: rawSenha
@@ -155,7 +187,7 @@ export const usuarioController = {
       }
 
       const { id } = req.params;
-      const { nome, email, matricula, perfil, grupo, ativo } = req.body;
+      const { nome, email, matricula, perfil, funcao, grupo, ativo } = req.body;
 
       const existing = db.prepare('SELECT id, nome, email, matricula, perfil, grupo, ativo FROM usuarios WHERE id = ?').get(id);
       if (!existing) {
@@ -168,9 +200,30 @@ export const usuarioController = {
       const cleanNome = String(nome || existing.nome).trim();
       const cleanEmail = String(email || existing.email).trim().toLowerCase();
       const cleanMatricula = String(matricula || existing.matricula).trim();
-      const cleanPerfil = String(perfil || existing.perfil).toUpperCase().trim();
+      const rawPerfil = String(perfil || existing.perfil).toUpperCase().trim();
       const cleanGrupo = String(grupo || existing.grupo || 'G11').toUpperCase().trim();
       const cleanAtivo = ativo !== undefined ? (Boolean(ativo) ? 1 : 0) : existing.ativo;
+
+      let cleanPerfil = rawPerfil;
+      const currentTec = db.prepare('SELECT funcao FROM tecnicos WHERE matricula = ? OR LOWER(email) = ?').get(existing.matricula, cleanEmail);
+      let cleanFuncao = funcao ? normalizeTecnicoFuncao(funcao) : (currentTec?.funcao || 'Preventivo');
+
+      if (rawPerfil === 'TECNICO_PREVENTIVO' || rawPerfil === 'TÉCNICO PREVENTIVO' || rawPerfil === 'PREVENTIVO') {
+        cleanPerfil = 'TECNICO';
+        cleanFuncao = 'Preventivo';
+      } else if (rawPerfil === 'TECNICO_CORRETIVO' || rawPerfil === 'TÉCNICO CORRETIVO' || rawPerfil === 'CORRETIVO') {
+        cleanPerfil = 'TECNICO';
+        cleanFuncao = 'Corretivo';
+      } else if (rawPerfil === 'TECNICO_RESIDENTE' || rawPerfil === 'TÉCNICO RESIDENTE' || rawPerfil === 'RESIDENTE') {
+        cleanPerfil = 'TECNICO';
+        cleanFuncao = 'Residente';
+      } else if (rawPerfil === 'SUPERVISOR') {
+        cleanPerfil = 'SUPERVISOR';
+        cleanFuncao = 'Supervisor';
+      } else if (rawPerfil === 'CONSULTORA') {
+        cleanPerfil = 'CONSULTORA';
+        cleanFuncao = 'Consultora';
+      }
 
       if (!cleanNome || !cleanEmail || !cleanMatricula) {
         return res.status(400).json({
@@ -182,7 +235,7 @@ export const usuarioController = {
       if (!['TECNICO', 'SUPERVISOR', 'CONSULTORA'].includes(cleanPerfil)) {
         return res.status(400).json({
           success: false,
-          error: 'Perfil inválido. As opções permitidas são: TECNICO, SUPERVISOR ou CONSULTORA.'
+          error: 'Perfil inválido. As opções permitidas são: Técnico Preventivo, Técnico Corretivo, Técnico Residente, Supervisor ou Consultora.'
         });
       }
 
@@ -211,9 +264,18 @@ export const usuarioController = {
       // Sincroniza tabela de tecnicos
       const tecExists = db.prepare('SELECT matricula FROM tecnicos WHERE matricula = ? OR LOWER(email) = ?').get(existing.matricula, cleanEmail);
       if (tecExists) {
-        db.prepare('UPDATE tecnicos SET matricula = ?, nome_sobrenome = ?, email = ? WHERE matricula = ?').run(cleanMatricula, cleanNome, cleanEmail, tecExists.matricula);
+        db.prepare('UPDATE tecnicos SET matricula = ?, funcao = ?, nome_sobrenome = ?, email = ? WHERE matricula = ?').run(cleanMatricula, cleanFuncao, cleanNome, cleanEmail, tecExists.matricula);
       } else if (cleanPerfil === 'TECNICO' || cleanPerfil === 'SUPERVISOR') {
-        db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email) VALUES (?, ?, ?, ?)').run(cleanMatricula, 'Preventivo', cleanNome, cleanEmail);
+        db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email) VALUES (?, ?, ?, ?)').run(cleanMatricula, cleanFuncao, cleanNome, cleanEmail);
+      }
+
+      if (cleanPerfil === 'TECNICO' || cleanPerfil === 'SUPERVISOR') {
+        neonSyncService.syncTecnicoToNeon({
+          matricula: cleanMatricula,
+          funcao: cleanFuncao,
+          nome_sobrenome: cleanNome,
+          email: cleanEmail
+        }).catch(() => {});
       }
 
       // Sincroniza histórico de orçamentos e chamados do colaborador
@@ -241,6 +303,7 @@ export const usuarioController = {
           email: cleanEmail,
           matricula: cleanMatricula,
           perfil: cleanPerfil,
+          funcao: cleanFuncao,
           grupo: cleanGrupo,
           ativo: cleanAtivo
         }
@@ -290,6 +353,12 @@ export const usuarioController = {
         try {
           db.prepare('UPDATE chamados_orcamentos SET g_origem = ? WHERE matricula_tecnico = ?').run(cleanGrupo, user.matricula);
         } catch (e) {}
+      }
+
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      const usrAtualizado = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id);
+      if (usrAtualizado) {
+        neonSyncService.syncUsuarioToNeon(usrAtualizado).catch(() => {});
       }
 
       return res.status(200).json({
@@ -743,9 +812,13 @@ export const usuarioController = {
         });
       }
 
-      // Se for técnico, desassocia de chamados vinculados
+      // Se for técnico, desassocia de chamados vinculados e remove da tabela de apoio tecnicos
       try {
         db.prepare('UPDATE chamados_orcamentos SET created_by_id = NULL WHERE created_by_id = ?').run(id);
+        if (user.matricula) {
+          db.prepare('DELETE FROM tecnicos WHERE matricula = ? OR LOWER(email) = ?').run(user.matricula, String(user.email || '').toLowerCase());
+          neonSyncService.deleteTecnicoFromNeon(user.matricula).catch(() => {});
+        }
       } catch (e) {}
 
       db.prepare('DELETE FROM usuarios WHERE id = ?').run(id);

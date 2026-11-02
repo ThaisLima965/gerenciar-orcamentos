@@ -7,7 +7,21 @@ export function parsePeriodoCiclo(cicloParam, mesParam) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1; // 1 a 12
 
-  // Se não fornecido ciclo, determina padrão (se atual >= 10, ciclo YYYY/YYYY+1, senão YYYY-1/YYYY)
+  if (!cicloParam || String(cicloParam).toLowerCase() === 'todos') {
+    const mes = mesParam || 'acumulado';
+    return {
+      ciclo: 'todos',
+      anoInicio: 2023,
+      anoFim: currentYear + 1,
+      mes,
+      nomeMes: 'Todos os Ciclos (Sincronização Geral)',
+      dataInicio: '2000-01-01',
+      dataFim: '2099-12-31',
+      descricaoPeriodo: 'Todos os Ciclos (Sincronização Geral em Tempo Real)'
+    };
+  }
+
+  // Se não fornecido ciclo válido, determina padrão (se atual >= 10, ciclo YYYY/YYYY+1, senão YYYY-1/YYYY)
   let ciclo = cicloParam;
   if (!ciclo || !ciclo.includes('/')) {
     if (currentMonth >= 10) {
@@ -86,11 +100,26 @@ export function parsePeriodoCiclo(cicloParam, mesParam) {
 // Nível 2 (< 7 PGOs): Abaixo do Topo -> Ordenado por Qtd DESC, Valor (R$) DESC, Nome ASC
 // =====================================================================
 export function sortTwoTierRanking(a, b) {
-  const qtdDiff = Number(b.qtd_aprovados) - Number(a.qtd_aprovados);
-  if (qtdDiff !== 0) return qtdDiff;
+  const aQtd = Number(a.qtd_aprovados) || 0;
+  const bQtd = Number(b.qtd_aprovados) || 0;
+  const aVal = Number(a.valor_total) || 0;
+  const bVal = Number(b.valor_total) || 0;
 
-  const valDiff = Number(b.valor_total) - Number(a.valor_total);
-  if (Math.abs(valDiff) > 0.001) return valDiff;
+  const aTier = aQtd >= 7 ? 1 : 2;
+  const bTier = bQtd >= 7 ? 1 : 2;
+  if (aTier !== bTier) return aTier - bTier;
+
+  if (aTier === 1) {
+    const valDiff = bVal - aVal;
+    if (Math.abs(valDiff) > 0.001) return valDiff;
+    const qtdDiff = bQtd - aQtd;
+    if (qtdDiff !== 0) return qtdDiff;
+  } else {
+    const qtdDiff = bQtd - aQtd;
+    if (qtdDiff !== 0) return qtdDiff;
+    const valDiff = bVal - aVal;
+    if (Math.abs(valDiff) > 0.001) return valDiff;
+  }
 
   return (a.nome_tecnico || '').localeCompare(b.nome_tecnico || '');
 }
@@ -102,62 +131,66 @@ export const relatorioController = {
       const { ciclo: cicloParam, mes: mesParam, g_origem } = req.query;
       const periodo = parsePeriodoCiclo(cicloParam, mesParam);
 
-      // SQL de Ranking Preventivo (Todos os técnicos via LEFT JOIN)
+      // SQL de Ranking Preventivo (Sincronizado com Gestão de Acesso e Painel de Orçamentos)
       let sqlPreventivo = `
         SELECT 
-          t.matricula,
-          t.nome_sobrenome as nome_tecnico,
+          u.matricula as matricula,
+          u.nome as nome_tecnico,
           COALESCE(t.funcao, 'Preventivo') as funcao,
-          COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
+          COALESCE(u.grupo, 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
-        FROM tecnicos t
-        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON (t.matricula = u.matricula OR LOWER(t.email) = LOWER(u.email))
         LEFT JOIN chamados_orcamentos c 
-          ON t.matricula = c.matricula_tecnico
+          ON (TRIM(c.matricula_tecnico) = TRIM(u.matricula) OR LOWER(TRIM(c.nome_tecnico)) = LOWER(TRIM(u.nome)))
           AND c.tipo_servico = 'Preventivo'
-          AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
-          AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
-          AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
+          AND COALESCE(c.status, 'Aberto') NOT IN ('Cancelado', 'Reprovado pelo Cliente')
+          AND DATE(COALESCE(NULLIF(c.data_liberacao, ''), NULLIF(c.data_envio_cliente, ''), substr(c.data_criacao, 1, 10), DATE('now'))) >= ?
+          AND DATE(COALESCE(NULLIF(c.data_liberacao, ''), NULLIF(c.data_envio_cliente, ''), substr(c.data_criacao, 1, 10), DATE('now'))) <= ?
+        WHERE u.ativo = 1 AND u.perfil = 'TECNICO'
       `;
       const paramsPreventivo = [periodo.dataInicio, periodo.dataFim];
 
       if (g_origem) {
-        sqlPreventivo += ` WHERE (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+        sqlPreventivo += ` AND COALESCE(u.grupo, 'G11') = ? `;
         paramsPreventivo.push(g_origem);
       }
 
       sqlPreventivo += `
-        GROUP BY t.matricula, t.nome_sobrenome, t.funcao, u.grupo
+        GROUP BY u.id, u.matricula, u.nome, t.funcao, u.grupo
+        HAVING COALESCE(t.funcao, 'Preventivo') IN ('Preventivo', 'Residente') OR COUNT(c.id) > 0
       `;
 
-      // SQL de Ranking Corretivo (Todos os técnicos via LEFT JOIN)
+      // SQL de Ranking Corretivo (Sincronizado com Gestão de Acesso e Painel de Orçamentos)
       let sqlCorretivo = `
         SELECT 
-          t.matricula,
-          t.nome_sobrenome as nome_tecnico,
-          COALESCE(t.funcao, 'Preventivo') as funcao,
-          COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
+          u.matricula as matricula,
+          u.nome as nome_tecnico,
+          COALESCE(t.funcao, 'Corretivo') as funcao,
+          COALESCE(u.grupo, 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
-        FROM tecnicos t
-        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON (t.matricula = u.matricula OR LOWER(t.email) = LOWER(u.email))
         LEFT JOIN chamados_orcamentos c 
-          ON t.matricula = c.matricula_tecnico
+          ON (TRIM(c.matricula_tecnico) = TRIM(u.matricula) OR LOWER(TRIM(c.nome_tecnico)) = LOWER(TRIM(u.nome)))
           AND c.tipo_servico = 'Corretivo'
-          AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
-          AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
-          AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
+          AND COALESCE(c.status, 'Aberto') NOT IN ('Cancelado', 'Reprovado pelo Cliente')
+          AND DATE(COALESCE(NULLIF(c.data_liberacao, ''), NULLIF(c.data_envio_cliente, ''), substr(c.data_criacao, 1, 10), DATE('now'))) >= ?
+          AND DATE(COALESCE(NULLIF(c.data_liberacao, ''), NULLIF(c.data_envio_cliente, ''), substr(c.data_criacao, 1, 10), DATE('now'))) <= ?
+        WHERE u.ativo = 1 AND u.perfil = 'TECNICO'
       `;
       const paramsCorretivo = [periodo.dataInicio, periodo.dataFim];
 
       if (g_origem) {
-        sqlCorretivo += ` WHERE (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+        sqlCorretivo += ` AND COALESCE(u.grupo, 'G11') = ? `;
         paramsCorretivo.push(g_origem);
       }
 
       sqlCorretivo += `
-        GROUP BY t.matricula, t.nome_sobrenome, t.funcao, u.grupo
+        GROUP BY u.id, u.matricula, u.nome, t.funcao, u.grupo
+        HAVING COALESCE(t.funcao, 'Preventivo') = 'Corretivo' OR COUNT(c.id) > 0
       `;
 
       const rawPreventivo = db.prepare(sqlPreventivo).all(...paramsPreventivo);
@@ -228,10 +261,17 @@ export const relatorioController = {
 
       // Contagem de técnicos ativos com vendas no período
       const tecnicosComVenda = new Set();
-      rankingPreventivo.forEach(r => { if (r.qtd_aprovados > 0) tecnicosComVenda.add(r.matricula); });
-      rankingCorretivo.forEach(r => { if (r.qtd_aprovados > 0) tecnicosComVenda.add(r.matricula); });
+      const todosTecnicosCadastradosSet = new Set();
+      rankingPreventivo.forEach(r => {
+        todosTecnicosCadastradosSet.add(r.matricula);
+        if (r.qtd_aprovados > 0) tecnicosComVenda.add(r.matricula);
+      });
+      rankingCorretivo.forEach(r => {
+        todosTecnicosCadastradosSet.add(r.matricula);
+        if (r.qtd_aprovados > 0) tecnicosComVenda.add(r.matricula);
+      });
 
-      const totalTecnicosCadastrados = rankingPreventivo.length;
+      const totalTecnicosCadastrados = todosTecnicosCadastradosSet.size;
       const totalTecnicosAtivos = tecnicosComVenda.size;
       const taxaParticipacao = totalTecnicosCadastrados > 0 
         ? Math.round((totalTecnicosAtivos / totalTecnicosCadastrados) * 100) 
@@ -278,55 +318,63 @@ export const relatorioController = {
       const { ciclo: cicloParam, mes: mesParam, g_origem } = req.query;
       const periodo = parsePeriodoCiclo(cicloParam, mesParam);
 
-      // 1. Busca dados Preventivo (Todos os técnicos via LEFT JOIN)
+      // 1. Busca dados Preventivo (Sincronizado com Gestão de Acesso e Painel de Orçamentos)
       let sqlPreventivo = `
         SELECT 
-          t.matricula,
-          t.nome_sobrenome as nome_tecnico,
+          u.matricula as matricula,
+          u.nome as nome_tecnico,
           COALESCE(t.funcao, 'Preventivo') as funcao,
-          COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
+          COALESCE(u.grupo, 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
-        FROM tecnicos t
-        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON (t.matricula = u.matricula OR LOWER(t.email) = LOWER(u.email))
         LEFT JOIN chamados_orcamentos c 
-          ON t.matricula = c.matricula_tecnico
+          ON (TRIM(c.matricula_tecnico) = TRIM(u.matricula) OR LOWER(TRIM(c.nome_tecnico)) = LOWER(TRIM(u.nome)))
           AND c.tipo_servico = 'Preventivo'
-          AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
-          AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
-          AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
+          AND COALESCE(c.status, 'Aberto') NOT IN ('Cancelado', 'Reprovado pelo Cliente')
+          AND DATE(COALESCE(NULLIF(c.data_liberacao, ''), NULLIF(c.data_envio_cliente, ''), substr(c.data_criacao, 1, 10), DATE('now'))) >= ?
+          AND DATE(COALESCE(NULLIF(c.data_liberacao, ''), NULLIF(c.data_envio_cliente, ''), substr(c.data_criacao, 1, 10), DATE('now'))) <= ?
+        WHERE u.ativo = 1 AND u.perfil = 'TECNICO'
       `;
       const paramsPreventivo = [periodo.dataInicio, periodo.dataFim];
       if (g_origem) {
-        sqlPreventivo += ` WHERE (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+        sqlPreventivo += ` AND COALESCE(u.grupo, 'G11') = ? `;
         paramsPreventivo.push(g_origem);
       }
-      sqlPreventivo += ` GROUP BY t.matricula, t.nome_sobrenome, t.funcao, u.grupo `;
+      sqlPreventivo += `
+        GROUP BY u.id, u.matricula, u.nome, t.funcao, u.grupo
+        HAVING COALESCE(t.funcao, 'Preventivo') IN ('Preventivo', 'Residente') OR COUNT(c.id) > 0
+      `;
 
-      // 2. Busca dados Corretivo (Todos os técnicos via LEFT JOIN)
+      // 2. Busca dados Corretivo (Sincronizado com Gestão de Acesso e Painel de Orçamentos)
       let sqlCorretivo = `
         SELECT 
-          t.matricula,
-          t.nome_sobrenome as nome_tecnico,
-          COALESCE(t.funcao, 'Preventivo') as funcao,
-          COALESCE(u.grupo, MAX(c.g_origem), 'G11') as grupo,
+          u.matricula as matricula,
+          u.nome as nome_tecnico,
+          COALESCE(t.funcao, 'Corretivo') as funcao,
+          COALESCE(u.grupo, 'G11') as grupo,
           COALESCE(COUNT(c.id), 0) as qtd_aprovados,
           COALESCE(SUM(c.valor_total), 0.0) as valor_total
-        FROM tecnicos t
-        LEFT JOIN usuarios u ON (u.matricula = t.matricula OR LOWER(u.email) = LOWER(t.email))
+        FROM usuarios u
+        LEFT JOIN tecnicos t ON (t.matricula = u.matricula OR LOWER(t.email) = LOWER(u.email))
         LEFT JOIN chamados_orcamentos c 
-          ON t.matricula = c.matricula_tecnico
+          ON (TRIM(c.matricula_tecnico) = TRIM(u.matricula) OR LOWER(TRIM(c.nome_tecnico)) = LOWER(TRIM(u.nome)))
           AND c.tipo_servico = 'Corretivo'
-          AND (c.status IN ('Aprovado pelo Cliente', 'Concluído', 'Liberado GEOR') OR c.geor_liberou = 'Sim')
-          AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) >= ?
-          AND DATE(COALESCE(c.data_liberacao, c.data_envio_cliente, substr(c.data_criacao, 1, 10))) <= ?
+          AND COALESCE(c.status, 'Aberto') NOT IN ('Cancelado', 'Reprovado pelo Cliente')
+          AND DATE(COALESCE(NULLIF(c.data_liberacao, ''), NULLIF(c.data_envio_cliente, ''), substr(c.data_criacao, 1, 10), DATE('now'))) >= ?
+          AND DATE(COALESCE(NULLIF(c.data_liberacao, ''), NULLIF(c.data_envio_cliente, ''), substr(c.data_criacao, 1, 10), DATE('now'))) <= ?
+        WHERE u.ativo = 1 AND u.perfil = 'TECNICO'
       `;
       const paramsCorretivo = [periodo.dataInicio, periodo.dataFim];
       if (g_origem) {
-        sqlCorretivo += ` WHERE (COALESCE(u.grupo, c.g_origem, 'G11') = ?) `;
+        sqlCorretivo += ` AND COALESCE(u.grupo, 'G11') = ? `;
         paramsCorretivo.push(g_origem);
       }
-      sqlCorretivo += ` GROUP BY t.matricula, t.nome_sobrenome, t.funcao, u.grupo `;
+      sqlCorretivo += `
+        GROUP BY u.id, u.matricula, u.nome, t.funcao, u.grupo
+        HAVING COALESCE(t.funcao, 'Preventivo') = 'Corretivo' OR COUNT(c.id) > 0
+      `;
 
       const rawPreventivo = db.prepare(sqlPreventivo).all(...paramsPreventivo);
       const rawCorretivo = db.prepare(sqlCorretivo).all(...paramsCorretivo);

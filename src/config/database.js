@@ -244,20 +244,17 @@ export async function initDatabase() {
       if (userCount === 0) {
         sqlDb.run(`
           INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, ativo, primeiro_acesso, grupo) VALUES
-          (1, 'Thaís Lima (Consultora Admin)', 'thais.lima@tkelevator.com', '55011190', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'CONSULTORA', 1, 0, 'G11'),
-          (2, 'Camila Mendes (Consultora Admin)', 'consultora@empresa.com', 'CONS001', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'CONSULTORA', 1, 0, 'G11'),
-          (3, 'Carlos Albuquerque (Supervisor)', 'supervisor@empresa.com', 'SUP001', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'SUPERVISOR', 1, 0, 'G11'),
-          (4, 'Thiago Silva (Técnico 1001)', 'tecnico@empresa.com', '1001', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'TECNICO', 1, 0, 'G11');
+          (1, 'Thaís da Silva Lima', 'thais.lima@tkelevator.com', '55011190', '$2b$10$8tMcMZRMo8kYjRLFbP3XResIk0N1hnUo8lbrrjohqBh9p430wCF2m', 'CONSULTORA', 1, 0, 'G11');
         `);
-        console.log('👑 [Database] Usuários corporativos padrão inicializados com sucesso.');
+        console.log('👑 [Database] Usuária administradora padrão inicializada com sucesso.');
       } else {
-        // Garante que Thaís Lima exista mesmo em bases já existentes
+        // Garante que Thaís da Silva Lima exista mesmo em bases já existentes
         try {
           const thaisCheck = sqlDb.exec("SELECT id FROM usuarios WHERE LOWER(email) = 'thais.lima@tkelevator.com'");
           if (!thaisCheck.length || !thaisCheck[0].values.length) {
             sqlDb.run(`
               INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, ativo, primeiro_acesso, grupo)
-              VALUES ('Thaís Lima (Consultora Admin)', 'thais.lima@tkelevator.com', '55011190', '$2b$10$WW7UyfZ75sbEKJqZKihV/OpCaB15qPt4NSiIojyxrh8qeuWnzVpn6', 'CONSULTORA', 1, 0, 'G11');
+              VALUES ('Thaís da Silva Lima', 'thais.lima@tkelevator.com', '55011190', '$2b$10$8tMcMZRMo8kYjRLFbP3XResIk0N1hnUo8lbrrjohqBh9p430wCF2m', 'CONSULTORA', 1, 0, 'G11');
             `);
           }
         } catch {}

@@ -764,6 +764,47 @@ body {
   border-radius: var(--radius-sm);
 }
 
+/* Botão de Alternar Tema (Claro / Escuro com Ícone Unificado Sol + Lua) */
+.theme-toggle-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ECEEF2;
+  color: #111827;
+  border: 1.5px solid var(--border-strong);
+  transition: all var(--transition-fast);
+}
+
+[data-theme="dark"] .theme-toggle-btn {
+  background: #ECEEF2;
+  color: #111827;
+  border-color: var(--tke-purple);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.theme-toggle-btn:hover {
+  background: #FFFFFF;
+  color: var(--tke-purple);
+  border-color: var(--tke-purple);
+  transform: scale(1.05);
+}
+
+.theme-sun-moon-icon {
+  width: 21px;
+  height: 21px;
+  display: block;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.theme-toggle-btn:hover .theme-sun-moon-icon {
+  transform: rotate(15deg);
+}
+
 /* =====================================================================
    MODAIS CORPORATIVOS
    ===================================================================== */

@@ -3,7 +3,7 @@
  * Estratégia de Caching: Stale-While-Revalidate para App Shell & Network-First para APIs
  */
 
-const CACHE_NAME = 'tke-orcamentos-v2.0.0';
+const CACHE_NAME = 'tke-orcamentos-v2.0.5';
 
 // Recursos essenciais para funcionamento 100% offline
 const APP_SHELL = [
@@ -11,8 +11,11 @@ const APP_SHELL = [
   '/index.html',
   '/login.html',
   '/redefinir-senha.html',
-  '/css/style.css',
-  '/js/app.js',
+  '/css/style.css?v=2.0.2',
+  '/vendor/bootstrap-icons/bootstrap-icons.min.css?v=2.0.2',
+  '/vendor/bootstrap-icons/fonts/bootstrap-icons.woff2',
+  '/vendor/bootstrap-icons/fonts/bootstrap-icons.woff',
+  '/js/app.js?v=2.0.5',
   '/js/api.js',
   '/js/auth.js',
   '/js/login.js',
@@ -29,10 +32,7 @@ const APP_SHELL = [
   '/images/icons/apple-touch-icon.png',
   '/images/icons/favicon-32x32.png',
   '/images/tke_bg.jpg',
-  '/images/tke_elevadores_banner.jpg',
-  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/fonts/bootstrap-icons.woff2?28514197',
-  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
+  '/images/tke_elevadores_banner.jpg'
 ];
 
 // Instalação do Service Worker & Pre-caching do App Shell

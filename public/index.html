@@ -28,8 +28,8 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/images/icons/favicon-32x32.png">
   <link rel="icon" type="image/svg+xml" href="/images/icons/icon.svg">
 
-  <link rel="stylesheet" href="/css/style.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/style.css?v=2.0.2">
+  <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.min.css?v=2.0.2">
 </head>
 <body>
 
@@ -62,8 +62,22 @@
       </div>
 
       <!-- Toggle Dark Mode -->
-      <button id="theme-toggle-btn" class="btn btn-secondary btn-icon-only" title="Alternar Modo Escuro / Claro">
-        <i class="bi bi-moon-stars-fill"></i>
+      <button id="theme-toggle-btn" class="btn btn-secondary btn-icon-only theme-toggle-btn" title="Alternar Modo Escuro / Claro" aria-label="Alternar Modo Escuro / Claro">
+        <svg class="theme-sun-moon-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Raios do Sol -->
+          <line x1="12" y1="1.8" x2="12" y2="4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="12" y1="19.4" x2="12" y2="22.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="1.8" y1="12" x2="4.6" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="19.4" y1="12" x2="22.2" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="4.79" y1="4.79" x2="6.77" y2="6.77" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="17.23" y1="17.23" x2="19.21" y2="19.21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="4.79" y1="19.21" x2="6.77" y2="17.23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="17.23" y1="6.77" x2="19.21" y2="4.79" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <!-- Círculo Central -->
+          <circle cx="12" cy="12" r="5.5" stroke="currentColor" stroke-width="2"/>
+          <!-- Lua Crescente Interna -->
+          <path d="M 11.4 8.2 A 3.8 3.8 0 1 0 15.8 12.6 A 3.3 3.3 0 0 1 11.4 8.2 Z" fill="currentColor"/>
+        </svg>
       </button>
 
       <!-- Avatar com Inicial do Usuário Logado -->
@@ -386,8 +400,9 @@
               <i class="bi bi-repeat"></i> Ciclo Anual de Premiação
             </label>
             <select id="prem-select-ciclo" class="form-control" style="font-weight: 700;">
+              <option value="todos" selected>🌐 Todos os Ciclos (Sincronização Geral)</option>
               <option value="2026/2027">Ciclo 2026/2027 (01/10/2026 a 30/09/2027)</option>
-              <option value="2025/2026" selected>Ciclo 2025/2026 (01/10/2025 a 30/09/2026)</option>
+              <option value="2025/2026">Ciclo 2025/2026 (01/10/2025 a 30/09/2026)</option>
               <option value="2024/2025">Ciclo 2024/2025 (01/10/2024 a 30/09/2025)</option>
               <option value="2023/2024">Ciclo 2023/2024 (01/10/2023 a 30/09/2024)</option>
             </select>
@@ -828,9 +843,11 @@
             <label for="filter-perfil-usr"><i class="bi bi-person-badge-fill"></i> Perfil</label>
             <select id="filter-perfil-usr" class="form-control">
               <option value="">Todos os Perfis</option>
-              <option value="CONSULTORA">Consultora (Admin)</option>
+              <option value="TECNICO_PREVENTIVO">Técnico Preventivo</option>
+              <option value="TECNICO_CORRETIVO">Técnico Corretivo</option>
+              <option value="TECNICO_RESIDENTE">Técnico Residente</option>
               <option value="SUPERVISOR">Supervisor</option>
-              <option value="TECNICO">Técnico</option>
+              <option value="CONSULTORA">Consultora (Admin)</option>
             </select>
           </div>
 
@@ -1060,9 +1077,11 @@
             <div class="form-group">
               <label for="user-form-perfil" style="font-weight: 700; font-size: 0.85rem;">Perfil de Acesso *</label>
               <select id="user-form-perfil" class="form-control" required style="font-weight: 700;">
-                <option value="TECNICO">Técnico de Manutenção</option>
-                <option value="SUPERVISOR">Supervisor Operacional</option>
-                <option value="CONSULTORA">Consultora Comercial (Admin)</option>
+                <option value="TECNICO_PREVENTIVO">Técnico Preventivo</option>
+                <option value="TECNICO_CORRETIVO">Técnico Corretivo</option>
+                <option value="TECNICO_RESIDENTE">Técnico Residente</option>
+                <option value="SUPERVISOR">Supervisor</option>
+                <option value="CONSULTORA">Consultora (Admin)</option>
               </select>
             </div>
 
@@ -1652,6 +1671,6 @@
   <!-- CONTAINER DE TOASTS -->
   <div id="toast-container"></div>
 
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/app.js?v=2.0.5"></script>
 </body>
 </html>
