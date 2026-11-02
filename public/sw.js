@@ -3,7 +3,7 @@
  * Estratégia de Caching: Stale-While-Revalidate para App Shell & Network-First para APIs
  */
 
-const CACHE_NAME = 'tke-orcamentos-v2.0.5';
+const CACHE_NAME = 'tke-orcamentos-v2.0.6';
 
 // Recursos essenciais para funcionamento 100% offline
 const APP_SHELL = [
@@ -11,11 +11,11 @@ const APP_SHELL = [
   '/index.html',
   '/login.html',
   '/redefinir-senha.html',
-  '/css/style.css?v=2.0.2',
-  '/vendor/bootstrap-icons/bootstrap-icons.min.css?v=2.0.2',
+  '/css/style.css?v=2.0.6',
+  '/vendor/bootstrap-icons/bootstrap-icons.min.css?v=2.0.6',
   '/vendor/bootstrap-icons/fonts/bootstrap-icons.woff2',
   '/vendor/bootstrap-icons/fonts/bootstrap-icons.woff',
-  '/js/app.js?v=2.0.5',
+  '/js/app.js?v=2.0.6',
   '/js/api.js',
   '/js/auth.js',
   '/js/login.js',

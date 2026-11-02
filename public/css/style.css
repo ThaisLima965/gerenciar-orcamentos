@@ -2311,3 +2311,237 @@ body.pwa-standalone .header-navbar {
   }
 }
 
+/* =====================================================================
+   ESCALA DE CORES AUTOMÁTICA DE URGÊNCIA (TÉCNICO: NOTAS 0 A 10)
+   Verde (0 a 3 - Baixa), Amarelo (4 a 7 - Média), Vermelho (8 a 10 - Alta)
+   ===================================================================== */
+.corporate-table tbody tr.row-urgencia-verde {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+  box-shadow: inset 4px 0 0 #10B981;
+}
+.corporate-table tbody tr.row-urgencia-verde:hover {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+}
+
+.corporate-table tbody tr.row-urgencia-amarelo {
+  background-color: rgba(245, 158, 11, 0.10) !important;
+  box-shadow: inset 4px 0 0 #F59E0B;
+}
+.corporate-table tbody tr.row-urgencia-amarelo:hover {
+  background-color: rgba(245, 158, 11, 0.16) !important;
+}
+
+.corporate-table tbody tr.row-urgencia-vermelho {
+  background-color: rgba(239, 68, 68, 0.10) !important;
+  box-shadow: inset 4px 0 0 #EF4444;
+}
+.corporate-table tbody tr.row-urgencia-vermelho:hover {
+  background-color: rgba(239, 68, 68, 0.16) !important;
+}
+
+[data-theme="dark"] .corporate-table tbody tr.row-urgencia-verde {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+}
+[data-theme="dark"] .corporate-table tbody tr.row-urgencia-amarelo {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+[data-theme="dark"] .corporate-table tbody tr.row-urgencia-vermelho {
+  background-color: rgba(239, 68, 68, 0.16) !important;
+}
+
+/* Badges de Urgência na Tabela */
+.urgencia-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.urgencia-badge-verde {
+  background: rgba(16, 185, 129, 0.16);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+}
+[data-theme="dark"] .urgencia-badge-verde {
+  background: rgba(16, 185, 129, 0.25);
+  color: #6EE7B7;
+  border-color: rgba(52, 211, 153, 0.5);
+}
+
+.urgencia-badge-amarelo {
+  background: rgba(245, 158, 11, 0.18);
+  color: #B45309;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+}
+[data-theme="dark"] .urgencia-badge-amarelo {
+  background: rgba(245, 158, 11, 0.25);
+  color: #FCD34D;
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.urgencia-badge-vermelho {
+  background: rgba(239, 68, 68, 0.16);
+  color: #B91C1C;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}
+[data-theme="dark"] .urgencia-badge-vermelho {
+  background: rgba(239, 68, 68, 0.28);
+  color: #FCA5A5;
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+/* Grade de Botões de Nota 0 a 10 no Modal do Técnico */
+.urgencia-score-grid {
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: 0.35rem;
+}
+
+@media (max-width: 540px) {
+  .urgencia-score-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.urgencia-score-btn {
+  height: 40px;
+  border-radius: 8px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+}
+
+.urgencia-score-btn.score-verde {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+.urgencia-score-btn.score-verde:hover,
+.urgencia-score-btn.score-verde.active {
+  background: #10B981;
+  color: #FFFFFF;
+  border-color: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.urgencia-score-btn.score-amarelo {
+  background: rgba(245, 158, 11, 0.14);
+  color: #B45309;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+.urgencia-score-btn.score-amarelo:hover,
+.urgencia-score-btn.score-amarelo.active {
+  background: #F59E0B;
+  color: #FFFFFF;
+  border-color: #D97706;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.38);
+}
+
+.urgencia-score-btn.score-vermelho {
+  background: rgba(239, 68, 68, 0.12);
+  color: #B91C1C;
+  border-color: rgba(239, 68, 68, 0.38);
+}
+.urgencia-score-btn.score-vermelho:hover,
+.urgencia-score-btn.score-vermelho.active {
+  background: #EF4444;
+  color: #FFFFFF;
+  border-color: #DC2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.38);
+}
+
+[data-theme="dark"] .urgencia-score-btn.score-verde:not(.active) {
+  color: #6EE7B7;
+}
+[data-theme="dark"] .urgencia-score-btn.score-amarelo:not(.active) {
+  color: #FCD34D;
+}
+[data-theme="dark"] .urgencia-score-btn.score-vermelho:not(.active) {
+  color: #FCA5A5;
+}
+
+.urgencia-preview-box {
+  padding: 0.7rem 0.95rem;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.urgencia-preview-box.preview-verde {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #065F46;
+  font-weight: 700;
+}
+[data-theme="dark"] .urgencia-preview-box.preview-verde {
+  color: #6EE7B7;
+}
+
+.urgencia-preview-box.preview-amarelo {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #92400E;
+  font-weight: 700;
+}
+[data-theme="dark"] .urgencia-preview-box.preview-amarelo {
+  color: #FDE68A;
+}
+
+.urgencia-preview-box.preview-vermelho {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.48);
+  color: #991B1B;
+  font-weight: 700;
+}
+[data-theme="dark"] .urgencia-preview-box.preview-vermelho {
+  color: #FCA5A5;
+}
+
+.urgencia-legend-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--border-subtle);
+  font-size: 0.73rem;
+  color: var(--text-secondary);
+}
+
+.urgencia-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.legend-dot.dot-verde { background: #10B981; }
+.legend-dot.dot-amarelo { background: #F59E0B; }
+.legend-dot.dot-vermelho { background: #EF4444; }
+
+

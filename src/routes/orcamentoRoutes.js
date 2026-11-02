@@ -24,7 +24,10 @@ router.get('/:id', orcamentoController.getById);
 // Criar novo chamado (Exclusivo Consultora e Supervisor - Técnico é somente leitura)
 router.post('/', requireRole('CONSULTORA', 'SUPERVISOR'), orcamentoController.create);
 
-// Atualizar chamado (Exclusivo Consultora e Supervisor - Técnico é somente leitura)
+// Atualizar observação do técnico e nota de urgência (0 a 10) (Técnico, Supervisor e Consultora)
+router.patch('/:id/observacao-tecnico', requireRole('TECNICO', 'SUPERVISOR', 'CONSULTORA'), orcamentoController.updateObservacaoTecnico);
+
+// Atualizar chamado (Exclusivo Consultora e Supervisor)
 router.put('/:id', requireRole('CONSULTORA', 'SUPERVISOR'), orcamentoController.update);
 router.patch('/:id', requireRole('CONSULTORA', 'SUPERVISOR'), orcamentoController.update);
 

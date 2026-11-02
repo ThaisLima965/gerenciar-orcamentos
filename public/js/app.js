@@ -174,10 +174,10 @@ function setupUserProfile() {
     if (btnOpenCadastros) btnOpenCadastros.style.display = 'none';
     if (btnNewOrcamento) btnNewOrcamento.style.display = '';
   } else {
-    // TÉCNICO (SOMENTE VISUALIZAÇÃO)
+    // TÉCNICO
     if (roleBadge) {
       roleBadge.classList.add('role-tecnico');
-      roleBadge.textContent = 'TÉCNICO (SOMENTE VISUALIZAÇÃO)';
+      roleBadge.textContent = 'TÉCNICO';
     }
     document.body.classList.add('role-tecnico-active');
     
@@ -311,13 +311,60 @@ async function loadOrcamentos() {
   } catch (err) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="12" style="text-align: center; color: #ef4444; padding: 2rem;">
+        <td colspan="13" style="text-align: center; color: #ef4444; padding: 2rem;">
           <i class="bi bi-exclamation-triangle-fill" style="font-size: 1.5rem;"></i>
           <div>Falha ao carregar lista de orçamentos: ${err.message}</div>
         </td>
       </tr>
     `;
   }
+}
+
+// =====================================================================
+// ESCALA DE CORES AUTOMÁTICA DE URGÊNCIA (NOTAS 0 A 10)
+// Verde: 0 a 3 (Baixa urgência - até 120 dias)
+// Amarelo: 4 a 7 (Média urgência)
+// Vermelho: 8 a 10 (Alta urgência - até 30 dias)
+// =====================================================================
+function getUrgenciaMeta(nota) {
+  if (nota === null || nota === undefined || nota === '') return null;
+  const num = Number(nota);
+  if (isNaN(num) || num < 0 || num > 10) return null;
+
+  if (num <= 3) {
+    return {
+      nota: num,
+      rowClass: 'row-urgencia-verde',
+      badgeClass: 'urgencia-badge-verde',
+      previewClass: 'preview-verde',
+      corNome: 'Verde',
+      nivel: 'Baixa Urgência',
+      prazo: num === 0 ? 'Execução em até 120 dias' : 'Baixa urgência (até 120 dias)',
+      dotColor: '#10B981'
+    };
+  }
+  if (num <= 7) {
+    return {
+      nota: num,
+      rowClass: 'row-urgencia-amarelo',
+      badgeClass: 'urgencia-badge-amarelo',
+      previewClass: 'preview-amarelo',
+      corNome: 'Amarelo',
+      nivel: 'Média Urgência',
+      prazo: 'Prazo intermediário de execução',
+      dotColor: '#F59E0B'
+    };
+  }
+  return {
+    nota: num,
+    rowClass: 'row-urgencia-vermelho',
+    badgeClass: 'urgencia-badge-vermelho',
+    previewClass: 'preview-vermelho',
+    corNome: 'Vermelho',
+    nivel: 'Alta Urgência',
+    prazo: num === 10 ? 'Execução em até 30 dias' : 'Alta urgência (até 30 dias)',
+    dotColor: '#EF4444'
+  };
 }
 
 // =====================================================================
@@ -332,7 +379,7 @@ function renderOrcamentosTable() {
   if (!items || items.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+        <td colspan="13" style="text-align: center; color: var(--text-muted); padding: 3rem;">
           <i class="bi bi-inbox" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
           Nenhum orçamento encontrado com os filtros atuais.
         </td>
@@ -344,6 +391,8 @@ function renderOrcamentosTable() {
   tbody.innerHTML = items.map((item) => {
     const isGeorSim = item.geor_liberou === 'Sim';
     const isPreventivo = item.tipo_servico === 'Preventivo';
+    const urgMeta = getUrgenciaMeta(item.nota_urgencia);
+    const hasObsOrNota = urgMeta !== null || Boolean(item.observacao_tecnico && String(item.observacao_tecnico).trim());
 
     let statusBadgeClass = 'badge-pill-yes';
     if (item.status === 'Aberto') statusBadgeClass = 'badge-tag role-supervisor';
@@ -353,7 +402,7 @@ function renderOrcamentosTable() {
     else if (item.status === 'Cancelado') statusBadgeClass = 'badge-tag' + ' style="background:#fee2e2; color:#b91c1c;"';
 
     return `
-      <tr>
+      <tr class="${urgMeta ? urgMeta.rowClass : ''}">
         <td>
           <div style="font-weight: 700; color: var(--brand-primary);">${item.numero_pgo}</div>
           <div style="font-size: 0.72rem; color: var(--text-muted);">ID #${item.id}</div>
@@ -402,19 +451,46 @@ function renderOrcamentosTable() {
             ${escapeHtml(item.status)}
           </span>
         </td>
+        <td style="min-width: 220px; max-width: 260px;">
+          ${urgMeta ? `
+            <div style="margin-bottom: 0.28rem;">
+              <span class="urgencia-badge ${urgMeta.badgeClass}" title="${urgMeta.corNome}: ${urgMeta.nivel} (${urgMeta.prazo})">
+                <span class="legend-dot" style="background: ${urgMeta.dotColor}; width: 8px; height: 8px;"></span>
+                <span>Nota ${urgMeta.nota}/10 • ${urgMeta.nivel}</span>
+              </span>
+            </div>
+          ` : ''}
+          ${item.observacao_tecnico ? `
+            <div style="font-size: 0.78rem; color: var(--text-primary); font-weight: 500; line-height: 1.35; word-break: break-word;">
+              ${escapeHtml(item.observacao_tecnico)}
+            </div>
+          ` : `
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">
+              ${urgMeta ? 'Sem observação textual' : 'Pendente de avaliação'}
+            </span>
+          `}
+        </td>
         <td style="text-align: right; white-space: nowrap;">
           ${isTecnico ? `
             <button 
               type="button" 
-              class="btn btn-secondary btn-sm btn-edit-orcamento" 
+              class="btn btn-primary btn-sm btn-tec-obs" 
               data-id="${item.id}"
-              title="Visualizar Detalhes do Orçamento (Somente Leitura)"
-              style="padding: 0.25rem 0.65rem; font-weight: 600;"
+              title="Incluir Observação (até 200 caracteres) e Nota de Urgência (0 a 10)"
+              style="padding: 0.32rem 0.75rem; font-weight: 700;"
             >
-              <i class="bi bi-eye-fill" style="color: var(--tke-purple);"></i>
-              <span>Visualizar</span>
+              <i class="bi bi-chat-left-text-fill"></i>
+              <span>${hasObsOrNota ? 'Editar Observação' : 'Incluir Observação'}</span>
             </button>
           ` : `
+            <button 
+              type="button" 
+              class="btn btn-secondary btn-sm btn-tec-obs" 
+              data-id="${item.id}"
+              title="Observação Técnica e Nota de Urgência (0 a 10)"
+            >
+              <i class="bi bi-chat-left-text-fill" style="color: var(--tke-purple);"></i>
+            </button>
             <button 
               type="button" 
               class="btn btn-secondary btn-sm btn-edit-orcamento" 
@@ -442,7 +518,15 @@ function renderOrcamentosTable() {
     `;
   }).join('');
 
-  // Associa eventos nos botões da tabela
+  // Associa eventos nos botões de Observação / Nota de Urgência do Técnico
+  document.querySelectorAll('.btn-tec-obs').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      openTecnicoObsModal(id);
+    });
+  });
+
+  // Associa eventos nos botões de Edição (Supervisor e Consultora)
   document.querySelectorAll('.btn-edit-orcamento').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
@@ -520,6 +604,8 @@ function applyRbacToModal(isEdit = false, item = null) {
   const inputNomeCliente = document.getElementById('form-cliente-nome');
   const inputPgo = document.getElementById('form-pgo');
   const inputDesc = document.getElementById('form-descricao-servico');
+  const inputObsTecnico = document.getElementById('form-observacao-tecnico');
+  const selectNotaUrgencia = document.getElementById('form-nota-urgencia');
 
   // Inputs da Seção 2 (Supervisão)
   const inputOrcamento = document.getElementById('form-orcamento');
@@ -583,6 +669,8 @@ function applyRbacToModal(isEdit = false, item = null) {
     inputElevador.disabled = true;
     inputPgo.disabled = true;
     inputDesc.disabled = true;
+    if (inputObsTecnico) inputObsTecnico.disabled = true;
+    if (selectNotaUrgencia) selectNotaUrgencia.disabled = true;
 
     // Seção 3 é sempre Bloqueada para o Supervisor (Valor Total, Data de Envio e Status)
     secConsultora.classList.add('section-locked');
@@ -620,6 +708,8 @@ function applyRbacToModal(isEdit = false, item = null) {
   inputElevador.disabled = false;
   inputPgo.disabled = false;
   inputDesc.disabled = false;
+  if (inputObsTecnico) inputObsTecnico.disabled = false;
+  if (selectNotaUrgencia) selectNotaUrgencia.disabled = false;
 
   inputOrcamento.disabled = false;
   inputValorTotal.disabled = false;
@@ -645,6 +735,8 @@ function openNewModal() {
   document.getElementById('form-id').value = '';
   document.getElementById('form-g-origem').value = 'G11';
   document.getElementById('form-descricao-servico').value = '';
+  if (document.getElementById('form-observacao-tecnico')) document.getElementById('form-observacao-tecnico').value = '';
+  if (document.getElementById('form-nota-urgencia')) document.getElementById('form-nota-urgencia').value = '';
   document.getElementById('form-valor-total').value = '';
   document.getElementById('form-geor').value = 'Não';
   document.getElementById('form-status').value = 'Aberto';
@@ -662,14 +754,15 @@ function openEditModal(id) {
   if (!item) return;
 
   const isTecnico = state.user?.perfil === 'TECNICO';
+  if (isTecnico) {
+    openTecnicoObsModal(id);
+    return;
+  }
+
   state.editingId = item.id;
 
   const modalTitleEl = document.getElementById('modal-title');
-  if (isTecnico) {
-    modalTitleEl.innerHTML = `<i class="bi bi-eye-fill" style="color: var(--tke-purple);"></i> Visualização de Orçamento - ${escapeHtml(item.numero_pgo)} (#${item.id})`;
-  } else {
-    modalTitleEl.textContent = `Orçamento TKE - ${item.numero_pgo} (#${item.id})`;
-  }
+  modalTitleEl.textContent = `Orçamento TKE - ${item.numero_pgo} (#${item.id})`;
 
   document.getElementById('form-id').value = item.id;
   document.getElementById('form-tecnico-matricula').value = item.matricula_tecnico;
@@ -682,6 +775,12 @@ function openEditModal(id) {
   document.getElementById('form-orcamento').value = item.numero_orcamento && item.numero_orcamento !== 'Aguardando Orçamento' ? item.numero_orcamento : '';
   document.getElementById('form-valor-total').value = item.valor_total ? Number(item.valor_total) : '';
   document.getElementById('form-descricao-servico').value = item.descricao_servico || '';
+  if (document.getElementById('form-observacao-tecnico')) {
+    document.getElementById('form-observacao-tecnico').value = item.observacao_tecnico || '';
+  }
+  if (document.getElementById('form-nota-urgencia')) {
+    document.getElementById('form-nota-urgencia').value = item.nota_urgencia !== null && item.nota_urgencia !== undefined ? String(item.nota_urgencia) : '';
+  }
   document.getElementById('form-status').value = item.status;
   document.getElementById('form-geor').value = item.geor_liberou;
   document.getElementById('form-data-liberacao').value = item.data_liberacao || '';
@@ -695,6 +794,152 @@ function openEditModal(id) {
 
 function closeModal() {
   document.getElementById('orcamento-modal').classList.remove('active');
+}
+
+// =====================================================================
+// MODAL DE OBSERVAÇÃO E NOTA DE URGÊNCIA DO TÉCNICO (0 A 10 + 200 CHARS)
+// =====================================================================
+function selectUrgenciaScore(score) {
+  const hiddenInput = document.getElementById('tec-obs-nota');
+  const previewBanner = document.getElementById('tec-obs-preview-banner');
+  const buttons = document.querySelectorAll('#tec-obs-score-buttons .urgencia-score-btn');
+
+  buttons.forEach(btn => {
+    if (String(btn.getAttribute('data-score')) === String(score)) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  if (score === null || score === undefined || score === '') {
+    if (hiddenInput) hiddenInput.value = '';
+    if (previewBanner) {
+      previewBanner.className = 'urgencia-preview-box';
+      previewBanner.innerHTML = `
+        <i class="bi bi-palette-fill"></i>
+        <span>Selecione uma nota de <strong>0 a 10</strong> acima para aplicar a escala de cores automática.</span>
+      `;
+    }
+    return;
+  }
+
+  if (hiddenInput) hiddenInput.value = String(score);
+  const meta = getUrgenciaMeta(score);
+  if (meta && previewBanner) {
+    previewBanner.className = `urgencia-preview-box ${meta.previewClass}`;
+    previewBanner.innerHTML = `
+      <span class="legend-dot" style="background: ${meta.dotColor}; width: 12px; height: 12px; flex-shrink: 0;"></span>
+      <div>
+        <strong>Escala ${meta.corNome} aplicada (Nota ${meta.nota}/10 — ${meta.nivel}):</strong>
+        <span>${meta.prazo}.</span>
+      </div>
+    `;
+  }
+}
+
+function updateTecnicoObsCounter() {
+  const textarea = document.getElementById('tec-obs-texto');
+  const counter = document.getElementById('tec-obs-char-counter');
+  if (!textarea || !counter) return;
+  const len = textarea.value.length;
+  counter.textContent = `${len} / 200 caracteres`;
+  counter.style.color = len >= 190 ? '#EF4444' : 'var(--text-muted)';
+}
+
+function openTecnicoObsModal(id) {
+  const item = state.orcamentos.find(o => String(o.id) === String(id));
+  if (!item) return;
+
+  const modal = document.getElementById('tecnico-obs-modal');
+  if (!modal) return;
+
+  document.getElementById('tec-obs-id').value = item.id;
+  document.getElementById('tec-obs-pgo-label').textContent = `${item.numero_pgo} (#${item.id}) • ${item.tipo_servico}`;
+  document.getElementById('tec-obs-cliente-label').textContent = `${item.nome_cliente} (${item.numero_contrato})`;
+
+  const obsTextarea = document.getElementById('tec-obs-texto');
+  obsTextarea.value = item.observacao_tecnico || '';
+  updateTecnicoObsCounter();
+
+  if (item.nota_urgencia !== null && item.nota_urgencia !== undefined && item.nota_urgencia !== '') {
+    selectUrgenciaScore(item.nota_urgencia);
+  } else {
+    selectUrgenciaScore('');
+  }
+
+  modal.classList.add('active');
+  setTimeout(() => obsTextarea.focus(), 80);
+}
+
+function closeTecnicoObsModal() {
+  const modal = document.getElementById('tecnico-obs-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+function setupTecnicoObsModalListeners() {
+  const closeBtn = document.getElementById('tec-obs-close-btn');
+  const cancelBtn = document.getElementById('tec-obs-cancel-btn');
+  const obsTextarea = document.getElementById('tec-obs-texto');
+  const form = document.getElementById('tecnico-obs-form');
+
+  if (closeBtn) closeBtn.addEventListener('click', closeTecnicoObsModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', closeTecnicoObsModal);
+
+  if (obsTextarea) {
+    obsTextarea.addEventListener('input', updateTecnicoObsCounter);
+  }
+
+  document.querySelectorAll('#tec-obs-score-buttons .urgencia-score-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const score = btn.getAttribute('data-score');
+      selectUrgenciaScore(score);
+    });
+  });
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('tec-obs-id').value;
+      const notaVal = document.getElementById('tec-obs-nota').value;
+      const obsVal = document.getElementById('tec-obs-texto').value.trim();
+
+      if (notaVal === '' || notaVal === null || notaVal === undefined) {
+        showToast('Selecione uma Nota de Urgência de 0 a 10.', 'warning');
+        return;
+      }
+
+      if (!obsVal) {
+        showToast('Preencha o campo de Observações (até 200 caracteres).', 'warning');
+        return;
+      }
+
+      if (obsVal.length > 200) {
+        showToast('A observação deve ter no máximo 200 caracteres.', 'warning');
+        return;
+      }
+
+      const saveBtn = document.getElementById('tec-obs-save-btn');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> <span>Salvando...</span>';
+
+      try {
+        await api.patch(`/api/orcamentos/${id}/observacao-tecnico`, {
+          nota_urgencia: Number(notaVal),
+          observacao_tecnico: obsVal
+        });
+        const meta = getUrgenciaMeta(notaVal);
+        showToast(`Observação concluída! Escala ${meta ? meta.corNome : ''} (Nota ${notaVal}/10) aplicada.`, 'success');
+        closeTecnicoObsModal();
+        await loadOrcamentos();
+      } catch (err) {
+        showToast(err.message || 'Erro ao salvar observação do técnico.', 'error');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bi bi-check2-circle"></i> <span>Concluir e Aplicar Escala de Cor</span>';
+      }
+    });
+  }
 }
 
 // =====================================================================
@@ -715,6 +960,9 @@ function setupEventListeners() {
 
   // Setup do Modal de Primeiro Acesso (Dashboard)
   setupDashboardFirstAccessListener();
+
+  // Setup do Modal de Observação e Nota de Urgência (Técnico)
+  setupTecnicoObsModalListeners();
 
   // Setup do Módulo de Importação de Orçamentos (.xlsx / .csv)
   setupInlineUploader({
@@ -844,6 +1092,8 @@ function setupEventListeners() {
         numero_orcamento: document.getElementById('form-orcamento').value.trim() || null,
         valor_total: Number(document.getElementById('form-valor-total').value) || 0.00,
         descricao_servico: document.getElementById('form-descricao-servico').value.trim() || null,
+        observacao_tecnico: document.getElementById('form-observacao-tecnico') ? (document.getElementById('form-observacao-tecnico').value.trim() || null) : undefined,
+        nota_urgencia: (document.getElementById('form-nota-urgencia') && document.getElementById('form-nota-urgencia').value !== '') ? Number(document.getElementById('form-nota-urgencia').value) : null,
         geor_liberou: document.getElementById('form-geor').value,
         data_liberacao: document.getElementById('form-data-liberacao').value || null,
         data_envio_cliente: document.getElementById('form-data-envio').value || null,

@@ -62,7 +62,7 @@ function getLocalFingerprint() {
         COUNT(*) as count, 
         COALESCE(MAX(updated_at), '') as updated_at,
         COALESCE(SUM(valor_total), 0) as sum_val,
-        COALESCE(GROUP_CONCAT(status || ':' || geor_liberou), '') as status_sig
+        COALESCE(GROUP_CONCAT(status || ':' || geor_liberou || ':' || COALESCE(nota_urgencia, '') || ':' || COALESCE(observacao_tecnico, '')), '') as status_sig
       FROM chamados_orcamentos
     `).get() || {};
     const cliCount = db.prepare('SELECT COUNT(*) as count FROM clientes').get()?.count || 0;
@@ -115,12 +115,21 @@ export const neonSyncService = {
 
     isSyncingFromNeon = true;
     try {
+      // Garante colunas de observação do técnico e nota de urgência no Neon
+      try {
+        await queryNeon(`
+          ALTER TABLE chamados_orcamentos ADD COLUMN IF NOT EXISTS observacao_tecnico VARCHAR(200);
+          ALTER TABLE chamados_orcamentos ADD COLUMN IF NOT EXISTS nota_urgencia INTEGER;
+        `);
+      } catch (e) {}
+
       // 1. Chamados / Orçamentos
       const orcRes = await queryNeon(`
         SELECT 
           id, matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo, 
           COALESCE(g_origem, 'G11') as g_origem, numero_contrato, nome_cliente,
           numero_orcamento, descricao_servico, COALESCE(valor_total, 0.00)::float as valor_total,
+          observacao_tecnico, nota_urgencia,
           to_char(data_liberacao, 'YYYY-MM-DD') as data_liberacao,
           geor_liberou,
           to_char(data_envio_cliente, 'YYYY-MM-DD') as data_envio_cliente,
@@ -140,9 +149,10 @@ export const neonSyncService = {
           INSERT OR REPLACE INTO chamados_orcamentos (
             id, matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
             g_origem, numero_contrato, nome_cliente, numero_orcamento, descricao_servico,
-            valor_total, data_liberacao, geor_liberou, data_envio_cliente, status,
+            valor_total, observacao_tecnico, nota_urgencia,
+            data_liberacao, geor_liberou, data_envio_cliente, status,
             data_criacao, created_by_id, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         for (const row of orcRes.rows) {
@@ -159,6 +169,8 @@ export const neonSyncService = {
               row.numero_orcamento || 'Aguardando Orçamento',
               sanitizeUtf8(row.descricao_servico),
               Number(row.valor_total) || 0.00,
+              row.observacao_tecnico ? sanitizeUtf8(String(row.observacao_tecnico)).slice(0, 200) : null,
+              row.nota_urgencia !== null && row.nota_urgencia !== undefined ? Number(row.nota_urgencia) : null,
               row.data_liberacao,
               row.geor_liberou || 'Não',
               row.data_envio_cliente,
@@ -331,10 +343,11 @@ export const neonSyncService = {
         INSERT INTO chamados_orcamentos (
           matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
           g_origem, numero_contrato, nome_cliente, numero_orcamento,
-          descricao_servico, valor_total, data_liberacao, geor_liberou,
+          descricao_servico, valor_total, observacao_tecnico, nota_urgencia,
+          data_liberacao, geor_liberou,
           data_envio_cliente, status, created_by_id, updated_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP
         )
         ON CONFLICT (numero_pgo) DO UPDATE SET
           matricula_tecnico = EXCLUDED.matricula_tecnico,
@@ -346,6 +359,8 @@ export const neonSyncService = {
           numero_orcamento = EXCLUDED.numero_orcamento,
           descricao_servico = EXCLUDED.descricao_servico,
           valor_total = EXCLUDED.valor_total,
+          observacao_tecnico = EXCLUDED.observacao_tecnico,
+          nota_urgencia = EXCLUDED.nota_urgencia,
           data_liberacao = EXCLUDED.data_liberacao,
           geor_liberou = EXCLUDED.geor_liberou,
           data_envio_cliente = EXCLUDED.data_envio_cliente,
@@ -362,6 +377,8 @@ export const neonSyncService = {
         orc.numero_orcamento || 'Aguardando Orçamento',
         orc.descricao_servico || null,
         Number(orc.valor_total) || 0.00,
+        orc.observacao_tecnico ? String(orc.observacao_tecnico).slice(0, 200) : null,
+        orc.nota_urgencia !== null && orc.nota_urgencia !== undefined ? Number(orc.nota_urgencia) : null,
         orc.data_liberacao || null,
         orc.geor_liberou || 'Não',
         orc.data_envio_cliente || null,

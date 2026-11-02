@@ -30,6 +30,8 @@ export const orcamentoController = {
           nome_cliente, 
           numero_orcamento, 
           descricao_servico,
+          observacao_tecnico,
+          nota_urgencia,
           valor_total,
           data_liberacao, 
           geor_liberou, 
@@ -48,12 +50,13 @@ export const orcamentoController = {
           numero_pgo LIKE ? OR 
           numero_orcamento LIKE ? OR 
           descricao_servico LIKE ? OR
+          observacao_tecnico LIKE ? OR
           nome_cliente LIKE ? OR 
           nome_tecnico LIKE ? OR 
           numero_contrato LIKE ?
         )`;
         const searchParam = `%${q}%`;
-        params.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
+        params.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
       }
 
       if (status) {
@@ -168,6 +171,8 @@ export const orcamentoController = {
         nome_cliente,
         numero_orcamento,
         descricao_servico,
+        observacao_tecnico,
+        nota_urgencia,
         valor_total,
         data_liberacao,
         geor_liberou,
@@ -269,6 +274,13 @@ export const orcamentoController = {
         finalStatus = status || (finalDataEnvioCliente ? 'Enviado ao Cliente' : (finalGeorLiberou === 'Sim' ? 'Liberado GEOR' : 'Aberto'));
       }
 
+      const finalObsTecnico = observacao_tecnico !== undefined && observacao_tecnico !== null
+        ? String(observacao_tecnico).trim().slice(0, 200) || null
+        : null;
+      const finalNotaUrgencia = (nota_urgencia !== undefined && nota_urgencia !== null && nota_urgencia !== '')
+        ? Math.max(0, Math.min(10, parseInt(nota_urgencia, 10)))
+        : null;
+
       const stmt = db.prepare(`
         INSERT INTO chamados_orcamentos (
           matricula_tecnico,
@@ -280,13 +292,15 @@ export const orcamentoController = {
           nome_cliente,
           numero_orcamento,
           descricao_servico,
+          observacao_tecnico,
+          nota_urgencia,
           valor_total,
           data_liberacao,
           geor_liberou,
           data_envio_cliente,
           status,
           created_by_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result = stmt.run(
@@ -299,6 +313,8 @@ export const orcamentoController = {
         resolvedNomeCliente,
         finalNumeroOrcamento,
         descricao_servico || null,
+        finalObsTecnico,
+        isNaN(finalNotaUrgencia) ? null : finalNotaUrgencia,
         finalValorTotal,
         finalDataLiberacao,
         finalGeorLiberou,
@@ -364,6 +380,8 @@ export const orcamentoController = {
         nome_cliente,
         numero_orcamento,
         descricao_servico,
+        observacao_tecnico,
+        nota_urgencia,
         valor_total,
         data_liberacao,
         geor_liberou,
@@ -515,6 +533,12 @@ export const orcamentoController = {
 
       const updatedNumeroOrcamento = numero_orcamento !== undefined ? String(numero_orcamento).trim() : current.numero_orcamento;
       const updatedDescricaoServico = descricao_servico !== undefined ? descricao_servico : current.descricao_servico;
+      const updatedObsTecnico = observacao_tecnico !== undefined
+        ? (observacao_tecnico ? String(observacao_tecnico).trim().slice(0, 200) : null)
+        : current.observacao_tecnico;
+      const updatedNotaUrgencia = nota_urgencia !== undefined
+        ? (nota_urgencia === null || nota_urgencia === '' ? null : Math.max(0, Math.min(10, parseInt(nota_urgencia, 10))))
+        : current.nota_urgencia;
       const updatedValorTotal = valor_total !== undefined ? (Number(valor_total) || 0.00) : current.valor_total;
 
       let updatedGeorLiberou = current.geor_liberou;
@@ -546,6 +570,8 @@ export const orcamentoController = {
           nome_cliente = ?,
           numero_orcamento = ?,
           descricao_servico = ?,
+          observacao_tecnico = ?,
+          nota_urgencia = ?,
           valor_total = ?,
           data_liberacao = ?,
           geor_liberou = ?,
@@ -563,6 +589,8 @@ export const orcamentoController = {
         updatedNomeCliente,
         updatedNumeroOrcamento,
         updatedDescricaoServico,
+        updatedObsTecnico,
+        isNaN(updatedNotaUrgencia) ? null : updatedNotaUrgencia,
         updatedValorTotal,
         updatedDataLiberacao,
         updatedGeorLiberou,
@@ -586,6 +614,72 @@ export const orcamentoController = {
       return res.status(500).json({
         success: false,
         error: 'Erro interno ao atualizar chamado.'
+      });
+    }
+  },
+
+  // Incluir / Atualizar Observação do Técnico (até 200 caracteres) e Nota de Urgência (0 a 10)
+  async updateObservacaoTecnico(req, res) {
+    try {
+      const { id } = req.params;
+      const { observacao_tecnico, nota_urgencia } = req.body;
+
+      const current = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
+      if (!current) {
+        return res.status(404).json({
+          success: false,
+          error: 'Chamado / Orçamento não encontrado.'
+        });
+      }
+
+      if (nota_urgencia === undefined || nota_urgencia === null || nota_urgencia === '') {
+        return res.status(400).json({
+          success: false,
+          error: 'A Nota de Urgência (0 a 10) é obrigatória.'
+        });
+      }
+
+      const parsedNota = Number(nota_urgencia);
+      if (isNaN(parsedNota) || !Number.isInteger(parsedNota) || parsedNota < 0 || parsedNota > 10) {
+        return res.status(400).json({
+          success: false,
+          error: 'A Nota de Urgência deve ser um número inteiro de 0 a 10.'
+        });
+      }
+
+      const rawObs = String(observacao_tecnico || '').trim();
+      if (rawObs.length > 200) {
+        return res.status(400).json({
+          success: false,
+          error: 'O campo Observações deve ter no máximo 200 caracteres.'
+        });
+      }
+
+      const finalObs = rawObs || null;
+
+      db.prepare(`
+        UPDATE chamados_orcamentos SET
+          observacao_tecnico = ?,
+          nota_urgencia = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(finalObs, parsedNota, id);
+
+      const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
+
+      // Sincroniza imediatamente com o Neon PostgreSQL
+      neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
+
+      return res.status(200).json({
+        success: true,
+        message: 'Observação e Nota de Urgência registradas com sucesso!',
+        data: atualizado
+      });
+    } catch (error) {
+      console.error('❌ [Orcamento Controller] Erro ao salvar observação do técnico:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno ao salvar observação e nota de urgência.'
       });
     }
   },

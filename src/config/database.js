@@ -154,6 +154,8 @@ CREATE TABLE IF NOT EXISTS chamados_orcamentos (
     data_envio_cliente DATE,
     status VARCHAR(30) NOT NULL DEFAULT 'Aberto',
     valor_total REAL NOT NULL DEFAULT 0.00,
+    observacao_tecnico VARCHAR(200),
+    nota_urgencia INTEGER,
     data_criacao DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by_id INTEGER,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -227,6 +229,8 @@ export async function initDatabase() {
         "ALTER TABLE tecnicos ADD COLUMN funcao VARCHAR(80) DEFAULT 'Preventivo';",
         "ALTER TABLE chamados_orcamentos ADD COLUMN g_origem VARCHAR(10) DEFAULT 'G11';",
         'ALTER TABLE chamados_orcamentos ADD COLUMN valor_total REAL DEFAULT 0.00;',
+        'ALTER TABLE chamados_orcamentos ADD COLUMN observacao_tecnico VARCHAR(200);',
+        'ALTER TABLE chamados_orcamentos ADD COLUMN nota_urgencia INTEGER;',
         'ALTER TABLE usuarios ADD COLUMN primeiro_acesso INTEGER DEFAULT 0;',
         "ALTER TABLE usuarios ADD COLUMN grupo VARCHAR(10) DEFAULT 'G11';"
       ];

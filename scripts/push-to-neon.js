@@ -109,6 +109,10 @@ async function pushAllToNeon() {
     }
 
     // 4. Sincroniza Orçamentos
+    await pool.query(`
+      ALTER TABLE chamados_orcamentos ADD COLUMN IF NOT EXISTS observacao_tecnico VARCHAR(200);
+      ALTER TABLE chamados_orcamentos ADD COLUMN IF NOT EXISTS nota_urgencia INTEGER;
+    `);
     if (orcamentos.length === 0) {
       await pool.query('DELETE FROM chamados_orcamentos');
     } else {
@@ -119,10 +123,11 @@ async function pushAllToNeon() {
           INSERT INTO chamados_orcamentos (
             matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
             g_origem, numero_contrato, nome_cliente, numero_orcamento,
-            descricao_servico, valor_total, data_liberacao, geor_liberou,
+            descricao_servico, observacao_tecnico, nota_urgencia,
+            valor_total, data_liberacao, geor_liberou,
             data_envio_cliente, status, created_by_id, updated_at
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NULL, CURRENT_TIMESTAMP
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NULL, CURRENT_TIMESTAMP
           )
           ON CONFLICT (numero_pgo) DO UPDATE SET
             matricula_tecnico = EXCLUDED.matricula_tecnico,
@@ -133,6 +138,8 @@ async function pushAllToNeon() {
             nome_cliente = EXCLUDED.nome_cliente,
             numero_orcamento = EXCLUDED.numero_orcamento,
             descricao_servico = EXCLUDED.descricao_servico,
+            observacao_tecnico = EXCLUDED.observacao_tecnico,
+            nota_urgencia = EXCLUDED.nota_urgencia,
             valor_total = EXCLUDED.valor_total,
             data_liberacao = EXCLUDED.data_liberacao,
             geor_liberou = EXCLUDED.geor_liberou,
@@ -149,6 +156,8 @@ async function pushAllToNeon() {
           o.nome_cliente,
           o.numero_orcamento || 'Aguardando Orçamento',
           o.descricao_servico || null,
+          o.observacao_tecnico || null,
+          o.nota_urgencia !== null && o.nota_urgencia !== undefined && o.nota_urgencia !== '' ? Number(o.nota_urgencia) : null,
           Number(o.valor_total) || 0.00,
           o.data_liberacao || null,
           o.geor_liberou || 'Não',

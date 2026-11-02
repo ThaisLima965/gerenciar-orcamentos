@@ -28,8 +28,8 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/images/icons/favicon-32x32.png">
   <link rel="icon" type="image/svg+xml" href="/images/icons/icon.svg">
 
-  <link rel="stylesheet" href="/css/style.css?v=2.0.2">
-  <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.min.css?v=2.0.2">
+  <link rel="stylesheet" href="/css/style.css?v=2.0.6">
+  <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.min.css?v=2.0.6">
 </head>
 <body>
 
@@ -336,12 +336,13 @@
                 <th>GEOR Liberou?</th>
                 <th>Envio ao Cliente</th>
                 <th>Status</th>
+                <th>Observação / Urgência</th>
                 <th style="text-align: right;">Ações</th>
               </tr>
             </thead>
             <tbody id="orcamentos-table-body">
               <tr>
-                <td colspan="12" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                <td colspan="13" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
                   <i class="bi bi-arrow-repeat spin" style="font-size: 1.5rem; color: #6200EA;"></i>
                   <div style="margin-top: 0.5rem;">Carregando orçamentos TKE...</div>
                 </td>
@@ -1284,7 +1285,7 @@
               </div>
             </div>
 
-            <div class="form-grid-2">
+            <div class="form-grid-2" style="margin-bottom: 1rem;">
               <div class="form-group">
                 <label for="form-pgo">Número da PGO</label>
                 <input type="text" id="form-pgo" class="form-control" placeholder="Ex: PGO-2026-1020 (ou gerado automático)">
@@ -1293,6 +1294,31 @@
               <div class="form-group">
                 <label for="form-descricao-servico">Descrição / Detalhe do Serviço</label>
                 <input type="text" id="form-descricao-servico" class="form-control" placeholder="Ex: Substituição de cabos de tração, revisão periódica...">
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label for="form-observacao-tecnico">Observações do Técnico (Máx. 200 caracteres)</label>
+                <input type="text" id="form-observacao-tecnico" class="form-control" maxlength="200" placeholder="Observação registrada pelo técnico (até 200 caracteres)">
+              </div>
+
+              <div class="form-group">
+                <label for="form-nota-urgencia">Nota de Urgência (0 a 10)</label>
+                <select id="form-nota-urgencia" class="form-control">
+                  <option value="">Sem nota registrada</option>
+                  <option value="0">0 - Baixa Urgência (Até 120 dias) [Verde]</option>
+                  <option value="1">1 - Baixa Urgência [Verde]</option>
+                  <option value="2">2 - Baixa Urgência [Verde]</option>
+                  <option value="3">3 - Baixa Urgência [Verde]</option>
+                  <option value="4">4 - Média Urgência [Amarelo]</option>
+                  <option value="5">5 - Média Urgência [Amarelo]</option>
+                  <option value="6">6 - Média Urgência [Amarelo]</option>
+                  <option value="7">7 - Média Urgência [Amarelo]</option>
+                  <option value="8">8 - Alta Urgência [Vermelho]</option>
+                  <option value="9">9 - Alta Urgência [Vermelho]</option>
+                  <option value="10">10 - Alta Urgência (Até 30 dias) [Vermelho]</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1668,9 +1694,119 @@
   </div>
 
 
+  <!-- MODAL DEDICADO: INCLUIR OBSERVAÇÃO E NOTA DE URGÊNCIA (PERFIL TÉCNICO) -->
+  <div class="modal-backdrop" id="tecnico-obs-modal">
+    <div class="modal-dialog" style="max-width: 620px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, rgba(98, 0, 234, 0.08) 0%, transparent 100%);">
+        <h3 id="tec-obs-modal-title" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem; margin: 0; color: var(--text-primary);">
+          <i class="bi bi-chat-left-text-fill" style="color: var(--tke-purple);"></i>
+          <span>Incluir Observação & Nota de Urgência</span>
+        </h3>
+        <button type="button" class="modal-close-btn" id="tec-obs-close-btn">&times;</button>
+      </div>
+
+      <form id="tecnico-obs-form">
+        <input type="hidden" id="tec-obs-id">
+        <div class="modal-body" style="padding: 1.5rem;">
+          <!-- Resumo rápido do chamado selecionado -->
+          <div id="tec-obs-chamado-info" style="background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Chamado / PGO</div>
+              <div id="tec-obs-pgo-label" style="font-weight: 800; font-size: 1rem; color: var(--tke-purple);">PGO-0000</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Cliente / Contrato</div>
+              <div id="tec-obs-cliente-label" style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary);">-</div>
+            </div>
+          </div>
+
+          <!-- CAMPO 1: NOTA DE URGÊNCIA (0 A 10) -->
+          <div class="form-group" style="margin-bottom: 1.35rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem; flex-wrap: wrap; gap: 0.35rem;">
+              <label for="tec-obs-nota" style="font-weight: 800; font-size: 0.9rem; margin: 0; color: var(--text-primary);">
+                <i class="bi bi-speedometer2" style="color: var(--tke-purple);"></i> Nota de Urgência (0 a 10) *
+              </label>
+              <span style="font-size: 0.74rem; color: var(--text-secondary); font-weight: 600;">
+                <strong>0</strong> = até 120 dias • <strong>10</strong> = até 30 dias
+              </span>
+            </div>
+
+            <input type="hidden" id="tec-obs-nota" required>
+
+            <!-- Botões Interativos de 0 a 10 -->
+            <div class="urgencia-score-grid" id="tec-obs-score-buttons">
+              <button type="button" class="urgencia-score-btn score-verde" data-score="0" title="Nota 0: Execução em até 120 dias (Baixa urgência)">0</button>
+              <button type="button" class="urgencia-score-btn score-verde" data-score="1" title="Nota 1: Baixa urgência">1</button>
+              <button type="button" class="urgencia-score-btn score-verde" data-score="2" title="Nota 2: Baixa urgência">2</button>
+              <button type="button" class="urgencia-score-btn score-verde" data-score="3" title="Nota 3: Baixa urgência">3</button>
+              <button type="button" class="urgencia-score-btn score-amarelo" data-score="4" title="Nota 4: Média urgência">4</button>
+              <button type="button" class="urgencia-score-btn score-amarelo" data-score="5" title="Nota 5: Média urgência">5</button>
+              <button type="button" class="urgencia-score-btn score-amarelo" data-score="6" title="Nota 6: Média urgência">6</button>
+              <button type="button" class="urgencia-score-btn score-amarelo" data-score="7" title="Nota 7: Média urgência">7</button>
+              <button type="button" class="urgencia-score-btn score-vermelho" data-score="8" title="Nota 8: Alta urgência">8</button>
+              <button type="button" class="urgencia-score-btn score-vermelho" data-score="9" title="Nota 9: Alta urgência">9</button>
+              <button type="button" class="urgencia-score-btn score-vermelho" data-score="10" title="Nota 10: Execução em até 30 dias (Alta urgência)">10</button>
+            </div>
+
+            <!-- Preview ao vivo da classificação de cor selecionada -->
+            <div id="tec-obs-preview-banner" class="urgencia-preview-box" style="margin-top: 0.75rem;">
+              <i class="bi bi-palette-fill"></i>
+              <span>Selecione uma nota de <strong>0 a 10</strong> acima para aplicar a escala de cores automática.</span>
+            </div>
+
+            <!-- Legenda da Escala de Cores Automática -->
+            <div class="urgencia-legend-bar">
+              <div class="urgencia-legend-item legend-verde">
+                <span class="legend-dot dot-verde"></span>
+                <span><strong>Verde (0 a 3):</strong> Baixa urgência (até 120 dias)</span>
+              </div>
+              <div class="urgencia-legend-item legend-amarelo">
+                <span class="legend-dot dot-amarelo"></span>
+                <span><strong>Amarelo (4 a 7):</strong> Média urgência</span>
+              </div>
+              <div class="urgencia-legend-item legend-vermelho">
+                <span class="legend-dot dot-vermelho"></span>
+                <span><strong>Vermelho (8 a 10):</strong> Alta urgência (até 30 dias)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- CAMPO 2: OBSERVAÇÕES (ATÉ 200 CARACTERES) -->
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <label for="tec-obs-texto" style="font-weight: 800; font-size: 0.9rem; margin: 0; color: var(--text-primary);">
+                <i class="bi bi-card-text" style="color: var(--tke-purple);"></i> Observações *
+              </label>
+              <span id="tec-obs-char-counter" style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">
+                0 / 200 caracteres
+              </span>
+            </div>
+            <textarea
+              id="tec-obs-texto"
+              class="form-control"
+              rows="3"
+              maxlength="200"
+              placeholder="Digite a observação técnica do chamado (campo aberto de até 200 caracteres)..."
+              required
+              style="resize: vertical; min-height: 85px; font-size: 0.9rem; line-height: 1.45;"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="padding: 1rem 1.5rem; background: var(--bg-secondary); display: flex; justify-content: flex-end; gap: 0.65rem;">
+          <button type="button" class="btn btn-secondary" id="tec-obs-cancel-btn">Cancelar</button>
+          <button type="submit" class="btn-tke-cta" id="tec-obs-save-btn">
+            <i class="bi bi-check2-circle"></i>
+            <span>Concluir e Aplicar Escala de Cor</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- CONTAINER DE TOASTS -->
   <div id="toast-container"></div>
 
-  <script type="module" src="/js/app.js?v=2.0.5"></script>
+  <script type="module" src="/js/app.js?v=2.0.6"></script>
 </body>
 </html>
