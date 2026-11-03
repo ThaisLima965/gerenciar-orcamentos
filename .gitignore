@@ -10,7 +10,13 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
-# Bancos de teste temporários
+# Bancos de dados locais (O banco oficial online é exclusivamente o Neon PostgreSQL)
+*.sqlite
+*.sqlite3
+*.db
+database/*.sqlite
+database/*.sqlite3
+database/*.db
 database/test-database.sqlite
 
 # Builds e caches

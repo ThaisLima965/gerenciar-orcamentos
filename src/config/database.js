@@ -21,7 +21,7 @@ try {
 }
 
 function resolveDbPath() {
-  if (isServerless && fs.existsSync('/tmp/database.sqlite')) {
+  if (isServerless) {
     return '/tmp/database.sqlite';
   }
   if (process.env.DB_PATH) {
@@ -241,40 +241,36 @@ export async function initDatabase() {
         } catch {}
       }
 
-      // Garante a existência de usuários padrão corporativos
-      const resUsr = sqlDb.exec('SELECT COUNT(*) as count FROM usuarios');
-      const userCount = resUsr.length > 0 && resUsr[0].values.length > 0 ? resUsr[0].values[0][0] : 0;
-
-      if (userCount === 0) {
-        sqlDb.run(`
-          INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, ativo, primeiro_acesso, grupo) VALUES
-          (1, 'Thaís da Silva Lima', 'thais.lima@tkelevator.com', '55011190', '$2b$10$8tMcMZRMo8kYjRLFbP3XResIk0N1hnUo8lbrrjohqBh9p430wCF2m', 'CONSULTORA', 1, 0, 'G11');
-        `);
-        console.log('👑 [Database] Usuária administradora padrão inicializada com sucesso.');
-      } else {
-        // Garante que Thaís da Silva Lima exista mesmo em bases já existentes
+      // =====================================================================
+      // ARQUITETURA DE DADOS: O BANCO OFICIAL É O NEON POSTGRESQL (ONLINE)
+      // O SQLite atua como motor de execução em memória/cache rápido.
+      // Se houver conexão com o Neon, todos os dados transacionais oficiais
+      // são carregados diretamente do Neon, garantindo integridade absoluta.
+      // =====================================================================
+      const hasOnlineDb = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL);
+      if (hasOnlineDb) {
         try {
-          const thaisCheck = sqlDb.exec("SELECT id FROM usuarios WHERE LOWER(email) = 'thais.lima@tkelevator.com'");
-          if (!thaisCheck.length || !thaisCheck[0].values.length) {
-            sqlDb.run(`
-              INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, ativo, primeiro_acesso, grupo)
-              VALUES ('Thaís da Silva Lima', 'thais.lima@tkelevator.com', '55011190', '$2b$10$8tMcMZRMo8kYjRLFbP3XResIk0N1hnUo8lbrrjohqBh9p430wCF2m', 'CONSULTORA', 1, 0, 'G11');
-            `);
-          }
-        } catch {}
+          const { neonSyncService } = await import('../services/neonSyncService.js');
+          console.log('🌐 [Database] Sincronizando dados transacionais oficiais do Neon PostgreSQL...');
+          const syncResult = await neonSyncService.syncFromNeon(true);
+          console.log('✅ [Database] Banco de produção online sincronizado com sucesso:', syncResult);
+        } catch (syncErr) {
+          console.warn('⚠️ [Database] Aviso na sincronização inicial do Neon:', syncErr.message);
+        }
+      } else {
+        // Fallback para desenvolvimento 100% offline (somente quando não há conexão com o banco online)
+        const resUsr = sqlDb.exec('SELECT COUNT(*) as count FROM usuarios');
+        const userCount = resUsr.length > 0 && resUsr[0].values.length > 0 ? resUsr[0].values[0][0] : 0;
+        if (userCount === 0) {
+          sqlDb.run(`
+            INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, ativo, primeiro_acesso, grupo) VALUES
+            (1, 'Thaís da Silva Lima', 'thais.lima@tkelevator.com', '55011190', '$2b$10$8tMcMZRMo8kYjRLFbP3XResIk0N1hnUo8lbrrjohqBh9p430wCF2m', 'CONSULTORA', 1, 0, 'G11');
+          `);
+          console.log('👑 [Database] Usuária administradora inicializada no ambiente local offline.');
+        }
       }
 
       saveDatabase();
-
-      // Sincronização automática em segundo plano com o Neon PostgreSQL (se configurado)
-      if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL) {
-        import('../services/neonSyncService.js').then(({ neonSyncService }) => {
-          neonSyncService.syncFromNeon().catch((e) => {
-            console.warn('⚠️ [Database] Aviso na sincronização inicial do Neon:', e.message);
-          });
-        }).catch(() => {});
-      }
-
       return db;
     } catch (error) {
       console.error('❌ [Database] Erro crítico na inicialização do banco de dados:', error);

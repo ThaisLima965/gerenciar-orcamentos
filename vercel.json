@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "api/index.js": {
-      "includeFiles": "database/**,node_modules/sql.js/dist/**"
+      "includeFiles": "database/sql-wasm.wasm,database/schema.sql,node_modules/sql.js/dist/**"
     }
   },
   "rewrites": [

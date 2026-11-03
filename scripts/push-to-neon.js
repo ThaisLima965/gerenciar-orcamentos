@@ -45,11 +45,7 @@ async function pushAllToNeon() {
   try {
     console.log('🌐 Sincronizando dados locais para o Neon PostgreSQL...');
 
-    // 1. Sincroniza Usuários
-    const validEmails = usuarios.map(u => String(u.email).toLowerCase().trim());
-    if (validEmails.length > 0) {
-      await pool.query('DELETE FROM usuarios WHERE LOWER(email) != ALL($1::text[])', [validEmails]);
-    }
+    // 1. Sincroniza Usuários (Não destrutivo: apenas insere ou atualiza, nunca deleta)
     for (const u of usuarios) {
       await pool.query(`
         INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, updated_at)
@@ -75,11 +71,7 @@ async function pushAllToNeon() {
       ]);
     }
 
-    // 2. Sincroniza Técnicos
-    const validMatriculas = tecnicos.map(t => String(t.matricula).trim());
-    if (validMatriculas.length > 0) {
-      await pool.query('DELETE FROM tecnicos WHERE matricula != ALL($1::text[])', [validMatriculas]);
-    }
+    // 2. Sincroniza Técnicos (Não destrutivo: apenas insere ou atualiza, nunca deleta)
     for (const t of tecnicos) {
       await pool.query(`
         INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at)
@@ -98,7 +90,7 @@ async function pushAllToNeon() {
       ]);
     }
 
-    // 3. Sincroniza Clientes
+    // 3. Sincroniza Clientes (Não destrutivo: apenas insere ou atualiza, nunca deleta)
     for (const c of clientes) {
       await pool.query(`
         INSERT INTO clientes (numero_contrato, nome_cliente, created_at)
@@ -108,63 +100,59 @@ async function pushAllToNeon() {
       `, [c.numero_contrato, c.nome_cliente]);
     }
 
-    // 4. Sincroniza Orçamentos
+    // 4. Sincroniza Orçamentos (Não destrutivo: preserva todos os orçamentos online)
     await pool.query(`
       ALTER TABLE chamados_orcamentos ADD COLUMN IF NOT EXISTS observacao_tecnico VARCHAR(200);
       ALTER TABLE chamados_orcamentos ADD COLUMN IF NOT EXISTS nota_urgencia INTEGER;
     `);
-    if (orcamentos.length === 0) {
-      await pool.query('DELETE FROM chamados_orcamentos');
-    } else {
-      const validPgos = orcamentos.map(o => String(o.numero_pgo).trim());
-      await pool.query('DELETE FROM chamados_orcamentos WHERE numero_pgo != ALL($1::text[])', [validPgos]);
-      for (const o of orcamentos) {
-        await pool.query(`
-          INSERT INTO chamados_orcamentos (
-            matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
-            g_origem, numero_contrato, nome_cliente, numero_orcamento,
-            descricao_servico, observacao_tecnico, nota_urgencia,
-            valor_total, data_liberacao, geor_liberou,
-            data_envio_cliente, status, created_by_id, updated_at
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NULL, CURRENT_TIMESTAMP
-          )
-          ON CONFLICT (numero_pgo) DO UPDATE SET
-            matricula_tecnico = EXCLUDED.matricula_tecnico,
-            nome_tecnico = EXCLUDED.nome_tecnico,
-            tipo_servico = EXCLUDED.tipo_servico,
-            g_origem = EXCLUDED.g_origem,
-            numero_contrato = EXCLUDED.numero_contrato,
-            nome_cliente = EXCLUDED.nome_cliente,
-            numero_orcamento = EXCLUDED.numero_orcamento,
-            descricao_servico = EXCLUDED.descricao_servico,
-            observacao_tecnico = EXCLUDED.observacao_tecnico,
-            nota_urgencia = EXCLUDED.nota_urgencia,
-            valor_total = EXCLUDED.valor_total,
-            data_liberacao = EXCLUDED.data_liberacao,
-            geor_liberou = EXCLUDED.geor_liberou,
-            data_envio_cliente = EXCLUDED.data_envio_cliente,
-            status = EXCLUDED.status,
-            updated_at = CURRENT_TIMESTAMP
-        `, [
-          o.matricula_tecnico,
-          o.nome_tecnico,
-          o.tipo_servico,
-          o.numero_pgo,
-          o.g_origem || 'G11',
-          o.numero_contrato,
-          o.nome_cliente,
-          o.numero_orcamento || 'Aguardando Orçamento',
-          o.descricao_servico || null,
-          o.observacao_tecnico || null,
-          o.nota_urgencia !== null && o.nota_urgencia !== undefined && o.nota_urgencia !== '' ? Number(o.nota_urgencia) : null,
-          Number(o.valor_total) || 0.00,
-          o.data_liberacao || null,
-          o.geor_liberou || 'Não',
-          o.data_envio_cliente || null,
-          o.status || 'Aberto'
-        ]);
-      }
+    
+    // NUNCA deletar orçamentos do Neon: apenas atualiza ou insere registros presentes
+    for (const o of orcamentos) {
+      await pool.query(`
+        INSERT INTO chamados_orcamentos (
+          matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
+          g_origem, numero_contrato, nome_cliente, numero_orcamento,
+          descricao_servico, observacao_tecnico, nota_urgencia,
+          valor_total, data_liberacao, geor_liberou,
+          data_envio_cliente, status, created_by_id, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NULL, CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (numero_pgo) DO UPDATE SET
+          matricula_tecnico = EXCLUDED.matricula_tecnico,
+          nome_tecnico = EXCLUDED.nome_tecnico,
+          tipo_servico = EXCLUDED.tipo_servico,
+          g_origem = EXCLUDED.g_origem,
+          numero_contrato = EXCLUDED.numero_contrato,
+          nome_cliente = EXCLUDED.nome_cliente,
+          numero_orcamento = EXCLUDED.numero_orcamento,
+          descricao_servico = EXCLUDED.descricao_servico,
+          observacao_tecnico = EXCLUDED.observacao_tecnico,
+          nota_urgencia = EXCLUDED.nota_urgencia,
+          valor_total = EXCLUDED.valor_total,
+          data_liberacao = EXCLUDED.data_liberacao,
+          geor_liberou = EXCLUDED.geor_liberou,
+          data_envio_cliente = EXCLUDED.data_envio_cliente,
+          status = EXCLUDED.status,
+          updated_at = CURRENT_TIMESTAMP
+      `, [
+        o.matricula_tecnico,
+        o.nome_tecnico,
+        o.tipo_servico,
+        o.numero_pgo,
+        o.g_origem || 'G11',
+        o.numero_contrato,
+        o.nome_cliente,
+        o.numero_orcamento || 'Aguardando Orçamento',
+        o.descricao_servico || null,
+        o.observacao_tecnico || null,
+        o.nota_urgencia !== null && o.nota_urgencia !== undefined && o.nota_urgencia !== '' ? Number(o.nota_urgencia) : null,
+        Number(o.valor_total) || 0.00,
+        o.data_liberacao || null,
+        o.geor_liberou || 'Não',
+        o.data_envio_cliente || null,
+        o.status || 'Aberto'
+      ]);
     }
 
     const counts = await pool.query(`

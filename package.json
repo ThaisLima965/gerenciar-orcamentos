@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "node --watch-path=src --watch-path=server.js --watch-path=public server.js",
     "seed": "node database/seed.js",
+    "pull:neon": "node scripts/pull-from-neon.js",
     "migrate:neon": "node scripts/migrate-to-neon.js",
     "test": "node tests/test-runner.js"
   },
