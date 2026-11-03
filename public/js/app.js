@@ -725,7 +725,7 @@ function applyRbacToModal(isEdit = false, item = null) {
 
 function openNewModal() {
   if (state.user?.perfil === 'TECNICO') {
-    showToast('Acesso negado. O perfil de Técnico possui acesso apenas para visualização.', 'warning');
+    showToast('Acesso negado. O perfil de Técnico possui acesso apenas para inclusão de observação e nota de urgência.', 'warning');
     return;
   }
 
@@ -742,6 +742,26 @@ function openNewModal() {
   document.getElementById('form-status').value = 'Aberto';
   document.getElementById('form-tecnico-nome').value = '';
   document.getElementById('form-cliente-nome').value = '';
+
+  const hintMatricula = document.getElementById('hint-matricula-auto');
+  if (hintMatricula) {
+    hintMatricula.innerHTML = '<i class="bi bi-search"></i> Digite para autocompletar nome e G de origem';
+    hintMatricula.style.color = '';
+  }
+
+  const hintElevador = document.getElementById('hint-elevador-auto');
+  if (hintElevador) {
+    hintElevador.innerHTML = '<i class="bi bi-buildings"></i> Digite para autocompletar o nome do cliente';
+    hintElevador.style.color = '';
+  }
+
+  // Se as listas locais estiverem vazias por lentidão de rede inicial, dispara carga em segundo plano
+  if (!state.tecnicos || state.tecnicos.length === 0) {
+    loadTecnicos().catch(console.warn);
+  }
+  if (!state.clientes || state.clientes.length === 0) {
+    loadClientes().catch(console.warn);
+  }
 
   populateDatalists();
   applyRbacToModal(false, null);
@@ -785,6 +805,17 @@ function openEditModal(id) {
   document.getElementById('form-geor').value = item.geor_liberou;
   document.getElementById('form-data-liberacao').value = item.data_liberacao || '';
   document.getElementById('form-data-envio').value = item.data_envio_cliente || '';
+
+  const hintMatricula = document.getElementById('hint-matricula-auto');
+  if (hintMatricula) {
+    hintMatricula.innerHTML = `<i class="bi bi-check-circle-fill" style="color: #10B981;"></i> Técnico: <strong>${escapeHtml(item.nome_tecnico)}</strong>`;
+    hintMatricula.style.color = '#059669';
+  }
+  const hintElevador = document.getElementById('hint-elevador-auto');
+  if (hintElevador) {
+    hintElevador.innerHTML = `<i class="bi bi-check-circle-fill" style="color: #10B981;"></i> Cliente: <strong>${escapeHtml(item.nome_cliente)}</strong>`;
+    hintElevador.style.color = '#059669';
+  }
 
   populateDatalists();
   applyRbacToModal(true, item);
@@ -998,19 +1029,63 @@ function setupEventListeners() {
 
   // Autocomplete: Digitar Matrícula -> Preenche Nome do Técnico e G de Origem
   const matriculaInput = document.getElementById('form-tecnico-matricula');
-  const handleMatriculaLookup = () => {
-    const val = matriculaInput.value.trim();
+  const nomeTecnicoInput = document.getElementById('form-tecnico-nome');
+  const hintMatricula = document.getElementById('hint-matricula-auto');
+
+  const handleMatriculaLookup = async () => {
+    let val = (matriculaInput.value || '').trim();
     if (!val) {
-      document.getElementById('form-tecnico-nome').value = '';
+      if (nomeTecnicoInput) nomeTecnicoInput.value = '';
+      if (hintMatricula) {
+        hintMatricula.innerHTML = '<i class="bi bi-search"></i> Digite para autocompletar nome e G de origem';
+        hintMatricula.style.color = '';
+      }
       return;
     }
-    const found = state.tecnicos.find(t => 
-      String(t.matricula).toLowerCase() === val.toLowerCase() || 
-      String(t.nome_sobrenome).toLowerCase() === val.toLowerCase()
+
+    // Se o usuário selecionou da lista no formato "1001 - Nome do Técnico (Função)"
+    if (val.includes(' - ')) {
+      const parts = val.split(' - ');
+      val = parts[0].trim();
+      matriculaInput.value = val;
+    }
+
+    const valLower = val.toLowerCase();
+    let found = state.tecnicos.find(t => 
+      String(t.matricula).trim().toLowerCase() === valLower || 
+      String(t.nome_sobrenome).trim().toLowerCase() === valLower
     );
+
+    // Se não encontrou exato e termo tem ao menos 2 caracteres, busca por prefixo ou substring
+    if (!found && valLower.length >= 2) {
+      found = state.tecnicos.find(t => 
+        String(t.matricula).trim().toLowerCase().startsWith(valLower) ||
+        String(t.nome_sobrenome).trim().toLowerCase().includes(valLower)
+      );
+    }
+
+    // Fallback de busca ao vivo na API caso state.tecnicos esteja vazio ou não contenha o registro
+    if (!found) {
+      try {
+        const res = await api.get('/api/tecnicos', { q: val });
+        if (res.data && res.data.length > 0) {
+          if (state.tecnicos.length === 0) {
+            state.tecnicos = res.data;
+            populateDatalists();
+          }
+          found = res.data.find(t => 
+            String(t.matricula).trim().toLowerCase() === valLower ||
+            String(t.nome_sobrenome).trim().toLowerCase() === valLower
+          ) || res.data[0];
+        }
+      } catch (e) {
+        console.warn('Busca de técnico via API:', e.message);
+      }
+    }
+
     if (found) {
       matriculaInput.value = found.matricula;
-      document.getElementById('form-tecnico-nome').value = found.nome_sobrenome;
+      if (nomeTecnicoInput) nomeTecnicoInput.value = found.nome_sobrenome;
       const gSelect = document.getElementById('form-g-origem');
       if (gSelect && found.grupo) {
         gSelect.value = found.grupo;
@@ -1020,17 +1095,28 @@ function setupEventListeners() {
         if (found.funcao === 'Corretivo') tipoSelect.value = 'Corretivo';
         else if (found.funcao === 'Preventivo' || found.funcao === 'Residente') tipoSelect.value = 'Preventivo';
       }
+      if (hintMatricula) {
+        hintMatricula.innerHTML = `<i class="bi bi-check-circle-fill" style="color: #10B981;"></i> Técnico: <strong>${escapeHtml(found.nome_sobrenome)}</strong> (${escapeHtml(found.funcao || 'Técnico')})`;
+        hintMatricula.style.color = '#059669';
+      }
+    } else {
+      if (nomeTecnicoInput) nomeTecnicoInput.value = '';
+      if (hintMatricula) {
+        hintMatricula.innerHTML = '<i class="bi bi-exclamation-triangle" style="color: #f59e0b;"></i> Matrícula não localizada. Verifique o número digitado.';
+        hintMatricula.style.color = '#d97706';
+      }
     }
   };
   matriculaInput.addEventListener('input', handleMatriculaLookup);
   matriculaInput.addEventListener('change', handleMatriculaLookup);
+  matriculaInput.addEventListener('blur', handleMatriculaLookup);
 
   // Autocomplete: Digitar Número do Elevador / Contrato -> Preenche Nome do Cliente
   const elevadorInput = document.getElementById('form-elevador');
   const clienteNomeInput = document.getElementById('form-cliente-nome');
   const hintElevador = document.getElementById('hint-elevador-auto');
 
-  const handleElevadorLookup = () => {
+  const handleElevadorLookup = async () => {
     let val = (elevadorInput.value || '').trim();
     if (!val) {
       if (clienteNomeInput) clienteNomeInput.value = '';
@@ -1049,10 +1135,37 @@ function setupEventListeners() {
     }
 
     const valLower = val.toLowerCase();
-    const found = state.clientes.find(c => 
+    let found = state.clientes.find(c => 
       String(c.numero_contrato).trim().toLowerCase() === valLower || 
       String(c.nome_cliente).trim().toLowerCase() === valLower
     );
+
+    // Se não encontrou exato e termo tem ao menos 2 caracteres, busca por prefixo ou substring
+    if (!found && valLower.length >= 2) {
+      found = state.clientes.find(c => 
+        String(c.numero_contrato).trim().toLowerCase().startsWith(valLower) ||
+        String(c.nome_cliente).trim().toLowerCase().includes(valLower)
+      );
+    }
+
+    // Fallback de busca ao vivo na API caso state.clientes esteja vazio ou não contenha o registro
+    if (!found) {
+      try {
+        const res = await api.get('/api/clientes', { q: val });
+        if (res.data && res.data.length > 0) {
+          if (state.clientes.length === 0) {
+            state.clientes = res.data;
+            populateDatalists();
+          }
+          found = res.data.find(c => 
+            String(c.numero_contrato).trim().toLowerCase() === valLower || 
+            String(c.nome_cliente).trim().toLowerCase() === valLower
+          ) || res.data[0];
+        }
+      } catch (e) {
+        console.warn('Busca de cliente via API:', e.message);
+      }
+    }
 
     if (found) {
       elevadorInput.value = found.numero_contrato;
@@ -1071,6 +1184,7 @@ function setupEventListeners() {
   };
   elevadorInput.addEventListener('input', handleElevadorLookup);
   elevadorInput.addEventListener('change', handleElevadorLookup);
+  elevadorInput.addEventListener('blur', handleElevadorLookup);
 
   // Salvar Orçamento (Create / Update)
   document.getElementById('orcamento-form').addEventListener('submit', async (e) => {

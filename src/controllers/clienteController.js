@@ -8,7 +8,30 @@ export const clienteController = {
   // Listar todos os clientes
   async list(req, res) {
     try {
-      const clientes = db.prepare('SELECT numero_contrato, nome_cliente, created_at FROM clientes ORDER BY nome_cliente ASC').all();
+      // Se SQLite estiver vazio em ambiente serverless, força sincronização rápida do Neon
+      let cliCount = db.prepare('SELECT COUNT(*) as count FROM clientes').get()?.count || 0;
+      if (cliCount === 0 && neonSyncService.isConfigured) {
+        try {
+          await neonSyncService.syncFromNeon(true);
+        } catch (e) {
+          console.warn('⚠️ [Clientes] Sincronização sob demanda:', e.message);
+        }
+      }
+
+      const q = String(req.query.q || '').trim();
+      let clientes;
+      if (q) {
+        clientes = db.prepare(`
+          SELECT numero_contrato, nome_cliente, created_at 
+          FROM clientes 
+          WHERE numero_contrato LIKE ? OR nome_cliente LIKE ? 
+          ORDER BY nome_cliente ASC 
+          LIMIT 100
+        `).all(`%${q}%`, `%${q}%`);
+      } else {
+        clientes = db.prepare('SELECT numero_contrato, nome_cliente, created_at FROM clientes ORDER BY nome_cliente ASC').all();
+      }
+
       return res.status(200).json({
         success: true,
         data: clientes

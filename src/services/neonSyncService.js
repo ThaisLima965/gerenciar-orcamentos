@@ -1,6 +1,6 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
-import { db, saveDatabase } from '../config/database.js';
+import { db, saveDatabase, runInBatch } from '../config/database.js';
 import { sanitizeUtf8, normalizeTecnicoFuncao } from '../utils/encodingUtils.js';
 
 dotenv.config();
@@ -31,7 +31,7 @@ function getPool() {
   return pool;
 }
 
-async function queryNeon(text, params = []) {
+export async function queryNeon(text, params = []) {
   const p = getPool();
   if (!p) throw new Error('Neon Pool não configurado.');
   try {
@@ -138,121 +138,123 @@ export const neonSyncService = {
         ORDER BY id ASC
       `);
 
-      if (orcRes.rows && orcRes.rows.length === 0) {
-        // Se a tabela no Neon está limpa/vazia para nova importação oficial, garante SQLite também vazio
-        const localOrcs = db.prepare('SELECT COUNT(*) as count FROM chamados_orcamentos').get()?.count || 0;
-        if (localOrcs > 0) {
-          db.prepare('DELETE FROM chamados_orcamentos').run();
-        }
-      } else if (orcRes.rows && orcRes.rows.length > 0) {
-        const stmtOrc = db.prepare(`
-          INSERT OR REPLACE INTO chamados_orcamentos (
-            id, matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
-            g_origem, numero_contrato, nome_cliente, numero_orcamento, descricao_servico,
-            valor_total, observacao_tecnico, nota_urgencia,
-            data_liberacao, geor_liberou, data_envio_cliente, status,
-            data_criacao, created_by_id, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
+      runInBatch(() => {
+        try { db.exec('BEGIN TRANSACTION'); } catch {}
 
-        for (const row of orcRes.rows) {
-          try {
-            stmtOrc.run(
-              row.id,
-              row.matricula_tecnico,
-              sanitizeUtf8(row.nome_tecnico),
-              row.tipo_servico,
-              row.numero_pgo,
-              row.g_origem || 'G11',
-              row.numero_contrato,
-              sanitizeUtf8(row.nome_cliente),
-              row.numero_orcamento || 'Aguardando Orçamento',
-              sanitizeUtf8(row.descricao_servico),
-              Number(row.valor_total) || 0.00,
-              row.observacao_tecnico ? sanitizeUtf8(String(row.observacao_tecnico)).slice(0, 200) : null,
-              row.nota_urgencia !== null && row.nota_urgencia !== undefined ? Number(row.nota_urgencia) : null,
-              row.data_liberacao,
-              row.geor_liberou || 'Não',
-              row.data_envio_cliente,
-              row.status || 'Aberto',
-              row.data_criacao ? new Date(row.data_criacao).toISOString() : new Date().toISOString(),
-              row.created_by_id,
-              row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString()
-            );
-          } catch (e) {
-            // Ignora erro em linha individual
+        if (orcRes.rows && orcRes.rows.length === 0) {
+          // Se a tabela no Neon está limpa/vazia para nova importação oficial, garante SQLite também vazio
+          const localOrcs = db.prepare('SELECT COUNT(*) as count FROM chamados_orcamentos').get()?.count || 0;
+          if (localOrcs > 0) {
+            db.prepare('DELETE FROM chamados_orcamentos').run();
+          }
+        } else if (orcRes.rows && orcRes.rows.length > 0) {
+          const stmtOrc = db.prepare(`
+            INSERT OR REPLACE INTO chamados_orcamentos (
+              id, matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
+              g_origem, numero_contrato, nome_cliente, numero_orcamento, descricao_servico,
+              valor_total, observacao_tecnico, nota_urgencia,
+              data_liberacao, geor_liberou, data_envio_cliente, status,
+              data_criacao, created_by_id, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+
+          for (const row of orcRes.rows) {
+            try {
+              stmtOrc.run(
+                row.id,
+                row.matricula_tecnico,
+                sanitizeUtf8(row.nome_tecnico),
+                row.tipo_servico,
+                row.numero_pgo,
+                row.g_origem || 'G11',
+                row.numero_contrato,
+                sanitizeUtf8(row.nome_cliente),
+                row.numero_orcamento || 'Aguardando Orçamento',
+                sanitizeUtf8(row.descricao_servico),
+                Number(row.valor_total) || 0.00,
+                row.observacao_tecnico ? sanitizeUtf8(String(row.observacao_tecnico)).slice(0, 200) : null,
+                row.nota_urgencia !== null && row.nota_urgencia !== undefined ? Number(row.nota_urgencia) : null,
+                row.data_liberacao,
+                row.geor_liberou || 'Não',
+                row.data_envio_cliente,
+                row.status || 'Aberto',
+                row.data_criacao ? new Date(row.data_criacao).toISOString() : new Date().toISOString(),
+                row.created_by_id,
+                row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString()
+              );
+            } catch (e) {
+              // Ignora erro em linha individual
+            }
           }
         }
-      }
 
-      // 2. Clientes
-      const cliRes = await queryNeon('SELECT numero_contrato, nome_cliente, created_at FROM clientes ORDER BY numero_contrato ASC');
-      if (cliRes.rows && cliRes.rows.length > 0) {
-        const stmtCli = db.prepare('INSERT OR REPLACE INTO clientes (numero_contrato, nome_cliente, created_at) VALUES (?, ?, ?)');
-        for (const c of cliRes.rows) {
-          try {
-            stmtCli.run(c.numero_contrato, sanitizeUtf8(c.nome_cliente), c.created_at ? new Date(c.created_at).toISOString() : new Date().toISOString());
-          } catch {}
-        }
-      }
-
-      // 3. Técnicos (padronizado com os 3 níveis oficiais e UTF-8 higienizado)
-      const tecRes = await queryNeon('SELECT matricula, funcao, nome_sobrenome, email, telefone, created_at FROM tecnicos ORDER BY matricula ASC');
-      if (tecRes.rows && tecRes.rows.length > 0) {
-        const neonMatriculas = new Set(tecRes.rows.map(r => r.matricula));
-        const localTecs = db.prepare('SELECT matricula FROM tecnicos').all();
-        for (const lt of localTecs) {
-          if (!neonMatriculas.has(lt.matricula)) {
-            try { db.prepare('DELETE FROM tecnicos WHERE matricula = ?').run(lt.matricula); } catch {}
+        // 2. Clientes
+        if (cliRes.rows && cliRes.rows.length > 0) {
+          const stmtCli = db.prepare('INSERT OR REPLACE INTO clientes (numero_contrato, nome_cliente, created_at) VALUES (?, ?, ?)');
+          for (const c of cliRes.rows) {
+            try {
+              stmtCli.run(c.numero_contrato, sanitizeUtf8(c.nome_cliente), c.created_at ? new Date(c.created_at).toISOString() : new Date().toISOString());
+            } catch {}
           }
         }
-        const stmtTec = db.prepare('INSERT OR REPLACE INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at) VALUES (?, ?, ?, ?, ?, ?)');
-        for (const t of tecRes.rows) {
-          try {
-            stmtTec.run(
-              t.matricula, 
-              normalizeTecnicoFuncao(t.funcao), 
-              sanitizeUtf8(t.nome_sobrenome), 
-              t.email ? sanitizeUtf8(t.email) : null, 
-              t.telefone, 
-              t.created_at ? new Date(t.created_at).toISOString() : new Date().toISOString()
-            );
-          } catch {}
-        }
-      }
 
-      // 4. Usuários
-      const usrRes = await queryNeon('SELECT id, nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at FROM usuarios ORDER BY id ASC');
-      if (usrRes.rows && usrRes.rows.length > 0) {
-        const neonUserIds = new Set(usrRes.rows.map(r => r.id));
-        const neonUserEmails = new Set(usrRes.rows.map(r => (r.email || '').toLowerCase().trim()));
-        const localUsers = db.prepare('SELECT id, email FROM usuarios').all();
-        for (const lu of localUsers) {
-          if (!neonUserIds.has(lu.id) && !neonUserEmails.has((lu.email || '').toLowerCase().trim())) {
-            try { db.prepare('DELETE FROM usuarios WHERE id = ?').run(lu.id); } catch {}
+        // 3. Técnicos (padronizado com os 3 níveis oficiais e UTF-8 higienizado)
+        if (tecRes.rows && tecRes.rows.length > 0) {
+          const neonMatriculas = new Set(tecRes.rows.map(r => r.matricula));
+          const localTecs = db.prepare('SELECT matricula FROM tecnicos').all();
+          for (const lt of localTecs) {
+            if (!neonMatriculas.has(lt.matricula)) {
+              try { db.prepare('DELETE FROM tecnicos WHERE matricula = ?').run(lt.matricula); } catch {}
+            }
+          }
+          const stmtTec = db.prepare('INSERT OR REPLACE INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+          for (const t of tecRes.rows) {
+            try {
+              stmtTec.run(
+                t.matricula, 
+                normalizeTecnicoFuncao(t.funcao), 
+                sanitizeUtf8(t.nome_sobrenome), 
+                t.email ? sanitizeUtf8(t.email) : null, 
+                t.telefone, 
+                t.created_at ? new Date(t.created_at).toISOString() : new Date().toISOString()
+              );
+            } catch {}
           }
         }
-        const stmtUsr = db.prepare('INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        for (const u of usrRes.rows) {
-          try {
-            stmtUsr.run(
-              u.id, 
-              sanitizeUtf8(u.nome), 
-              u.email ? sanitizeUtf8(u.email) : null, 
-              u.matricula, 
-              u.senha_hash, 
-              u.perfil, 
-              u.grupo || 'G11', 
-              u.primeiro_acesso ?? 0, 
-              u.ativo ?? 1, 
-              u.created_at ? new Date(u.created_at).toISOString() : new Date().toISOString(), 
-              u.updated_at ? new Date(u.updated_at).toISOString() : new Date().toISOString()
-            );
-          } catch {}
-        }
-      }
 
-      saveDatabase();
+        // 4. Usuários
+        if (usrRes.rows && usrRes.rows.length > 0) {
+          const neonUserIds = new Set(usrRes.rows.map(r => r.id));
+          const neonUserEmails = new Set(usrRes.rows.map(r => (r.email || '').toLowerCase().trim()));
+          const localUsers = db.prepare('SELECT id, email FROM usuarios').all();
+          for (const lu of localUsers) {
+            if (!neonUserIds.has(lu.id) && !neonUserEmails.has((lu.email || '').toLowerCase().trim())) {
+              try { db.prepare('DELETE FROM usuarios WHERE id = ?').run(lu.id); } catch {}
+            }
+          }
+          const stmtUsr = db.prepare('INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          for (const u of usrRes.rows) {
+            try {
+              stmtUsr.run(
+                u.id, 
+                sanitizeUtf8(u.nome), 
+                u.email ? sanitizeUtf8(u.email) : null, 
+                u.matricula, 
+                u.senha_hash, 
+                u.perfil, 
+                u.grupo || 'G11', 
+                u.primeiro_acesso ?? 0, 
+                u.ativo ?? 1, 
+                u.created_at ? new Date(u.created_at).toISOString() : new Date().toISOString(), 
+                u.updated_at ? new Date(u.updated_at).toISOString() : new Date().toISOString()
+              );
+            } catch {}
+          }
+        }
+
+        try { db.exec('COMMIT'); } catch {}
+      });
+
       return { success: true, orcamentos: orcRes.rows.length, clientes: cliRes.rows.length, tecnicos: tecRes.rows.length };
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar dados do Neon:', err.message);

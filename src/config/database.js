@@ -43,9 +43,11 @@ function resolveDbPath() {
 let dbPath = resolveDbPath();
 let sqlDb = null;
 let initPromise = null;
+let isBatchRunning = false;
 
 // Função resiliente para persistir o banco de dados em disco
 export function saveDatabase() {
+  if (isBatchRunning) return;
   if (sqlDb) {
     try {
       const data = sqlDb.export();
@@ -58,6 +60,17 @@ export function saveDatabase() {
     } catch (err) {
       console.warn('⚠️ [Database] Aviso ao salvar banco de dados em disco:', err.message);
     }
+  }
+}
+
+// Executa um bloco de operações em lote sem salvar no disco a cada linha (extremamente rápido)
+export function runInBatch(fn) {
+  isBatchRunning = true;
+  try {
+    return fn();
+  } finally {
+    isBatchRunning = false;
+    saveDatabase();
   }
 }
 
