@@ -18,8 +18,8 @@ router.get('/template', requireRole('CONSULTORA'), orcamentoController.downloadT
 // Importar planilha (.xlsx / .csv) de orçamentos (Exclusivo Consultora)
 router.post('/import', requireRole('CONSULTORA'), uploadSpreadsheet.single('file'), orcamentoController.importarPlanilha);
 
-// Obter detalhes de um chamado específico
-router.get('/:id', orcamentoController.getById);
+// Obter detalhes completos de um chamado específico (Exclusivo Consultora e Supervisor - Bloqueado no backend para Técnico)
+router.get('/:id', requireRole('CONSULTORA', 'SUPERVISOR'), orcamentoController.getById);
 
 // Criar novo chamado (Exclusivo Consultora e Supervisor - Técnico é somente leitura)
 router.post('/', requireRole('CONSULTORA', 'SUPERVISOR'), orcamentoController.create);

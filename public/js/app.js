@@ -909,6 +909,12 @@ function setupTecnicoObsModalListeners() {
         return;
       }
 
+      const numNota = Number(notaVal);
+      if (isNaN(numNota) || !Number.isInteger(numNota) || numNota < 0 || numNota > 10) {
+        showToast('A Nota de Urgência deve ser estritamente um número inteiro de 0 a 10.', 'warning');
+        return;
+      }
+
       if (!obsVal) {
         showToast('Preencha o campo de Observações (até 200 caracteres).', 'warning');
         return;

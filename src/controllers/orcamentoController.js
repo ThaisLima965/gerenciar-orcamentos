@@ -18,6 +18,8 @@ export const orcamentoController = {
         numero_contrato 
       } = req.query;
 
+      const isTecnico = req.user?.perfil === 'TECNICO';
+
       let query = `
         SELECT 
           id, 
@@ -32,10 +34,10 @@ export const orcamentoController = {
           descricao_servico,
           observacao_tecnico,
           nota_urgencia,
-          valor_total,
+          ${isTecnico ? 'NULL as valor_total' : 'valor_total'},
           data_liberacao, 
           geor_liberou, 
-          data_envio_cliente, 
+          ${isTecnico ? 'NULL as data_envio_cliente' : 'data_envio_cliente'}, 
           status, 
           data_criacao,
           created_by_id,
@@ -125,9 +127,16 @@ export const orcamentoController = {
     }
   },
 
-  // Obter detalhes de um chamado específico
+  // Obter detalhes de um chamado específico (Bloqueado no backend para perfil Técnico)
   async getById(req, res) {
     try {
+      if (req.user?.perfil === 'TECNICO') {
+        return res.status(403).json({
+          success: false,
+          error: 'Acesso negado no backend. O perfil Técnico possui acesso apenas para inclusão de observação e nota de urgência, sem permissão de visualização dos dados completos.'
+        });
+      }
+
       const { id } = req.params;
       const chamado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
 
@@ -648,14 +657,17 @@ export const orcamentoController = {
       }
 
       const rawObs = String(observacao_tecnico || '').trim();
-      if (rawObs.length > 200) {
+      // Sanitização estrita contra XSS e injeção de HTML/scripts
+      const cleanObs = rawObs.replace(/<[^>]*>/g, '').trim();
+
+      if (cleanObs.length > 200) {
         return res.status(400).json({
           success: false,
           error: 'O campo Observações deve ter no máximo 200 caracteres.'
         });
       }
 
-      const finalObs = rawObs || null;
+      const finalObs = cleanObs || null;
 
       db.prepare(`
         UPDATE chamados_orcamentos SET
