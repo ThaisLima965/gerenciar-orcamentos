@@ -8,14 +8,9 @@ export const tecnicoController = {
   // Listar todos os técnicos (Sincronizado com Gestão de Acesso)
   async list(req, res) {
     try {
-      // Se SQLite estiver vazio em ambiente serverless, força sincronização rápida do Neon
-      let tecCount = db.prepare('SELECT COUNT(*) as count FROM tecnicos').get()?.count || 0;
-      if (tecCount === 0 && neonSyncService.isConfigured) {
-        try {
-          await neonSyncService.syncFromNeon(true);
-        } catch (e) {
-          console.warn('⚠️ [Tecnicos] Sincronização sob demanda:', e.message);
-        }
+      // Garante sincronização atualizada com o Neon PostgreSQL
+      if (neonSyncService.isConfigured) {
+        await neonSyncService.ensureFreshFromNeon().catch(() => {});
       }
 
       // Garante que qualquer técnico ativo em usuarios esteja presente na tabela tecnicos

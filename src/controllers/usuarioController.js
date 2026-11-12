@@ -16,14 +16,9 @@ export const usuarioController = {
         });
       }
 
-      // Se SQLite estiver vazio em ambiente serverless, força sincronização rápida do Neon
-      const usrCount = db.prepare('SELECT COUNT(*) as count FROM usuarios').get()?.count || 0;
-      if (usrCount === 0 && neonSyncService.isConfigured) {
-        try {
-          await neonSyncService.syncFromNeon(true);
-        } catch (e) {
-          console.warn('⚠️ [Usuarios] Sincronização sob demanda:', e.message);
-        }
+      // Garante sincronização atualizada com o Neon PostgreSQL (especialmente entre instâncias serverless)
+      if (neonSyncService.isConfigured) {
+        await neonSyncService.ensureFreshFromNeon().catch(() => {});
       }
 
       const usuarios = db.prepare(`

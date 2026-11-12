@@ -8,14 +8,9 @@ export const clienteController = {
   // Listar todos os clientes
   async list(req, res) {
     try {
-      // Se SQLite estiver vazio em ambiente serverless, força sincronização rápida do Neon
-      let cliCount = db.prepare('SELECT COUNT(*) as count FROM clientes').get()?.count || 0;
-      if (cliCount === 0 && neonSyncService.isConfigured) {
-        try {
-          await neonSyncService.syncFromNeon(true);
-        } catch (e) {
-          console.warn('⚠️ [Clientes] Sincronização sob demanda:', e.message);
-        }
+      // Garante sincronização atualizada com o Neon PostgreSQL
+      if (neonSyncService.isConfigured) {
+        await neonSyncService.ensureFreshFromNeon().catch(() => {});
       }
 
       const q = String(req.query.q || '').trim();

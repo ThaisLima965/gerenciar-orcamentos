@@ -293,6 +293,35 @@ export const neonSyncService = {
   },
 
   /**
+   * Garante que o SQLite local desta instância esteja atualizado com a versão mais recente do Neon
+   */
+  async ensureFreshFromNeon() {
+    if (!this.isConfigured || !getPool() || activeUpstreamSyncs > 0) return;
+    try {
+      const res = await queryNeon(`
+        SELECT 
+          (SELECT COUNT(*) FROM chamados_orcamentos) as orc_count,
+          (SELECT to_char(MAX(updated_at), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') FROM chamados_orcamentos) as orc_updated,
+          (SELECT COALESCE(SUM(valor_total), 0)::float FROM chamados_orcamentos) as orc_sum,
+          (SELECT COUNT(*) FROM clientes) as cli_count,
+          (SELECT COALESCE(MD5(STRING_AGG(numero_contrato || ':' || nome_cliente, '|' ORDER BY numero_contrato)), '') FROM clientes) as cli_hash,
+          (SELECT COUNT(*) FROM tecnicos) as tec_count,
+          (SELECT COALESCE(MD5(STRING_AGG(matricula || ':' || funcao || ':' || nome_sobrenome, '|' ORDER BY matricula)), '') FROM tecnicos) as tec_hash,
+          (SELECT COUNT(*) FROM usuarios) as usr_count,
+          (SELECT to_char(MAX(updated_at), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') FROM usuarios) as usr_updated,
+          (SELECT COALESCE(SUM(primeiro_acesso), 0) FROM usuarios) as usr_first_access,
+          (SELECT COALESCE(SUM(ativo), 0) FROM usuarios) as usr_active
+      `);
+      const row = res.rows[0] || {};
+      const neonVersion = `${row.orc_count}-${row.orc_updated || ''}-${row.orc_sum || 0}-${row.cli_count}-${row.cli_hash || ''}-${row.tec_count}-${row.tec_hash || ''}-${row.usr_count}-${row.usr_updated || ''}-${row.usr_first_access}-${row.usr_active}`;
+      if (!lastNeonVersion || neonVersion !== lastNeonVersion) {
+        lastNeonVersion = neonVersion;
+        await this.syncFromNeon(true).catch(() => {});
+      }
+    } catch (e) {}
+  },
+
+  /**
    * Obtém a versão de estado atual do Neon e do banco local (para detecção em tempo real de mudanças em qualquer acesso)
    */
   async getNeonStatus() {

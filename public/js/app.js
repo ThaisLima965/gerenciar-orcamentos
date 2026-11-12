@@ -2362,6 +2362,8 @@ async function syncAllData(isSilent = true) {
   syncInProgress = true;
 
   try {
+    await api.post('/api/sync/pull').catch(() => {});
+
     const tasks = [
       loadOrcamentos(),
       loadDashboardPremiacao(),
@@ -3054,8 +3056,9 @@ function setupUsuariosEventListeners() {
 
   if (btnRefresh) {
     btnRefresh.addEventListener('click', async () => {
+      await api.post('/api/sync/pull').catch(() => {});
       await loadUsuarios();
-      showToast('Lista de colaboradores atualizada.', 'info');
+      showToast('Lista de colaboradores sincronizada com o servidor.', 'info');
     });
   }
 
