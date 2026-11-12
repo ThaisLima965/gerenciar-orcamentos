@@ -78,7 +78,7 @@ export const clienteController = {
       db.prepare('INSERT INTO clientes (numero_contrato, nome_cliente) VALUES (?, ?)').run(cleanContrato, cleanNome);
 
       // Sincroniza imediatamente com o Neon PostgreSQL
-      neonSyncService.syncClienteToNeon({ numero_contrato: cleanContrato, nome_cliente: cleanNome }).catch(() => {});
+      await neonSyncService.syncClienteToNeon({ numero_contrato: cleanContrato, nome_cliente: cleanNome }).catch(() => {});
 
       return res.status(201).json({
         success: true,
@@ -151,8 +151,8 @@ export const clienteController = {
         cleanContrato
       );
 
-      // Sincroniza imediatamente com o Neon PostgreSQL
-      neonSyncService.syncClienteToNeon({ numero_contrato: targetContrato, nome_cliente: finalNome }).catch(() => {});
+      // Sincroniza imediatamente com o Neon PostgreSQL (passando contrato anterior caso tenha sido alterado)
+      await neonSyncService.syncClienteToNeon({ numero_contrato: targetContrato, nome_cliente: finalNome }, cleanContrato).catch(() => {});
 
       return res.status(200).json({
         success: true,
@@ -204,7 +204,7 @@ export const clienteController = {
       db.prepare('DELETE FROM clientes WHERE numero_contrato = ?').run(cleanContrato);
 
       // Sincroniza exclusão no Neon PostgreSQL
-      neonSyncService.deleteClienteFromNeon(cleanContrato).catch(() => {});
+      await neonSyncService.deleteClienteFromNeon(cleanContrato).catch(() => {});
 
       return res.status(200).json({
         success: true,
@@ -332,7 +332,7 @@ export const clienteController = {
       // Sincroniza em lote os clientes importados com o Neon PostgreSQL
       try {
         if (processedClients.length > 0) {
-          neonSyncService.syncClientesBatchToNeon(processedClients).catch(() => {});
+          await neonSyncService.syncClientesBatchToNeon(processedClients).catch(() => {});
         }
       } catch {}
 

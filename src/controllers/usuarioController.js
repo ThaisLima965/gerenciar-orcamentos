@@ -1,6 +1,6 @@
 import * as xlsx from 'xlsx';
 import bcrypt from 'bcryptjs';
-import { db } from '../config/database.js';
+import { db, runInBatch } from '../config/database.js';
 import { PERMISSIONS } from '../middleware/rbac.js';
 import { neonSyncService } from '../services/neonSyncService.js';
 import { sanitizeUtf8, normalizeTecnicoFuncao } from '../utils/encodingUtils.js';
@@ -14,6 +14,16 @@ export const usuarioController = {
           success: false,
           error: 'Acesso restrito à Consultora.'
         });
+      }
+
+      // Se SQLite estiver vazio em ambiente serverless, força sincronização rápida do Neon
+      const usrCount = db.prepare('SELECT COUNT(*) as count FROM usuarios').get()?.count || 0;
+      if (usrCount === 0 && neonSyncService.isConfigured) {
+        try {
+          await neonSyncService.syncFromNeon(true);
+        } catch (e) {
+          console.warn('⚠️ [Usuarios] Sincronização sob demanda:', e.message);
+        }
       }
 
       const usuarios = db.prepare(`
@@ -132,7 +142,7 @@ export const usuarioController = {
             email = excluded.email
         `).run(cleanMatricula, cleanFuncao, cleanNome, cleanEmail);
 
-        neonSyncService.syncTecnicoToNeon({
+        await neonSyncService.syncTecnicoToNeon({
           matricula: cleanMatricula,
           funcao: cleanFuncao,
           nome_sobrenome: cleanNome,
@@ -141,7 +151,7 @@ export const usuarioController = {
       }
 
       // Sincroniza imediatamente com o Neon PostgreSQL
-      neonSyncService.syncUsuarioToNeon({
+      await neonSyncService.syncUsuarioToNeon({
         nome: cleanNome,
         email: cleanEmail,
         matricula: cleanMatricula,
@@ -270,28 +280,29 @@ export const usuarioController = {
       }
 
       if (cleanPerfil === 'TECNICO' || cleanPerfil === 'SUPERVISOR') {
-        neonSyncService.syncTecnicoToNeon({
+        await neonSyncService.syncTecnicoToNeon({
           matricula: cleanMatricula,
           funcao: cleanFuncao,
           nome_sobrenome: cleanNome,
           email: cleanEmail
-        }).catch(() => {});
+        }, tecExists ? tecExists.matricula : existing.matricula).catch(() => {});
       }
 
       // Sincroniza histórico de orçamentos e chamados do colaborador
       try {
-        db.prepare('UPDATE chamados_orcamentos SET g_origem = ?, nome_tecnico = ? WHERE matricula_tecnico = ? OR matricula_tecnico = ?').run(
+        db.prepare('UPDATE chamados_orcamentos SET g_origem = ?, nome_tecnico = ?, matricula_tecnico = ? WHERE matricula_tecnico = ? OR matricula_tecnico = ?').run(
           cleanGrupo, 
           cleanNome, 
+          cleanMatricula,
           cleanMatricula, 
           existing.matricula
         );
       } catch (e) {}
 
-      // Sincroniza imediatamente com o Neon PostgreSQL
+      // Sincroniza imediatamente com o Neon PostgreSQL (passando e-mail e matrícula anteriores caso tenham sido alterados)
       const userAtualizado = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id);
       if (userAtualizado) {
-        neonSyncService.syncUsuarioToNeon(userAtualizado).catch(() => {});
+        await neonSyncService.syncUsuarioToNeon(userAtualizado, existing.email, existing.matricula).catch(() => {});
       }
 
       return res.status(200).json({
@@ -358,7 +369,7 @@ export const usuarioController = {
       // Sincroniza imediatamente com o Neon PostgreSQL
       const usrAtualizado = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id);
       if (usrAtualizado) {
-        neonSyncService.syncUsuarioToNeon(usrAtualizado).catch(() => {});
+        await neonSyncService.syncUsuarioToNeon(usrAtualizado).catch(() => {});
       }
 
       return res.status(200).json({
@@ -411,7 +422,7 @@ export const usuarioController = {
       // Sincroniza imediatamente com o Neon PostgreSQL
       const usrResetado = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id);
       if (usrResetado) {
-        neonSyncService.syncUsuarioToNeon(usrResetado).catch(() => {});
+        await neonSyncService.syncUsuarioToNeon(usrResetado).catch(() => {});
       }
 
       return res.status(200).json({
@@ -465,7 +476,7 @@ export const usuarioController = {
       // Sincroniza imediatamente com o Neon PostgreSQL
       const usrToggle = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id);
       if (usrToggle) {
-        neonSyncService.syncUsuarioToNeon(usrToggle).catch(() => {});
+        await neonSyncService.syncUsuarioToNeon(usrToggle).catch(() => {});
       }
 
       return res.status(200).json({
@@ -607,111 +618,157 @@ export const usuarioController = {
         return { grupo, perfil, funcao: funcaoClean };
       };
 
-      rawRows.forEach((row, index) => {
-        const rowNumber = index + 2;
+      const processedUsers = [];
+      const processedTecnicos = [];
 
-        const nome = findField(row, [
-          'Nome_Completo', 'nome_completo', 'NomeCompleto', 'Nome_Sobrenome', 
-          'nome_sobrenome', 'NomeSobrenome', 'Nome', 'Colaborador', 'Usuario'
-        ]);
+      runInBatch(() => {
+        rawRows.forEach((row, index) => {
+          const rowNumber = index + 2;
 
-        const email = findField(row, [
-          'Email', 'email', 'E-mail', 'Login', 'Usuario_Email', 'Correio'
-        ]);
+          const nome = findField(row, [
+            'Nome_Completo', 'nome_completo', 'NomeCompleto', 'Nome_Sobrenome', 
+            'nome_sobrenome', 'NomeSobrenome', 'Nome', 'Colaborador', 'Usuario'
+          ]);
 
-        const matricula = findField(row, [
-          'Matricula', 'matricula', 'Matrícula', 'ID', 'Codigo', 'Cod'
-        ]);
+          const email = findField(row, [
+            'Email', 'email', 'E-mail', 'Login', 'Usuario_Email', 'Correio'
+          ]);
 
-        const rawFuncaoOrCargo = findField(row, [
-          'G_Funcao', 'GFuncao', 'G - Funcao', 'G - Função', 'G-Função', 'G-Funcao', 'G_Função', 'G / Funcao', 'G / Função',
-          'Funcao', 'funcao', 'Função', 'função', 'Cargo', 'cargo', 'Perfil', 'perfil', 'Perfil_Acesso', 'Tipo', 'Especialidade', 'Posicao'
-        ]);
+          const matricula = findField(row, [
+            'Matricula', 'matricula', 'Matrícula', 'ID', 'Codigo', 'Cod'
+          ]);
 
-        const rawGrupoField = findField(row, [
-          'G_NIVEL', 'GNIVEL', 'G_Nivel', 'G/NIVEL', 'G/Nivel', 'G / NIVEL', 'G / Nivel', 'G / NÍVEL', 'G/NÍVEL',
-          'Grupo', 'grupo', 'Grupo_Nivel', 'Nivel', 'Nível', 'G_Origem', 'GOrigem', 'G', 'Filial', 'Posto', 'Regional'
-        ]);
+          const rawFuncaoOrCargo = findField(row, [
+            'G_Funcao', 'GFuncao', 'G - Funcao', 'G - Função', 'G-Função', 'G-Funcao', 'G_Função', 'G / Funcao', 'G / Função',
+            'Funcao', 'funcao', 'Função', 'função', 'Cargo', 'cargo', 'Perfil', 'perfil', 'Perfil_Acesso', 'Tipo', 'Especialidade', 'Posicao'
+          ]);
 
-        const parsedFuncao = parseGrupoEFuncao(rawFuncaoOrCargo);
-        const parsedGrupo = parseGrupoEFuncao(rawGrupoField);
+          const rawGrupoField = findField(row, [
+            'G_NIVEL', 'GNIVEL', 'G_Nivel', 'G/NIVEL', 'G/Nivel', 'G / NIVEL', 'G / Nivel', 'G / NÍVEL', 'G/NÍVEL',
+            'Grupo', 'grupo', 'Grupo_Nivel', 'Nivel', 'Nível', 'G_Origem', 'GOrigem', 'G', 'Filial', 'Posto', 'Regional'
+          ]);
 
-        let perfil = parsedFuncao.perfil || (rawFuncaoOrCargo.toUpperCase().includes('SUPERV') ? 'SUPERVISOR' : (rawFuncaoOrCargo.toUpperCase().includes('CONSULT') ? 'CONSULTORA' : 'TECNICO'));
-        let grupo = parsedGrupo.grupo || parsedFuncao.grupo || 'G11';
-        let cleanFuncao = parsedFuncao.funcao || (perfil === 'SUPERVISOR' ? 'Supervisor' : (perfil === 'CONSULTORA' ? 'Consultora' : 'Preventivo'));
-        if (perfil === 'TECNICO') {
-          cleanFuncao = normalizeTecnicoFuncao(cleanFuncao);
-        }
+          const parsedFuncao = parseGrupoEFuncao(rawFuncaoOrCargo);
+          const parsedGrupo = parseGrupoEFuncao(rawGrupoField);
 
-        const rawSenha = findField(row, [
-          'Senha_Provisoria', 'senha_provisoria', 'Senha_Padrao', 'Senha', 'Password'
-        ]) || 'Tke@1234';
-
-        if (!nome && !email) {
-          return; // Linha vazia
-        }
-
-        if (!nome) {
-          errors.push(`Linha ${rowNumber}: Nome Completo não informado.`);
-          return;
-        }
-
-        if (!email) {
-          errors.push(`Linha ${rowNumber}: E-mail/Login não informado para o colaborador "${nome}".`);
-          return;
-        }
-
-        const cleanEmail = email.toLowerCase().trim();
-        const cleanNome = nome.trim();
-        const cleanMatricula = matricula ? matricula.trim() : null;
-
-        // Upsert no banco de usuários
-        const existingByEmail = db.prepare('SELECT id, nome, email, matricula FROM usuarios WHERE LOWER(email) = ?').get(cleanEmail);
-        const existingByMatricula = cleanMatricula ? db.prepare('SELECT id, nome, email, matricula FROM usuarios WHERE matricula = ?').get(cleanMatricula) : null;
-
-        const existing = existingByEmail || existingByMatricula;
-
-        if (existing) {
-          db.prepare(`
-            UPDATE usuarios 
-            SET nome = ?, matricula = COALESCE(?, matricula), perfil = ?, grupo = ?, updated_at = CURRENT_TIMESTAMP 
-            WHERE id = ?
-          `).run(cleanNome, cleanMatricula, perfil, grupo, existing.id);
-
-          updatedCount++;
-        } else {
-          const finalMatricula = cleanMatricula || `USR-${Math.floor(1000 + Math.random() * 9000)}`;
-          const senhaHash = bcrypt.hashSync(rawSenha, 10);
-
-          db.prepare(`
-            INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo) 
-            VALUES (?, ?, ?, ?, ?, ?, 1, 1)
-          `).run(cleanNome, cleanEmail, finalMatricula, senhaHash, perfil, grupo);
-
-          insertedCount++;
-        }
-
-        // Sincroniza também na tabela tecnicos
-        if (perfil === 'TECNICO' || perfil === 'SUPERVISOR') {
-          const tecMatricula = cleanMatricula || `TEC-${cleanEmail.split('@')[0]}`;
-          const existingTec = db.prepare('SELECT matricula FROM tecnicos WHERE matricula = ?').get(tecMatricula);
-          if (existingTec) {
-            db.prepare('UPDATE tecnicos SET nome_sobrenome = ?, email = ?, funcao = ? WHERE matricula = ?').run(
-              cleanNome, 
-              cleanEmail, 
-              cleanFuncao, 
-              tecMatricula
-            );
-          } else {
-            db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email) VALUES (?, ?, ?, ?)').run(
-              tecMatricula,
-              cleanFuncao,
-              cleanNome,
-              cleanEmail
-            );
+          let perfil = parsedFuncao.perfil || (rawFuncaoOrCargo.toUpperCase().includes('SUPERV') ? 'SUPERVISOR' : (rawFuncaoOrCargo.toUpperCase().includes('CONSULT') ? 'CONSULTORA' : 'TECNICO'));
+          let grupo = parsedGrupo.grupo || parsedFuncao.grupo || 'G11';
+          let cleanFuncao = parsedFuncao.funcao || (perfil === 'SUPERVISOR' ? 'Supervisor' : (perfil === 'CONSULTORA' ? 'Consultora' : 'Preventivo'));
+          if (perfil === 'TECNICO') {
+            cleanFuncao = normalizeTecnicoFuncao(cleanFuncao);
           }
-        }
+
+          const rawSenha = findField(row, [
+            'Senha_Provisoria', 'senha_provisoria', 'Senha_Padrao', 'Senha', 'Password'
+          ]) || 'Tke@1234';
+
+          if (!nome && !email) {
+            return; // Linha vazia
+          }
+
+          if (!nome) {
+            errors.push(`Linha ${rowNumber}: Nome Completo não informado.`);
+            return;
+          }
+
+          if (!email) {
+            errors.push(`Linha ${rowNumber}: E-mail/Login não informado para o colaborador "${nome}".`);
+            return;
+          }
+
+          const cleanEmail = email.toLowerCase().trim();
+          const cleanNome = nome.trim();
+          const cleanMatricula = matricula ? matricula.trim() : null;
+
+          // Upsert no banco de usuários
+          const existingByEmail = db.prepare('SELECT id, nome, email, matricula FROM usuarios WHERE LOWER(email) = ?').get(cleanEmail);
+          const existingByMatricula = cleanMatricula ? db.prepare('SELECT id, nome, email, matricula FROM usuarios WHERE matricula = ?').get(cleanMatricula) : null;
+
+          const existing = existingByEmail || existingByMatricula;
+          let finalMatricula = cleanMatricula;
+          let oldEmail = null;
+          let oldMatricula = null;
+          let userId = null;
+
+          if (existing) {
+            oldEmail = existing.email;
+            oldMatricula = existing.matricula;
+            finalMatricula = cleanMatricula || existing.matricula;
+
+            db.prepare(`
+              UPDATE usuarios 
+              SET nome = ?, email = ?, matricula = ?, perfil = ?, grupo = ?, updated_at = CURRENT_TIMESTAMP 
+              WHERE id = ?
+            `).run(cleanNome, cleanEmail, finalMatricula, perfil, grupo, existing.id);
+
+            userId = existing.id;
+            updatedCount++;
+          } else {
+            finalMatricula = cleanMatricula || `USR-${Math.floor(1000 + Math.random() * 9000)}`;
+            const senhaHash = bcrypt.hashSync(rawSenha, 10);
+
+            const ins = db.prepare(`
+              INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo) 
+              VALUES (?, ?, ?, ?, ?, ?, 1, 1)
+            `).run(cleanNome, cleanEmail, finalMatricula, senhaHash, perfil, grupo);
+
+            userId = ins.lastInsertRowid;
+            insertedCount++;
+          }
+
+          const userAtualizado = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(userId);
+          if (userAtualizado) {
+            processedUsers.push({
+              user: userAtualizado,
+              oldEmail,
+              oldMatricula
+            });
+          }
+
+          // Sincroniza também na tabela tecnicos
+          if (perfil === 'TECNICO' || perfil === 'SUPERVISOR') {
+            const tecMatricula = finalMatricula;
+            const lookupOldTec = oldMatricula || tecMatricula;
+            const existingTec = db.prepare('SELECT matricula FROM tecnicos WHERE matricula = ?').get(lookupOldTec)
+              || db.prepare('SELECT matricula FROM tecnicos WHERE matricula = ?').get(tecMatricula);
+
+            if (existingTec) {
+              db.prepare('UPDATE tecnicos SET matricula = ?, nome_sobrenome = ?, email = ?, funcao = ? WHERE matricula = ?').run(
+                tecMatricula,
+                cleanNome, 
+                cleanEmail, 
+                cleanFuncao, 
+                existingTec.matricula
+              );
+            } else {
+              db.prepare('INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email) VALUES (?, ?, ?, ?)').run(
+                tecMatricula,
+                cleanFuncao,
+                cleanNome,
+                cleanEmail
+              );
+            }
+
+            processedTecnicos.push({
+              tec: {
+                matricula: tecMatricula,
+                funcao: cleanFuncao,
+                nome_sobrenome: cleanNome,
+                email: cleanEmail
+              },
+              oldMatricula: existingTec ? existingTec.matricula : null
+            });
+          }
+        });
       });
+
+      // Sincroniza em lote os usuários e técnicos importados com o Neon PostgreSQL antes de responder
+      if (processedUsers.length > 0) {
+        await neonSyncService.syncUsuariosBatchToNeon(processedUsers).catch(() => {});
+      }
+      if (processedTecnicos.length > 0) {
+        await neonSyncService.syncTecnicosBatchToNeon(processedTecnicos).catch(() => {});
+      }
 
       return res.status(200).json({
         success: true,
@@ -817,14 +874,14 @@ export const usuarioController = {
         db.prepare('UPDATE chamados_orcamentos SET created_by_id = NULL WHERE created_by_id = ?').run(id);
         if (user.matricula) {
           db.prepare('DELETE FROM tecnicos WHERE matricula = ? OR LOWER(email) = ?').run(user.matricula, String(user.email || '').toLowerCase());
-          neonSyncService.deleteTecnicoFromNeon(user.matricula).catch(() => {});
+          await neonSyncService.deleteTecnicoFromNeon(user.matricula).catch(() => {});
         }
       } catch (e) {}
 
       db.prepare('DELETE FROM usuarios WHERE id = ?').run(id);
 
       // Sincroniza exclusão no Neon PostgreSQL
-      neonSyncService.deleteUsuarioFromNeon(id, user.email).catch(() => {});
+      await neonSyncService.deleteUsuarioFromNeon(id, user.email).catch(() => {});
 
       return res.status(200).json({
         success: true,

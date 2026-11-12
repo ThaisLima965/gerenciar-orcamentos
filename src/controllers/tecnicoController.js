@@ -111,7 +111,7 @@ export const tecnicoController = {
       );
 
       // Sincroniza imediatamente com o Neon PostgreSQL
-      neonSyncService.syncTecnicoToNeon({ matricula: cleanMatricula, funcao: cleanFuncao, nome_sobrenome: finalNome, email, telefone }).catch(() => {});
+      await neonSyncService.syncTecnicoToNeon({ matricula: cleanMatricula, funcao: cleanFuncao, nome_sobrenome: finalNome, email, telefone }).catch(() => {});
 
       return res.status(201).json({
         success: true,
@@ -195,18 +195,23 @@ export const tecnicoController = {
       // Sincroniza tabela usuarios se existir usuario vinculado a essa matricula
       db.prepare(`
         UPDATE usuarios 
-        SET matricula = ?, nome = ?
+        SET matricula = ?, nome = ?, updated_at = CURRENT_TIMESTAMP
         WHERE matricula = ?
       `).run(targetMatricula, finalNome, cleanMatricula);
 
-      // Sincroniza imediatamente com o Neon PostgreSQL
-      neonSyncService.syncTecnicoToNeon({
+      // Sincroniza imediatamente com o Neon PostgreSQL (técnico e usuário vinculado)
+      await neonSyncService.syncTecnicoToNeon({
         matricula: targetMatricula,
         funcao: cleanFuncao,
         nome_sobrenome: finalNome,
         email,
         telefone
-      }).catch(() => {});
+      }, cleanMatricula).catch(() => {});
+
+      const linkedUser = db.prepare('SELECT * FROM usuarios WHERE matricula = ?').get(targetMatricula);
+      if (linkedUser) {
+        await neonSyncService.syncUsuarioToNeon(linkedUser, linkedUser.email, cleanMatricula).catch(() => {});
+      }
 
       return res.status(200).json({
         success: true,
@@ -261,7 +266,7 @@ export const tecnicoController = {
       db.prepare('DELETE FROM tecnicos WHERE matricula = ?').run(cleanMatricula);
 
       // Sincroniza exclusão no Neon PostgreSQL
-      neonSyncService.deleteTecnicoFromNeon(cleanMatricula).catch(() => {});
+      await neonSyncService.deleteTecnicoFromNeon(cleanMatricula).catch(() => {});
 
       return res.status(200).json({
         success: true,
@@ -502,7 +507,7 @@ export const tecnicoController = {
       // Sincroniza em lote os técnicos importados com o Neon PostgreSQL
       try {
         if (processedTecnicos.length > 0) {
-          neonSyncService.syncTecnicosBatchToNeon(processedTecnicos).catch(() => {});
+          await neonSyncService.syncTecnicosBatchToNeon(processedTecnicos).catch(() => {});
         }
       } catch {}
 

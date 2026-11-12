@@ -190,6 +190,13 @@ export const neonSyncService = {
 
         // 2. Clientes
         if (cliRes.rows && cliRes.rows.length > 0) {
+          const neonContratos = new Set(cliRes.rows.map(r => r.numero_contrato));
+          const localClientes = db.prepare('SELECT numero_contrato FROM clientes').all();
+          for (const lc of localClientes) {
+            if (!neonContratos.has(lc.numero_contrato)) {
+              try { db.prepare('DELETE FROM clientes WHERE numero_contrato = ?').run(lc.numero_contrato); } catch {}
+            }
+          }
           const stmtCli = db.prepare('INSERT OR REPLACE INTO clientes (numero_contrato, nome_cliente, created_at) VALUES (?, ?, ?)');
           for (const c of cliRes.rows) {
             try {
@@ -290,7 +297,9 @@ export const neonSyncService = {
           (SELECT to_char(MAX(updated_at), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') FROM chamados_orcamentos) as orc_updated,
           (SELECT COALESCE(SUM(valor_total), 0)::float FROM chamados_orcamentos) as orc_sum,
           (SELECT COUNT(*) FROM clientes) as cli_count,
+          (SELECT COALESCE(MD5(STRING_AGG(numero_contrato || ':' || nome_cliente, '|' ORDER BY numero_contrato)), '') FROM clientes) as cli_hash,
           (SELECT COUNT(*) FROM tecnicos) as tec_count,
+          (SELECT COALESCE(MD5(STRING_AGG(matricula || ':' || funcao || ':' || nome_sobrenome, '|' ORDER BY matricula)), '') FROM tecnicos) as tec_hash,
           (SELECT COUNT(*) FROM usuarios) as usr_count,
           (SELECT to_char(MAX(updated_at), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') FROM usuarios) as usr_updated,
           (SELECT COALESCE(SUM(primeiro_acesso), 0) FROM usuarios) as usr_first_access,
@@ -298,7 +307,7 @@ export const neonSyncService = {
       `);
 
       const row = res.rows[0] || {};
-      const neonVersion = `${row.orc_count}-${row.orc_updated || ''}-${row.orc_sum || 0}-${row.cli_count}-${row.tec_count}-${row.usr_count}-${row.usr_updated || ''}-${row.usr_first_access}-${row.usr_active}`;
+      const neonVersion = `${row.orc_count}-${row.orc_updated || ''}-${row.orc_sum || 0}-${row.cli_count}-${row.cli_hash || ''}-${row.tec_count}-${row.tec_hash || ''}-${row.usr_count}-${row.usr_updated || ''}-${row.usr_first_access}-${row.usr_active}`;
 
       // Se a versão do Neon mudou e não há escrita local em andamento, sincroniza antes de responder
       if (lastNeonVersion && neonVersion !== lastNeonVersion && activeUpstreamSyncs === 0) {
@@ -418,18 +427,45 @@ export const neonSyncService = {
   /**
    * Envia atualização de Cliente diretamente para o Neon
    */
-  async syncClienteToNeon(cli) {
+  async syncClienteToNeon(cli, oldContrato = null) {
     if (!this.isConfigured || !cli) return;
     if (!getPool()) return;
 
     activeUpstreamSyncs++;
     try {
-      await queryNeon(`
-        INSERT INTO clientes (numero_contrato, nome_cliente, created_at)
-        VALUES ($1, $2, CURRENT_TIMESTAMP)
-        ON CONFLICT (numero_contrato) DO UPDATE SET
-          nome_cliente = EXCLUDED.nome_cliente
-      `, [cli.numero_contrato, cli.nome_cliente]);
+      const targetContrato = String(cli.numero_contrato).trim();
+      const targetNome = sanitizeUtf8(cli.nome_cliente);
+      const prevContrato = oldContrato ? String(oldContrato).trim() : null;
+
+      if (prevContrato && prevContrato !== targetContrato) {
+        const upd = await queryNeon(
+          'UPDATE clientes SET numero_contrato = $1, nome_cliente = $2 WHERE numero_contrato = $3',
+          [targetContrato, targetNome, prevContrato]
+        );
+        if (upd.rowCount === 0) {
+          await queryNeon(`
+            INSERT INTO clientes (numero_contrato, nome_cliente, created_at)
+            VALUES ($1, $2, CURRENT_TIMESTAMP)
+            ON CONFLICT (numero_contrato) DO UPDATE SET
+              nome_cliente = EXCLUDED.nome_cliente
+          `, [targetContrato, targetNome]);
+        }
+        await queryNeon(
+          'UPDATE chamados_orcamentos SET numero_contrato = $1, nome_cliente = $2, updated_at = CURRENT_TIMESTAMP WHERE numero_contrato = $3 OR numero_contrato = $1',
+          [targetContrato, targetNome, prevContrato]
+        );
+      } else {
+        await queryNeon(`
+          INSERT INTO clientes (numero_contrato, nome_cliente, created_at)
+          VALUES ($1, $2, CURRENT_TIMESTAMP)
+          ON CONFLICT (numero_contrato) DO UPDATE SET
+            nome_cliente = EXCLUDED.nome_cliente
+        `, [targetContrato, targetNome]);
+        await queryNeon(
+          'UPDATE chamados_orcamentos SET nome_cliente = $1, updated_at = CURRENT_TIMESTAMP WHERE numero_contrato = $2',
+          [targetNome, targetContrato]
+        );
+      }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar cliente no Neon:', err.message);
     } finally {
@@ -475,27 +511,60 @@ export const neonSyncService = {
   /**
    * Envia atualização de Técnico diretamente para o Neon
    */
-  async syncTecnicoToNeon(tec) {
+  async syncTecnicoToNeon(tec, oldMatricula = null) {
     if (!this.isConfigured || !tec) return;
     if (!getPool()) return;
 
     activeUpstreamSyncs++;
     try {
-      await queryNeon(`
-        INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at)
-        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-        ON CONFLICT (matricula) DO UPDATE SET
-          funcao = EXCLUDED.funcao,
-          nome_sobrenome = EXCLUDED.nome_sobrenome,
-          email = EXCLUDED.email,
-          telefone = EXCLUDED.telefone
-      `, [
-        tec.matricula,
-        normalizeTecnicoFuncao(tec.funcao),
-        sanitizeUtf8(tec.nome_sobrenome || tec.nome_completo),
-        tec.email ? sanitizeUtf8(tec.email) : null,
-        tec.telefone || null
-      ]);
+      const targetMatricula = String(tec.matricula).trim();
+      const targetFuncao = normalizeTecnicoFuncao(tec.funcao);
+      const targetNome = sanitizeUtf8(tec.nome_sobrenome || tec.nome_completo);
+      const targetEmail = tec.email ? sanitizeUtf8(tec.email) : null;
+      const targetTel = tec.telefone || null;
+      const prevMatricula = oldMatricula ? String(oldMatricula).trim() : null;
+
+      if (prevMatricula && prevMatricula !== targetMatricula) {
+        const upd = await queryNeon(
+          `UPDATE tecnicos 
+           SET matricula = $1, funcao = $2, nome_sobrenome = $3, email = $4, telefone = $5 
+           WHERE matricula = $6`,
+          [targetMatricula, targetFuncao, targetNome, targetEmail, targetTel, prevMatricula]
+        );
+        if (upd.rowCount === 0) {
+          await queryNeon(`
+            INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at)
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+            ON CONFLICT (matricula) DO UPDATE SET
+              funcao = EXCLUDED.funcao,
+              nome_sobrenome = EXCLUDED.nome_sobrenome,
+              email = EXCLUDED.email,
+              telefone = EXCLUDED.telefone
+          `, [targetMatricula, targetFuncao, targetNome, targetEmail, targetTel]);
+        }
+        await queryNeon(
+          `UPDATE chamados_orcamentos 
+           SET matricula_tecnico = $1, nome_tecnico = $2, updated_at = CURRENT_TIMESTAMP 
+           WHERE matricula_tecnico = $3 OR matricula_tecnico = $1`,
+          [targetMatricula, targetNome, prevMatricula]
+        );
+      } else {
+        await queryNeon(`
+          INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at)
+          VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+          ON CONFLICT (matricula) DO UPDATE SET
+            funcao = EXCLUDED.funcao,
+            nome_sobrenome = EXCLUDED.nome_sobrenome,
+            email = EXCLUDED.email,
+            telefone = EXCLUDED.telefone
+        `, [targetMatricula, targetFuncao, targetNome, targetEmail, targetTel]);
+        await queryNeon(
+          `UPDATE chamados_orcamentos 
+           SET nome_tecnico = $1, updated_at = CURRENT_TIMESTAMP 
+           WHERE matricula_tecnico = $2`,
+          [targetNome, targetMatricula]
+        );
+      }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar técnico no Neon:', err.message);
     } finally {
@@ -523,37 +592,91 @@ export const neonSyncService = {
   /**
    * Envia atualização de Usuário diretamente para o Neon
    */
-  async syncUsuarioToNeon(usr) {
+  async syncUsuarioToNeon(usr, oldEmail = null, oldMatricula = null) {
     if (!this.isConfigured || !usr) return;
     if (!getPool()) return;
 
     activeUpstreamSyncs++;
     try {
-      await queryNeon(`
-        INSERT INTO usuarios (
-          nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, updated_at
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP
-        )
-        ON CONFLICT (email) DO UPDATE SET
-          nome = EXCLUDED.nome,
-          matricula = EXCLUDED.matricula,
-          senha_hash = CASE WHEN EXCLUDED.senha_hash IS NOT NULL AND EXCLUDED.senha_hash != '' THEN EXCLUDED.senha_hash ELSE usuarios.senha_hash END,
-          perfil = EXCLUDED.perfil,
-          grupo = EXCLUDED.grupo,
-          primeiro_acesso = EXCLUDED.primeiro_acesso,
-          ativo = EXCLUDED.ativo,
-          updated_at = CURRENT_TIMESTAMP
-      `, [
-        usr.nome,
-        usr.email.toLowerCase().trim(),
-        usr.matricula,
-        usr.senha_hash || '',
-        usr.perfil,
-        usr.grupo || 'G11',
-        usr.primeiro_acesso ?? 0,
-        usr.ativo ?? 1
-      ]);
+      const cleanEmail = usr.email.toLowerCase().trim();
+      const prevEmail = oldEmail ? oldEmail.toLowerCase().trim() : null;
+      const prevMatricula = oldMatricula ? String(oldMatricula).trim() : null;
+      const senhaHash = usr.senha_hash || '';
+      const grupo = usr.grupo || 'G11';
+      const primeiroAcesso = usr.primeiro_acesso ?? 0;
+      const ativo = usr.ativo ?? 1;
+
+      let updatedExisting = false;
+      if (prevEmail && prevEmail !== cleanEmail) {
+        const upd = await queryNeon(`
+          UPDATE usuarios
+          SET nome = $1,
+              email = $2,
+              matricula = $3,
+              senha_hash = CASE WHEN $4 != '' THEN $4 ELSE senha_hash END,
+              perfil = $5,
+              grupo = $6,
+              primeiro_acesso = $7,
+              ativo = $8,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE LOWER(email) = $9
+        `, [usr.nome, cleanEmail, usr.matricula, senhaHash, usr.perfil, grupo, primeiroAcesso, ativo, prevEmail]);
+        updatedExisting = upd.rowCount > 0;
+      }
+
+      if (!updatedExisting && prevMatricula && prevMatricula !== usr.matricula) {
+        const updMat = await queryNeon(`
+          UPDATE usuarios
+          SET nome = $1,
+              email = $2,
+              matricula = $3,
+              senha_hash = CASE WHEN $4 != '' THEN $4 ELSE senha_hash END,
+              perfil = $5,
+              grupo = $6,
+              primeiro_acesso = $7,
+              ativo = $8,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE matricula = $9
+        `, [usr.nome, cleanEmail, usr.matricula, senhaHash, usr.perfil, grupo, primeiroAcesso, ativo, prevMatricula]);
+        updatedExisting = updMat.rowCount > 0;
+      }
+
+      if (!updatedExisting) {
+        await queryNeon(`
+          INSERT INTO usuarios (
+            nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, updated_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP
+          )
+          ON CONFLICT (email) DO UPDATE SET
+            nome = EXCLUDED.nome,
+            matricula = EXCLUDED.matricula,
+            senha_hash = CASE WHEN EXCLUDED.senha_hash IS NOT NULL AND EXCLUDED.senha_hash != '' THEN EXCLUDED.senha_hash ELSE usuarios.senha_hash END,
+            perfil = EXCLUDED.perfil,
+            grupo = EXCLUDED.grupo,
+            primeiro_acesso = EXCLUDED.primeiro_acesso,
+            ativo = EXCLUDED.ativo,
+            updated_at = CURRENT_TIMESTAMP
+        `, [
+          usr.nome,
+          cleanEmail,
+          usr.matricula,
+          senhaHash,
+          usr.perfil,
+          grupo,
+          primeiroAcesso,
+          ativo
+        ]);
+      }
+
+      if (usr.matricula && (usr.perfil === 'TECNICO' || usr.perfil === 'SUPERVISOR')) {
+        await queryNeon(
+          `UPDATE chamados_orcamentos
+           SET g_origem = $1, nome_tecnico = $2, matricula_tecnico = $3, updated_at = CURRENT_TIMESTAMP
+           WHERE matricula_tecnico = $4 OR matricula_tecnico = $3`,
+          [grupo, usr.nome, usr.matricula, prevMatricula || usr.matricula]
+        );
+      }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar usuário no Neon:', err.message);
     } finally {
@@ -619,11 +742,33 @@ export const neonSyncService = {
   async syncTecnicosBatchToNeon(tecnicosList) {
     if (!this.isConfigured || !Array.isArray(tecnicosList) || tecnicosList.length === 0) return;
     try {
-      for (const tec of tecnicosList) {
-        await this.syncTecnicoToNeon(tec);
+      for (const item of tecnicosList) {
+        if (item && item.tec) {
+          await this.syncTecnicoToNeon(item.tec, item.oldMatricula || null);
+        } else {
+          await this.syncTecnicoToNeon(item);
+        }
       }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha no lote de técnicos para o Neon:', err.message);
+    }
+  },
+
+  /**
+   * Sincroniza lista em lote de usuários (utilizado na importação de planilhas)
+   */
+  async syncUsuariosBatchToNeon(usuariosList) {
+    if (!this.isConfigured || !Array.isArray(usuariosList) || usuariosList.length === 0) return;
+    try {
+      for (const item of usuariosList) {
+        if (item && item.user) {
+          await this.syncUsuarioToNeon(item.user, item.oldEmail || null, item.oldMatricula || null);
+        } else {
+          await this.syncUsuarioToNeon(item);
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ [NeonSyncService] Falha no lote de usuários para o Neon:', err.message);
     }
   }
 };
