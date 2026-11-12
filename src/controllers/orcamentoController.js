@@ -335,7 +335,7 @@ export const orcamentoController = {
       const novoOrcamento = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(result.lastInsertRowid);
 
       // Sincroniza imediatamente com o Neon PostgreSQL
-      neonSyncService.syncOrcamentoToNeon(novoOrcamento).catch(() => {});
+      await neonSyncService.syncOrcamentoToNeon(novoOrcamento).catch(() => {});
 
       return res.status(201).json({
         success: true,
@@ -491,7 +491,7 @@ export const orcamentoController = {
         const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
 
         // Sincroniza imediatamente com o Neon PostgreSQL
-        neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
+        await neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
 
         return res.status(200).json({
           success: true,
@@ -611,7 +611,7 @@ export const orcamentoController = {
       const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
 
       // Sincroniza imediatamente com o Neon PostgreSQL
-      neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
+      await neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
 
       return res.status(200).json({
         success: true,
@@ -680,7 +680,7 @@ export const orcamentoController = {
       const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
 
       // Sincroniza imediatamente com o Neon PostgreSQL
-      neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
+      await neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
 
       return res.status(200).json({
         success: true,
@@ -720,7 +720,7 @@ export const orcamentoController = {
 
       // Sincroniza exclusão no Neon PostgreSQL
       if (existing) {
-        neonSyncService.deleteOrcamentoFromNeon(existing.id, existing.numero_pgo).catch(() => {});
+        await neonSyncService.deleteOrcamentoFromNeon(existing.id, existing.numero_pgo).catch(() => {});
       }
 
       return res.status(200).json({
@@ -1082,7 +1082,7 @@ export const orcamentoController = {
       // Sincroniza em lote os orçamentos importados com o Neon PostgreSQL
       try {
         if (processedOrcamentos.length > 0) {
-          neonSyncService.syncOrcamentosBatchToNeon(processedOrcamentos).catch(() => {});
+          await neonSyncService.syncOrcamentosBatchToNeon(processedOrcamentos).catch(() => {});
         }
       } catch {}
 

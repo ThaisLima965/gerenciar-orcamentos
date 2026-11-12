@@ -369,9 +369,27 @@ export const neonSyncService = {
     if (!this.isConfigured || !orc) return;
     if (!getPool()) return;
 
-    activeUpstreamSyncs++;
-    try {
-      await queryNeon(`
+    const params = [
+      orc.matricula_tecnico,
+      orc.nome_tecnico,
+      orc.tipo_servico,
+      orc.numero_pgo,
+      orc.g_origem || 'G11',
+      orc.numero_contrato,
+      orc.nome_cliente,
+      orc.numero_orcamento || 'Aguardando Orçamento',
+      orc.descricao_servico || null,
+      Number(orc.valor_total) || 0.00,
+      orc.observacao_tecnico ? String(orc.observacao_tecnico).slice(0, 200) : null,
+      orc.nota_urgencia !== null && orc.nota_urgencia !== undefined ? Number(orc.nota_urgencia) : null,
+      orc.data_liberacao || null,
+      orc.geor_liberou || 'Não',
+      orc.data_envio_cliente || null,
+      orc.status || 'Aberto',
+      orc.created_by_id || null
+    ];
+
+    const upsertSql = `
         INSERT INTO chamados_orcamentos (
           matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
           g_origem, numero_contrato, nome_cliente, numero_orcamento,
@@ -398,26 +416,23 @@ export const neonSyncService = {
           data_envio_cliente = EXCLUDED.data_envio_cliente,
           status = EXCLUDED.status,
           updated_at = CURRENT_TIMESTAMP
-      `, [
-        orc.matricula_tecnico,
-        orc.nome_tecnico,
-        orc.tipo_servico,
-        orc.numero_pgo,
-        orc.g_origem || 'G11',
-        orc.numero_contrato,
-        orc.nome_cliente,
-        orc.numero_orcamento || 'Aguardando Orçamento',
-        orc.descricao_servico || null,
-        Number(orc.valor_total) || 0.00,
-        orc.observacao_tecnico ? String(orc.observacao_tecnico).slice(0, 200) : null,
-        orc.nota_urgencia !== null && orc.nota_urgencia !== undefined ? Number(orc.nota_urgencia) : null,
-        orc.data_liberacao || null,
-        orc.geor_liberou || 'Não',
-        orc.data_envio_cliente || null,
-        orc.status || 'Aberto',
-        orc.created_by_id || null
-      ]);
+      `;
+
+    activeUpstreamSyncs++;
+    try {
+      await queryNeon(upsertSql, params);
     } catch (err) {
+      if (err.message && err.message.includes('chamados_orcamentos_created_by_id_fkey')) {
+        try {
+          const fallbackParams = [...params];
+          fallbackParams[16] = null;
+          await queryNeon(upsertSql, fallbackParams);
+          return;
+        } catch (retryErr) {
+          console.warn('⚠️ [NeonSyncService] Falha ao sincronizar orçamento no Neon (retry):', retryErr.message);
+          return;
+        }
+      }
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar orçamento no Neon:', err.message);
     } finally {
       activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
