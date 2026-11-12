@@ -138,6 +138,27 @@ export const neonSyncService = {
         ORDER BY id ASC
       `);
 
+      // 2. Clientes
+      const cliRes = await queryNeon(`
+        SELECT numero_contrato, nome_cliente, created_at
+        FROM clientes
+        ORDER BY nome_cliente ASC
+      `);
+
+      // 3. Técnicos
+      const tecRes = await queryNeon(`
+        SELECT matricula, funcao, nome_sobrenome, email, telefone, created_at
+        FROM tecnicos
+        ORDER BY matricula ASC
+      `);
+
+      // 4. Usuários
+      const usrRes = await queryNeon(`
+        SELECT id, nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at
+        FROM usuarios
+        ORDER BY id ASC
+      `);
+
       runInBatch(() => {
         try { db.exec('BEGIN TRANSACTION'); } catch {}
 
