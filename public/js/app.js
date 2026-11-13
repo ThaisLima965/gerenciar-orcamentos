@@ -2389,6 +2389,47 @@ async function syncAllData(isSilent = true) {
   }
 }
 
+function updateNeonStatusBanner(res) {
+  const container = document.querySelector('.main-content') || document.querySelector('main') || document.body;
+  let banner = document.getElementById('neon-status-warning-banner');
+  const pill = document.getElementById('pwa-connection-status');
+
+  if (res && res.isNeon) {
+    if (banner) banner.remove();
+    if (pill) {
+      pill.classList.remove('status-offline', 'status-syncing');
+      pill.classList.add('status-online');
+      pill.innerHTML = '<i class="bi bi-database-check"></i> <span>Online (Neon)</span>';
+      pill.title = `Conectado ao Neon PostgreSQL Oficial (${res.counts?.clientes || 0} clientes, ${res.counts?.usuarios || 0} colaboradores, ${res.counts?.orcamentos || 0} orçamentos)`;
+    }
+  } else if (res && !res.isNeon && res.environment === 'serverless') {
+    if (!banner && container) {
+      banner = document.createElement('div');
+      banner.id = 'neon-status-warning-banner';
+      banner.style.cssText = 'background: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 0.85rem 1.25rem; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);';
+      banner.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <i class="bi bi-exclamation-triangle-fill" style="color: #D97706; font-size: 1.4rem;"></i>
+          <div>
+            <strong style="color: #B45309;">Atenção: Banco Neon PostgreSQL não conectado nesta instância da Vercel!</strong>
+            <div style="font-size: 0.82rem; margin-top: 0.2rem; color: #78350F;">
+              A variável <code>DATABASE_URL</code> não foi configurada nas configurações da Vercel. Novos cadastros ou importações são temporários e serão perdidos ao recarregar a página.
+            </div>
+          </div>
+        </div>
+        <a href="https://vercel.com" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="background: #D97706; color: white; white-space: nowrap; font-size: 0.82rem; font-weight: 600; text-decoration: none; padding: 0.4rem 0.85rem; border-radius: 6px;">
+          Configurar na Vercel
+        </a>
+      `;
+      container.insertBefore(banner, container.firstChild);
+    }
+    if (pill) {
+      pill.innerHTML = '<i class="bi bi-exclamation-circle-fill" style="color: #F59E0B;"></i> <span>Local (Vercel)</span>';
+      pill.title = 'Aviso: Banco Neon não conectado na Vercel. Configure DATABASE_URL no Vercel Dashboard.';
+    }
+  }
+}
+
 // Checagem em tempo real e revalidação SWR de mudanças ocorridas no Neon PostgreSQL
 async function checkBackgroundNeonSync() {
   if (document.hidden) return;
@@ -2397,13 +2438,16 @@ async function checkBackgroundNeonSync() {
 
   try {
     const res = await api.get('/api/sync/status');
-    if (res && res.success && res.version) {
-      if (lastKnownVersion && res.version !== lastKnownVersion) {
-        lastKnownVersion = res.version;
-        // Mudança detectada no Neon (feita por outro usuário ou via console Neon)! Revalida tela automaticamente
-        await syncAllData(true);
-      } else {
-        lastKnownVersion = res.version;
+    if (res && res.success) {
+      updateNeonStatusBanner(res);
+      if (res.version) {
+        if (lastKnownVersion && res.version !== lastKnownVersion) {
+          lastKnownVersion = res.version;
+          // Mudança detectada no Neon (feita por outro usuário ou via console Neon)! Revalida tela automaticamente
+          await syncAllData(true);
+        } else {
+          lastKnownVersion = res.version;
+        }
       }
     }
   } catch (e) {

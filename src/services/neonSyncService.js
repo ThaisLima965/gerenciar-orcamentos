@@ -7,6 +7,8 @@ dotenv.config();
 
 const { Pool } = pg;
 
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+
 let pool = null;
 
 function getDatabaseUrl() {
@@ -299,8 +301,9 @@ export const neonSyncService = {
    */
   async getNeonStatus() {
     const localFp = getLocalFingerprint();
+    const hasDbUrl = Boolean(getDatabaseUrl());
 
-    if (!this.isConfigured || !getPool()) {
+    if (!hasDbUrl || !getPool()) {
       const orcCount = db.prepare('SELECT COUNT(*) as count FROM chamados_orcamentos').get()?.count || 0;
       const cliCount = db.prepare('SELECT COUNT(*) as count FROM clientes').get()?.count || 0;
       const tecCount = db.prepare('SELECT COUNT(*) as count FROM tecnicos').get()?.count || 0;
@@ -308,8 +311,11 @@ export const neonSyncService = {
       return {
         success: true,
         isNeon: false,
+        databaseConfigured: false,
+        environment: isServerless ? 'serverless' : 'local',
         version: localFp,
-        counts: { orcamentos: orcCount, clientes: cliCount, tecnicos: tecCount, usuarios: usrCount }
+        counts: { orcamentos: orcCount, clientes: cliCount, tecnicos: tecCount, usuarios: usrCount },
+        message: 'DATABASE_URL não configurada no ambiente. Os dados estão sendo salvos apenas localmente/temporariamente.'
       };
     }
 
@@ -346,6 +352,8 @@ export const neonSyncService = {
       return {
         success: true,
         isNeon: true,
+        databaseConfigured: true,
+        environment: isServerless ? 'serverless' : 'local',
         version: combinedVersion,
         counts: {
           orcamentos: Number(row.orc_count) || 0,
@@ -356,9 +364,14 @@ export const neonSyncService = {
         orcamentos_updated_at: row.orc_updated
       };
     } catch (err) {
+      console.warn('⚠️ [NeonSyncService] Erro ao consultar status do Neon:', err.message);
       return {
         success: true,
         isNeon: false,
+        databaseConfigured: true,
+        neonConnected: false,
+        error: err.message,
+        environment: isServerless ? 'serverless' : 'local',
         version: localFp
       };
     }
