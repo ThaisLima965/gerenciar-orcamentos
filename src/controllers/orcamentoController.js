@@ -8,6 +8,11 @@ export const orcamentoController = {
   // Listagem de Chamados e Orçamentos com filtros e métricas
   async list(req, res) {
     try {
+      // Garante sincronização atualizada com o Neon PostgreSQL (especialmente em instâncias serverless na Vercel)
+      if (neonSyncService.isConfigured) {
+        await neonSyncService.ensureFreshFromNeon().catch(() => {});
+      }
+
       const { 
         q, 
         status, 
@@ -490,8 +495,8 @@ export const orcamentoController = {
 
         const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
 
-        // Sincroniza imediatamente com o Neon PostgreSQL
-        await neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
+        // Sincroniza imediatamente com o Neon PostgreSQL (garantindo atualização de PGO se editado)
+        await neonSyncService.syncOrcamentoToNeon(atualizado, current.numero_pgo).catch(() => {});
 
         return res.status(200).json({
           success: true,
@@ -610,8 +615,8 @@ export const orcamentoController = {
 
       const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
 
-      // Sincroniza imediatamente com o Neon PostgreSQL
-      await neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
+      // Sincroniza imediatamente com o Neon PostgreSQL (garantindo atualização de PGO se editado)
+      await neonSyncService.syncOrcamentoToNeon(atualizado, current.numero_pgo).catch(() => {});
 
       return res.status(200).json({
         success: true,
@@ -679,8 +684,8 @@ export const orcamentoController = {
 
       const atualizado = db.prepare('SELECT * FROM chamados_orcamentos WHERE id = ?').get(id);
 
-      // Sincroniza imediatamente com o Neon PostgreSQL
-      await neonSyncService.syncOrcamentoToNeon(atualizado).catch(() => {});
+      // Sincroniza imediatamente com o Neon PostgreSQL (garantindo atualização de PGO se editado)
+      await neonSyncService.syncOrcamentoToNeon(atualizado, current.numero_pgo).catch(() => {});
 
       return res.status(200).json({
         success: true,

@@ -162,13 +162,8 @@ export const neonSyncService = {
       runInBatch(() => {
         try { db.exec('BEGIN TRANSACTION'); } catch {}
 
-        if (orcRes.rows && orcRes.rows.length === 0) {
-          // Se a tabela no Neon está limpa/vazia para nova importação oficial, garante SQLite também vazio
-          const localOrcs = db.prepare('SELECT COUNT(*) as count FROM chamados_orcamentos').get()?.count || 0;
-          if (localOrcs > 0) {
-            db.prepare('DELETE FROM chamados_orcamentos').run();
-          }
-        } else if (orcRes.rows && orcRes.rows.length > 0) {
+        // 1. Chamados / Orçamentos (Sincronização não-destrutiva)
+        if (orcRes.rows && orcRes.rows.length > 0) {
           const stmtOrc = db.prepare(`
             INSERT OR REPLACE INTO chamados_orcamentos (
               id, matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
@@ -209,15 +204,8 @@ export const neonSyncService = {
           }
         }
 
-        // 2. Clientes
+        // 2. Clientes (Sincronização não-destrutiva)
         if (cliRes.rows && cliRes.rows.length > 0) {
-          const neonContratos = new Set(cliRes.rows.map(r => r.numero_contrato));
-          const localClientes = db.prepare('SELECT numero_contrato FROM clientes').all();
-          for (const lc of localClientes) {
-            if (!neonContratos.has(lc.numero_contrato)) {
-              try { db.prepare('DELETE FROM clientes WHERE numero_contrato = ?').run(lc.numero_contrato); } catch {}
-            }
-          }
           const stmtCli = db.prepare('INSERT OR REPLACE INTO clientes (numero_contrato, nome_cliente, created_at) VALUES (?, ?, ?)');
           for (const c of cliRes.rows) {
             try {
@@ -226,15 +214,8 @@ export const neonSyncService = {
           }
         }
 
-        // 3. Técnicos (padronizado com os 3 níveis oficiais e UTF-8 higienizado)
+        // 3. Técnicos (Sincronização não-destrutiva)
         if (tecRes.rows && tecRes.rows.length > 0) {
-          const neonMatriculas = new Set(tecRes.rows.map(r => r.matricula));
-          const localTecs = db.prepare('SELECT matricula FROM tecnicos').all();
-          for (const lt of localTecs) {
-            if (!neonMatriculas.has(lt.matricula)) {
-              try { db.prepare('DELETE FROM tecnicos WHERE matricula = ?').run(lt.matricula); } catch {}
-            }
-          }
           const stmtTec = db.prepare('INSERT OR REPLACE INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at) VALUES (?, ?, ?, ?, ?, ?)');
           for (const t of tecRes.rows) {
             try {
@@ -250,16 +231,8 @@ export const neonSyncService = {
           }
         }
 
-        // 4. Usuários
+        // 4. Usuários (Sincronização não-destrutiva)
         if (usrRes.rows && usrRes.rows.length > 0) {
-          const neonUserIds = new Set(usrRes.rows.map(r => r.id));
-          const neonUserEmails = new Set(usrRes.rows.map(r => (r.email || '').toLowerCase().trim()));
-          const localUsers = db.prepare('SELECT id, email FROM usuarios').all();
-          for (const lu of localUsers) {
-            if (!neonUserIds.has(lu.id) && !neonUserEmails.has((lu.email || '').toLowerCase().trim())) {
-              try { db.prepare('DELETE FROM usuarios WHERE id = ?').run(lu.id); } catch {}
-            }
-          }
           const stmtUsr = db.prepare('INSERT OR REPLACE INTO usuarios (id, nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
           for (const u of usrRes.rows) {
             try {
@@ -394,31 +367,59 @@ export const neonSyncService = {
   /**
    * Envia atualização de Orçamento diretamente para o Neon (Upstream)
    */
-  async syncOrcamentoToNeon(orc) {
+  async syncOrcamentoToNeon(orc, oldNumeroPgo = null) {
     if (!this.isConfigured || !orc) return;
     if (!getPool()) return;
 
-    const params = [
-      orc.matricula_tecnico,
-      orc.nome_tecnico,
-      orc.tipo_servico,
-      orc.numero_pgo,
-      orc.g_origem || 'G11',
-      orc.numero_contrato,
-      orc.nome_cliente,
-      orc.numero_orcamento || 'Aguardando Orçamento',
-      orc.descricao_servico || null,
-      Number(orc.valor_total) || 0.00,
-      orc.observacao_tecnico ? String(orc.observacao_tecnico).slice(0, 200) : null,
-      orc.nota_urgencia !== null && orc.nota_urgencia !== undefined ? Number(orc.nota_urgencia) : null,
-      orc.data_liberacao || null,
-      orc.geor_liberou || 'Não',
-      orc.data_envio_cliente || null,
-      orc.status || 'Aberto',
-      orc.created_by_id || null
-    ];
+    activeUpstreamSyncs++;
+    try {
+      // 1. Garante que o cliente exista no Neon antes de vincular ao chamado (elimina FK violation)
+      if (orc.numero_contrato) {
+        await queryNeon(`
+          INSERT INTO clientes (numero_contrato, nome_cliente, created_at)
+          VALUES ($1, $2, CURRENT_TIMESTAMP)
+          ON CONFLICT (numero_contrato) DO UPDATE SET
+            nome_cliente = COALESCE(NULLIF(EXCLUDED.nome_cliente, ''), clientes.nome_cliente)
+        `, [String(orc.numero_contrato).trim(), sanitizeUtf8(orc.nome_cliente || 'Cliente TKE')]).catch(() => {});
+      }
 
-    const upsertSql = `
+      // 2. Garante que o técnico exista no Neon antes de vincular ao chamado (elimina FK violation)
+      if (orc.matricula_tecnico) {
+        const funcaoTec = normalizeTecnicoFuncao(orc.tipo_servico === 'Corretivo' ? 'Corretivo' : 'Preventivo');
+        await queryNeon(`
+          INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, created_at)
+          VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+          ON CONFLICT (matricula) DO UPDATE SET
+            nome_sobrenome = COALESCE(NULLIF(EXCLUDED.nome_sobrenome, ''), tecnicos.nome_sobrenome)
+        `, [String(orc.matricula_tecnico).trim(), funcaoTec, sanitizeUtf8(orc.nome_tecnico || 'Técnico TKE')]).catch(() => {});
+      }
+
+      // 3. Se o número do PGO mudou em edição, atualiza no Neon antes do upsert
+      if (oldNumeroPgo && String(oldNumeroPgo).trim() !== String(orc.numero_pgo).trim()) {
+        await queryNeon(`UPDATE chamados_orcamentos SET numero_pgo = $1 WHERE numero_pgo = $2`, [String(orc.numero_pgo).trim(), String(oldNumeroPgo).trim()]).catch(() => {});
+      }
+
+      const params = [
+        String(orc.matricula_tecnico).trim(),
+        sanitizeUtf8(orc.nome_tecnico),
+        orc.tipo_servico,
+        String(orc.numero_pgo).trim(),
+        orc.g_origem || 'G11',
+        String(orc.numero_contrato).trim(),
+        sanitizeUtf8(orc.nome_cliente),
+        orc.numero_orcamento || 'Aguardando Orçamento',
+        orc.descricao_servico ? sanitizeUtf8(orc.descricao_servico) : null,
+        Number(orc.valor_total) || 0.00,
+        orc.observacao_tecnico ? sanitizeUtf8(String(orc.observacao_tecnico)).slice(0, 200) : null,
+        orc.nota_urgencia !== null && orc.nota_urgencia !== undefined ? Number(orc.nota_urgencia) : null,
+        orc.data_liberacao || null,
+        orc.geor_liberou || 'Não',
+        orc.data_envio_cliente || null,
+        orc.status || 'Aberto',
+        orc.created_by_id || null
+      ];
+
+      const upsertSql = `
         INSERT INTO chamados_orcamentos (
           matricula_tecnico, nome_tecnico, tipo_servico, numero_pgo,
           g_origem, numero_contrato, nome_cliente, numero_orcamento,
@@ -447,21 +448,18 @@ export const neonSyncService = {
           updated_at = CURRENT_TIMESTAMP
       `;
 
-    activeUpstreamSyncs++;
-    try {
-      await queryNeon(upsertSql, params);
-    } catch (err) {
-      if (err.message && err.message.includes('chamados_orcamentos_created_by_id_fkey')) {
-        try {
+      try {
+        await queryNeon(upsertSql, params);
+      } catch (err) {
+        if (err.message && err.message.includes('chamados_orcamentos_created_by_id_fkey')) {
           const fallbackParams = [...params];
           fallbackParams[16] = null;
           await queryNeon(upsertSql, fallbackParams);
-          return;
-        } catch (retryErr) {
-          console.warn('⚠️ [NeonSyncService] Falha ao sincronizar orçamento no Neon (retry):', retryErr.message);
-          return;
+        } else {
+          throw err;
         }
       }
+    } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar orçamento no Neon:', err.message);
     } finally {
       activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
@@ -664,6 +662,7 @@ export const neonSyncService = {
     activeUpstreamSyncs++;
     try {
       const cleanEmail = usr.email.toLowerCase().trim();
+      const cleanMatricula = String(usr.matricula).trim();
       const prevEmail = oldEmail ? oldEmail.toLowerCase().trim() : null;
       const prevMatricula = oldMatricula ? String(oldMatricula).trim() : null;
       const senhaHash = usr.senha_hash || '';
@@ -671,8 +670,9 @@ export const neonSyncService = {
       const primeiroAcesso = usr.primeiro_acesso ?? 0;
       const ativo = usr.ativo ?? 1;
 
-      let updatedExisting = false;
-      if (prevEmail && prevEmail !== cleanEmail) {
+      // 1. Tenta atualizar se encontrou por e-mail anterior ou matrícula anterior
+      let updated = false;
+      if (prevEmail || prevMatricula) {
         const upd = await queryNeon(`
           UPDATE usuarios
           SET nome = $1,
@@ -684,13 +684,14 @@ export const neonSyncService = {
               primeiro_acesso = $7,
               ativo = $8,
               updated_at = CURRENT_TIMESTAMP
-          WHERE LOWER(email) = $9
-        `, [usr.nome, cleanEmail, usr.matricula, senhaHash, usr.perfil, grupo, primeiroAcesso, ativo, prevEmail]);
-        updatedExisting = upd.rowCount > 0;
+          WHERE LOWER(email) = LOWER($9) OR matricula = $10
+        `, [usr.nome, cleanEmail, cleanMatricula, senhaHash, usr.perfil, grupo, primeiroAcesso, ativo, prevEmail || cleanEmail, prevMatricula || cleanMatricula]);
+        updated = upd.rowCount > 0;
       }
 
-      if (!updatedExisting && prevMatricula && prevMatricula !== usr.matricula) {
-        const updMat = await queryNeon(`
+      // 2. Se não atualizou via prev, tenta atualizar por e-mail OU matrícula atual
+      if (!updated) {
+        const updCurrent = await queryNeon(`
           UPDATE usuarios
           SET nome = $1,
               email = $2,
@@ -701,46 +702,29 @@ export const neonSyncService = {
               primeiro_acesso = $7,
               ativo = $8,
               updated_at = CURRENT_TIMESTAMP
-          WHERE matricula = $9
-        `, [usr.nome, cleanEmail, usr.matricula, senhaHash, usr.perfil, grupo, primeiroAcesso, ativo, prevMatricula]);
-        updatedExisting = updMat.rowCount > 0;
+          WHERE LOWER(email) = LOWER($9) OR matricula = $10
+        `, [usr.nome, cleanEmail, cleanMatricula, senhaHash, usr.perfil, grupo, primeiroAcesso, ativo, cleanEmail, cleanMatricula]);
+        updated = updCurrent.rowCount > 0;
       }
 
-      if (!updatedExisting) {
+      // 3. Se não existia ainda em nenhum campo único, insere novo
+      if (!updated) {
         await queryNeon(`
           INSERT INTO usuarios (
             nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, updated_at
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP
           )
-          ON CONFLICT (email) DO UPDATE SET
-            nome = EXCLUDED.nome,
-            matricula = EXCLUDED.matricula,
-            senha_hash = CASE WHEN EXCLUDED.senha_hash IS NOT NULL AND EXCLUDED.senha_hash != '' THEN EXCLUDED.senha_hash ELSE usuarios.senha_hash END,
-            perfil = EXCLUDED.perfil,
-            grupo = EXCLUDED.grupo,
-            primeiro_acesso = EXCLUDED.primeiro_acesso,
-            ativo = EXCLUDED.ativo,
-            updated_at = CURRENT_TIMESTAMP
-        `, [
-          usr.nome,
-          cleanEmail,
-          usr.matricula,
-          senhaHash,
-          usr.perfil,
-          grupo,
-          primeiroAcesso,
-          ativo
-        ]);
+        `, [usr.nome, cleanEmail, cleanMatricula, senhaHash, usr.perfil, grupo, primeiroAcesso, ativo]);
       }
 
-      if (usr.matricula && (usr.perfil === 'TECNICO' || usr.perfil === 'SUPERVISOR')) {
+      if (cleanMatricula && (usr.perfil === 'TECNICO' || usr.perfil === 'SUPERVISOR')) {
         await queryNeon(
           `UPDATE chamados_orcamentos
            SET g_origem = $1, nome_tecnico = $2, matricula_tecnico = $3, updated_at = CURRENT_TIMESTAMP
            WHERE matricula_tecnico = $4 OR matricula_tecnico = $3`,
-          [grupo, usr.nome, usr.matricula, prevMatricula || usr.matricula]
-        );
+          [grupo, usr.nome, cleanMatricula, prevMatricula || cleanMatricula]
+        ).catch(() => {});
       }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha ao sincronizar usuário no Neon:', err.message);
@@ -772,50 +756,165 @@ export const neonSyncService = {
 
   /**
    * Sincroniza lista em lote de orçamentos (utilizado na importação de planilhas)
+   * Pré-insere clientes e técnicos únicos da planilha para integridade e velocidade ultra-rápida na Vercel
    */
   async syncOrcamentosBatchToNeon(orcamentosList) {
     if (!this.isConfigured || !Array.isArray(orcamentosList) || orcamentosList.length === 0) return;
-    const client = getPool();
-    if (!client) return;
+    if (!getPool()) return;
 
+    activeUpstreamSyncs++;
     try {
+      // 1. Pré-cadastra em bloco clientes e técnicos únicos da planilha no Neon
+      const uniqueClients = new Map();
+      const uniqueTecnicos = new Map();
+
+      for (const o of orcamentosList) {
+        const contrato = o.numero_contrato ? String(o.numero_contrato).trim() : null;
+        if (contrato && !uniqueClients.has(contrato)) {
+          uniqueClients.set(contrato, sanitizeUtf8(o.nome_cliente || 'Cliente TKE'));
+        }
+        const matricula = o.matricula_tecnico ? String(o.matricula_tecnico).trim() : null;
+        if (matricula && !uniqueTecnicos.has(matricula)) {
+          uniqueTecnicos.set(matricula, {
+            nome: sanitizeUtf8(o.nome_tecnico || 'Técnico TKE'),
+            funcao: normalizeTecnicoFuncao(o.tipo_servico === 'Corretivo' ? 'Corretivo' : 'Preventivo')
+          });
+        }
+      }
+
+      // Upsert em bloco de clientes únicos
+      const cliArr = Array.from(uniqueClients.entries());
+      for (let i = 0; i < cliArr.length; i += 50) {
+        const chunk = cliArr.slice(i, i + 50);
+        const placeholders = [];
+        const vals = [];
+        let pIdx = 1;
+        for (const [num, nome] of chunk) {
+          placeholders.push(`($${pIdx++}, $${pIdx++}, CURRENT_TIMESTAMP)`);
+          vals.push(num, nome);
+        }
+        if (placeholders.length > 0) {
+          await queryNeon(`
+            INSERT INTO clientes (numero_contrato, nome_cliente, created_at)
+            VALUES ${placeholders.join(', ')}
+            ON CONFLICT (numero_contrato) DO UPDATE SET
+              nome_cliente = COALESCE(NULLIF(EXCLUDED.nome_cliente, ''), clientes.nome_cliente)
+          `, vals).catch(() => {});
+        }
+      }
+
+      // Upsert em bloco de técnicos únicos
+      const tecArr = Array.from(uniqueTecnicos.entries());
+      for (let i = 0; i < tecArr.length; i += 50) {
+        const chunk = tecArr.slice(i, i + 50);
+        const placeholders = [];
+        const vals = [];
+        let pIdx = 1;
+        for (const [mat, data] of chunk) {
+          placeholders.push(`($${pIdx++}, $${pIdx++}, $${pIdx++}, CURRENT_TIMESTAMP)`);
+          vals.push(mat, data.funcao, data.nome);
+        }
+        if (placeholders.length > 0) {
+          await queryNeon(`
+            INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, created_at)
+            VALUES ${placeholders.join(', ')}
+            ON CONFLICT (matricula) DO UPDATE SET
+              nome_sobrenome = COALESCE(NULLIF(EXCLUDED.nome_sobrenome, ''), tecnicos.nome_sobrenome)
+          `, vals).catch(() => {});
+        }
+      }
+
+      // 2. Sincroniza os orçamentos individualmente com garantias de FK e dados validados
       for (const orc of orcamentosList) {
         await this.syncOrcamentoToNeon(orc);
       }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha no lote de orçamentos para o Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
   /**
-   * Sincroniza lista em lote de clientes (utilizado na importação de planilhas)
+   * Sincroniza lista em lote de clientes (otimizado com inserções multi-row em chunks de 50)
    */
   async syncClientesBatchToNeon(clientesList) {
     if (!this.isConfigured || !Array.isArray(clientesList) || clientesList.length === 0) return;
+    if (!getPool()) return;
+
+    activeUpstreamSyncs++;
     try {
-      for (const cli of clientesList) {
-        await this.syncClienteToNeon(cli);
+      const chunkSize = 50;
+      for (let i = 0; i < clientesList.length; i += chunkSize) {
+        const chunk = clientesList.slice(i, i + chunkSize);
+        const placeholders = [];
+        const vals = [];
+        let pIdx = 1;
+        for (const cli of chunk) {
+          const contrato = String(cli.numero_contrato || '').trim();
+          const nome = sanitizeUtf8(cli.nome_cliente || '');
+          if (!contrato || !nome) continue;
+          placeholders.push(`($${pIdx++}, $${pIdx++}, CURRENT_TIMESTAMP)`);
+          vals.push(contrato, nome);
+        }
+        if (placeholders.length > 0) {
+          await queryNeon(`
+            INSERT INTO clientes (numero_contrato, nome_cliente, created_at)
+            VALUES ${placeholders.join(', ')}
+            ON CONFLICT (numero_contrato) DO UPDATE SET
+              nome_cliente = EXCLUDED.nome_cliente
+          `, vals);
+        }
       }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha no lote de clientes para o Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 
   /**
-   * Sincroniza lista em lote de técnicos (utilizado na importação de planilhas)
+   * Sincroniza lista em lote de técnicos (otimizado com inserções multi-row em chunks de 50)
    */
   async syncTecnicosBatchToNeon(tecnicosList) {
     if (!this.isConfigured || !Array.isArray(tecnicosList) || tecnicosList.length === 0) return;
+    if (!getPool()) return;
+
+    activeUpstreamSyncs++;
     try {
-      for (const item of tecnicosList) {
-        if (item && item.tec) {
-          await this.syncTecnicoToNeon(item.tec, item.oldMatricula || null);
-        } else {
-          await this.syncTecnicoToNeon(item);
+      const chunkSize = 50;
+      for (let i = 0; i < tecnicosList.length; i += chunkSize) {
+        const chunk = tecnicosList.slice(i, i + chunkSize);
+        const placeholders = [];
+        const vals = [];
+        let pIdx = 1;
+        for (const item of chunk) {
+          const t = item.tec || item;
+          const mat = String(t.matricula || '').trim();
+          const nome = sanitizeUtf8(t.nome_sobrenome || t.nome_completo || t.nome || '');
+          const func = normalizeTecnicoFuncao(t.funcao);
+          const email = t.email ? sanitizeUtf8(t.email) : null;
+          const tel = t.telefone || null;
+          if (!mat || !nome) continue;
+          placeholders.push(`($${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++}, CURRENT_TIMESTAMP)`);
+          vals.push(mat, func, nome, email, tel);
+        }
+        if (placeholders.length > 0) {
+          await queryNeon(`
+            INSERT INTO tecnicos (matricula, funcao, nome_sobrenome, email, telefone, created_at)
+            VALUES ${placeholders.join(', ')}
+            ON CONFLICT (matricula) DO UPDATE SET
+              funcao = EXCLUDED.funcao,
+              nome_sobrenome = EXCLUDED.nome_sobrenome,
+              email = EXCLUDED.email,
+              telefone = EXCLUDED.telefone
+          `, vals);
         }
       }
     } catch (err) {
       console.warn('⚠️ [NeonSyncService] Falha no lote de técnicos para o Neon:', err.message);
+    } finally {
+      activeUpstreamSyncs = Math.max(0, activeUpstreamSyncs - 1);
     }
   },
 

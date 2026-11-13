@@ -47,28 +47,39 @@ async function pushAllToNeon() {
 
     // 1. Sincroniza Usuários (Não destrutivo: apenas insere ou atualiza, nunca deleta)
     for (const u of usuarios) {
-      await pool.query(`
-        INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
-        ON CONFLICT (email) DO UPDATE SET
-          nome = EXCLUDED.nome,
-          matricula = EXCLUDED.matricula,
-          senha_hash = EXCLUDED.senha_hash,
-          perfil = EXCLUDED.perfil,
-          grupo = EXCLUDED.grupo,
-          primeiro_acesso = EXCLUDED.primeiro_acesso,
-          ativo = EXCLUDED.ativo,
-          updated_at = CURRENT_TIMESTAMP
-      `, [
-        u.nome,
-        String(u.email).toLowerCase().trim(),
-        u.matricula,
-        u.senha_hash,
-        u.perfil,
-        u.grupo || 'G11',
-        u.primeiro_acesso ?? 0,
-        u.ativo ?? 1
-      ]);
+      try {
+        await pool.query(`
+          INSERT INTO usuarios (nome, email, matricula, senha_hash, perfil, grupo, primeiro_acesso, ativo, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+          ON CONFLICT (email) DO UPDATE SET
+            nome = EXCLUDED.nome,
+            matricula = EXCLUDED.matricula,
+            senha_hash = EXCLUDED.senha_hash,
+            perfil = EXCLUDED.perfil,
+            grupo = EXCLUDED.grupo,
+            primeiro_acesso = EXCLUDED.primeiro_acesso,
+            ativo = EXCLUDED.ativo,
+            updated_at = CURRENT_TIMESTAMP
+        `, [
+          u.nome,
+          String(u.email).toLowerCase().trim(),
+          u.matricula,
+          u.senha_hash,
+          u.perfil,
+          u.grupo || 'G11',
+          u.primeiro_acesso ?? 0,
+          u.ativo ?? 1
+        ]);
+      } catch (uErr) {
+        // Se conflitou na matrícula com e-mail diferente, atualiza por matrícula
+        try {
+          await pool.query(`
+            UPDATE usuarios
+            SET nome = $1, email = $2, senha_hash = $3, perfil = $4, grupo = $5, primeiro_acesso = $6, ativo = $7, updated_at = CURRENT_TIMESTAMP
+            WHERE matricula = $8
+          `, [u.nome, String(u.email).toLowerCase().trim(), u.senha_hash, u.perfil, u.grupo || 'G11', u.primeiro_acesso ?? 0, u.ativo ?? 1, u.matricula]);
+        } catch {}
+      }
     }
 
     // 2. Sincroniza Técnicos (Não destrutivo: apenas insere ou atualiza, nunca deleta)
